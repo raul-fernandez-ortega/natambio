@@ -78,6 +78,7 @@ Asimismo se recogen una serie de ejemplos y guías tanto de configuración, como
 Además de la documentación técnica y de uso, se incluyen una serie de documentos de carácter divulgativo que exploran algunas implicaciones psicoacústicas de la reproducción estéreo y la extracción ambiental utilizada por NatAmbio.
 
 Finalmente, se recoge una selección comentada de grabaciones especialmente relevantes durante el desarrollo y evaluación del sistema.
+
 ### Artículos técnicos.
 
 - [NatAmbio Ambient Extractor (NAE)](nae/nae_es.md): Algoritmo de extracción de las trazas ambientales de una grabación estéreo
@@ -87,6 +88,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 ### Documentación de uso de NatAmbio
 
 - [Requisitos, descarga, compilación e instalación](install.md).
+- [Configuración de NatAmbio](README.CONFIG).
 - [Ejemplos de posibles configuraciones](config_samples/README.md).
 - [Uso de natambio como servicio automático en un NatAmbio DSP procesador autónomo](../natambio_as_a_service/natambio_systemd.md).
 - ¿Cómo construir un equipo de audio que sea un sistema NatAmbio?
