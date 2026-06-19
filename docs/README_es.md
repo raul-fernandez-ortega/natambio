@@ -88,7 +88,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 ### Documentación de uso de NatAmbio
 
 - [Requisitos, descarga, compilación e instalación](install.md).
-- Configuración de NatAmbio.
+- [Configuración de NatAmbio](README.CONFIG).
 - [Ejemplos de posibles configuraciones](config_samples/README.md).
 - [Uso de natambio como servicio automático en un NatAmbio DSP procesador autónomo](../natambio_as_a_service/natambio_systemd.md).
 - ¿Cómo construir un equipo de audio que sea un sistema NatAmbio?

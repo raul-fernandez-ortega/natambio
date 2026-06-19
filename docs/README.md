@@ -88,7 +88,7 @@ Finally, a commented selection of recordings that proved especially relevant dur
 ### NatAmbio usage documentation
 
 - [Requirements, download, compilation and installation](install.md).
-- NatAmbio configuration.
+- [NatAmbio configuration](README.CONFIG).
 - [Example configurations](config_samples/README.md).
 - [Running natambio as an automatic service on a standalone NatAmbio DSP processor](../natambio_as_a_service/natambio_systemd.md).
 - How to build an audio system that is a NatAmbio system.
