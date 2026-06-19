@@ -74,7 +74,7 @@ pip install numpy soundfile matplotlib
 ## Usage
 
 ```sh
-python nae_natambio.py <file.wav> [--ambient true|false]
+python nae_natambio.py <file.wav> [--mode alpha|beta]
                                   [--analysis true|false]
                                   [--frame-size N] [--covsteps N]
 ```
@@ -84,25 +84,25 @@ python nae_natambio.py <file.wav> [--ambient true|false]
 | Argument | Default | Description |
 | --- | --- | --- |
 | `wavfile` | *(required)* | **Stereo** WAV file to analyse. |
-| `--ambient` | `false` | `true` = NAE ambient mode; `false` = main mode. |
+| `--mode` | `alpha` | NAE mode: `alpha` (main) or `beta` (ambient). |
 | `--analysis` | `true` | `true` = generate the matplotlib plots; `false` = only process and write the WAVs. |
 | `--frame-size` | `1024` | Frame size in samples. |
 | `--covsteps` | `5` | Number of overlapped covariance steps. |
 
-Boolean flags accept `true/false`, `1/0`, `yes/no`, `on/off`.
+The `--analysis` flag accepts `true/false`, `1/0`, `yes/no`, `on/off`.
 
 ### Examples
 
-Process in main mode with analysis (opens the plots):
+Process in alpha (main) mode with analysis (opens the plots):
 
 ```sh
-python nae_natambio.py input.wav --ambient false --analysis true
+python nae_natambio.py input.wav --mode alpha --analysis true
 ```
 
-Process in ambient mode without plots (only generates the output WAVs):
+Process in beta (ambient) mode without plots (only generates the output WAVs):
 
 ```sh
-python nae_natambio.py input.wav --ambient true --analysis false
+python nae_natambio.py input.wav --mode beta --analysis false
 ```
 
 ## Output

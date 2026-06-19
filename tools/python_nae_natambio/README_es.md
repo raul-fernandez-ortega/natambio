@@ -76,7 +76,7 @@ pip install numpy soundfile matplotlib
 ## Uso
 
 ```sh
-python nae_natambio.py <fichero.wav> [--ambient true|false]
+python nae_natambio.py <fichero.wav> [--mode alpha|beta]
                                      [--analysis true|false]
                                      [--frame-size N] [--covsteps N]
 ```
@@ -86,25 +86,25 @@ python nae_natambio.py <fichero.wav> [--ambient true|false]
 | Argumento | Valor por defecto | Descripción |
 | --- | --- | --- |
 | `wavfile` | *(obligatorio)* | Fichero WAV **estéreo** a analizar. |
-| `--ambient` | `false` | `true` = modo ambiente NAE; `false` = modo principal (main). |
+| `--mode` | `alpha` | Modo NAE: `alpha` (principal/main) o `beta` (ambiente/ambient). |
 | `--analysis` | `true` | `true` = genera las gráficas matplotlib; `false` = solo procesa y escribe los WAV. |
 | `--frame-size` | `1024` | Tamaño de frame en muestras. |
 | `--covsteps` | `5` | Número de pasos de covarianza solapados. |
 
-Los flags booleanos aceptan `true/false`, `1/0`, `yes/no`, `on/off`.
+El flag `--analysis` acepta `true/false`, `1/0`, `yes/no`, `on/off`.
 
 ### Ejemplos
 
-Procesar en modo principal con análisis (abre las gráficas):
+Procesar en modo alpha (principal) con análisis (abre las gráficas):
 
 ```sh
-python nae_natambio.py entrada.wav --ambient false --analysis true
+python nae_natambio.py entrada.wav --mode alpha --analysis true
 ```
 
-Procesar en modo ambiente sin gráficas (solo genera los WAV de salida):
+Procesar en modo beta (ambiente) sin gráficas (solo genera los WAV de salida):
 
 ```sh
-python nae_natambio.py entrada.wav --ambient true --analysis false
+python nae_natambio.py entrada.wav --mode beta --analysis false
 ```
 
 ## Salida

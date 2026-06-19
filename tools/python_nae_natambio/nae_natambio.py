@@ -25,7 +25,7 @@ Because it relies only on numpy, soundfile and matplotlib (all cross-platform),
 it runs on **GNU/Linux** and **MS Windows** without modification.
 
 Usage:
-    python nae_natambio.py <file.wav> [--ambient true|false]
+    python nae_natambio.py <file.wav> [--mode alpha|beta]
                                       [--analysis true|false]
                                       [--frame-size N] [--covsteps N]
 
@@ -56,7 +56,7 @@ ANALYSIS = True
 COVSTEPS = 5
 ICORRL = 20
 NATAMBCOEFF = -2.5
-MODE_AMB = False
+MODE = "alpha"   # default NAE mode: alpha (main) / beta (ambient)
 
 
 def str2bool(value):
@@ -70,12 +70,10 @@ def str2bool(value):
     raise argparse.ArgumentTypeError(f"Expected true/false, got '{value}'")
 
 
-def mode_label(wavfile, mode_amb):
-    """Build a title suffix with the WAV name and the NAE mode."""
+def mode_label(wavfile, mode):
+    """Build a title suffix with the WAV name and the NAE mode (alpha/beta)."""
     wavname = os.path.basename(wavfile)
-    # In graph titles only, "main" mode is shown as "alpha" and "ambient" as "beta".
-    mode_str = "NAE beta" if mode_amb else "NAE alpha"
-    return f"{wavname} — {mode_str}"
+    return f"{wavname} — NAE {mode}"
 
 
 def save_fig(prefix, suffix):
@@ -223,9 +221,8 @@ def main():
         description="NAE NatAmbio: PCA-based stereo main/ambience decomposition with optional analysis plots.")
     parser.add_argument("wavfile",
                         help="Fichero WAV estéreo a analizar")
-    parser.add_argument("--ambient", type=str2bool, default=MODE_AMB,
-                        metavar="true|false",
-                        help="Modo ambiente NAE (true) o modo main (false). Por defecto: false")
+    parser.add_argument("--mode", choices=["alpha", "beta"], default=MODE,
+                        help="Modo NAE: alpha (main) o beta (ambient). Por defecto: alpha")
     parser.add_argument("--analysis", type=str2bool, default=ANALYSIS,
                         metavar="true|false",
                         help="Modo análisis: genera las gráficas matplotlib (true) o solo procesa (false). Por defecto: true")
@@ -238,9 +235,10 @@ def main():
     WAVFILE = parsed.wavfile
     frame_size = parsed.frame_size
     steps = parsed.covsteps
-    mode_amb = parsed.ambient
+    mode = parsed.mode
+    mode_amb = (mode == "beta")
     analysis = parsed.analysis
-    label = mode_label(WAVFILE, mode_amb)
+    label = mode_label(WAVFILE, mode)
     # Prefix for saved figures (and the output WAVs): the WAV path without its
     # extension, so every PNG starts with the WAV name plus a descriptive suffix.
     outprefix = WAVFILE.rsplit(".")[0]
@@ -252,7 +250,7 @@ def main():
     print(f"Successfully loaded stereo WAV file: {WAVFILE}")
     print(f"Sample rate: {samplerate} Hz")
     print(f"Audio samples: {num_samples}")
-    print(f"Mode: {'ambient' if mode_amb else 'main'} | Analysis: {analysis}")
+    print(f"Mode: {mode} | Analysis: {analysis}")
 
     if analysis:
         # Plot a small portion of the audio
