@@ -1,0 +1,58 @@
+# --------------------------------------------------------------------------------
+#
+#  xtc_filters -- standalone XTC (crosstalk-cancellation) FIR generator.
+#
+#  Writes the direct/cross XTC filter pair as WAV files under ./filters, using
+#  the project's shared filter-design code in ../../lib (xtc.c, dsp.c,
+#  binaural_cues.c) -- the same units natambio links. Only main.c is specific to
+#  this tool.
+#
+#  Usage (standalone, no autotools):
+#      make -f Makefile.simple
+#      ./xtc_filters -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
+#
+#  Set DEBUG=1 to also dump the intermediate ILD_*.wav / MP_ILD_*.wav filters
+#  (xtc.c emits them via write_wav, which main.c provides):
+#      make -f Makefile.simple DEBUG=1
+#
+# --------------------------------------------------------------------------------
+
+
+PREFIX ?= /usr/local
+BINDIR ?= $(PREFIX)/bin
+
+CFLAGS  += -O3 -Wall
+
+# Shared filter-design code lives in ../../lib; compiled here via VPATH.
+LIBDIR   = ../../lib
+VPATH    = $(LIBDIR)
+INC      = -I$(LIBDIR)
+LDLIBS  += -lsndfile -lfftw3f -lm
+
+ifeq ($(DEBUG),1)
+CFLAGS  += -DDEBUG
+endif
+
+TARGET   = xtc_filters
+# main.o is local; xtc/dsp/binaural_cues come from $(LIBDIR) via VPATH.
+OBJS     = main.o xtc.o dsp.o binaural_cues.o
+
+.PHONY: all install uninstall clean
+
+all:	$(TARGET)
+
+%.o : %.c
+	$(CC) $(CFLAGS) $(INC) -c $< -o $@
+
+$(TARGET): $(OBJS)
+	$(CC) -o $@ $(OBJS) $(LDLIBS)
+
+install: all
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 755 $(TARGET) $(DESTDIR)$(BINDIR)
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
+
+clean:
+	/bin/rm -f *~ *.o *.d $(TARGET)

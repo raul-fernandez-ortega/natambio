@@ -1,0 +1,50 @@
+# --------------------------------------------------------------------------------
+#
+#  ladspa_nae_natambio -- LADSPA port of the natambio Panambio (PCA) engine.
+#
+#  Builds the shared library ladspa_nae_natambio.so. The plugin is self-contained
+#  (a near-direct translation of src/panambio.cpp); it does NOT link the project's
+#  lib/ filter-design code, so there is no VPATH here.
+#
+#  Usage (standalone, no autotools):
+#      make -f Makefile.simple
+#      make -f Makefile.simple install        # copies the .so into ~/.ladspa
+#
+#  Set DEBUG=1 to print a per-block correlation table to stdout while processing:
+#      make -f Makefile.simple DEBUG=1
+#
+#  Run it offline over a WAV with the LADSPA SDK's applyplugin (label NAE_NATAMBIO,
+#  4 control params: mode mid_gain side_gain amb_gain):
+#      applyplugin in.wav out.wav ./ladspa_nae_natambio.so NAE_NATAMBIO 0 0 0 4
+#
+# --------------------------------------------------------------------------------
+
+LADSPADIR ?= $(HOME)/.ladspa
+
+CC      ?= gcc
+CFLAGS  += -O3 -Wall -fPIC
+LDLIBS  += -lm
+
+ifeq ($(DEBUG),1)
+CFLAGS  += -DDEBUG
+endif
+
+TARGET   = ladspa_nae_natambio.so
+SRC      = ladspa_nae_natambio.c
+
+.PHONY: all install uninstall clean
+
+all:	$(TARGET)
+
+$(TARGET): $(SRC)
+	$(CC) $(CFLAGS) -shared -o $@ $< $(LDLIBS)
+
+install: all
+	install -d $(LADSPADIR)
+	install -m 644 $(TARGET) $(LADSPADIR)
+
+uninstall:
+	rm -f $(LADSPADIR)/$(TARGET)
+
+clean:
+	/bin/rm -f *~ *.o $(TARGET)

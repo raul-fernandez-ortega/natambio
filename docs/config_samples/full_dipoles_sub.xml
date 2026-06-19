@@ -1,0 +1,331 @@
+<main>
+  <natambio>
+    <!--
+      Full two-dipole system with subwoofer.
+
+      Front path  (NAE alpha):  XTC + DRC + loudness + 100 Hz crossover
+        direct signal  →  HP branch to satellite monitors  +  LP branch to sub
+        cross signal   →  monitors only, no crossover filter applied
+                          (XTC cancellation must work at all frequencies;
+                          the monitors' natural roll-off handles the low end)
+
+      Rear path  (NAE beta):  XTC + DRC + loudness, full-range (no crossover)
+
+      Both NAEs read the same stereo input.  Rear speakers are assumed to be
+      full-range satellites; add a crossover here if they have a sub too.
+
+      Outputs:
+        playback_1/2  —  front satellite monitors (left / right)
+        playback_3/4  —  subwoofer (left / right low-pass feed)
+        playback_5/6  —  rear monitors (left / right)
+
+      Tune <front_gain>, <ambience_gain> and <rear_gain> by ear.
+      Adjust the rear convol <gain> values to balance surround vs. front level.
+    -->
+
+    <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness filter</filter_name>
+    </loudness>
+
+    <!-- Front crossover at 100 Hz -->
+    <low_and_high_filter>
+      <frequency>100.0</frequency>
+      <dB_octave>24</dB_octave>
+      <gain>0</gain>
+      <length>8192</length>
+      <low_pass_coeff_name>low pass filter</low_pass_coeff_name>
+      <high_pass_coeff_name>high pass filter</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    <!-- Front XTC: typical near-field listening geometry -->
+    <xtc>
+      <itd_us>160</itd_us>
+      <ild_db>10.0</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>front xtc direct</direct_filter_name>
+      <cross_filter_name>front xtc cross</cross_filter_name>
+    </xtc>
+
+    <!-- Rear XTC: wider geometry for surround speaker placement -->
+    <xtc>
+      <itd_us>300</itd_us>
+      <ild_db>16.0</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>35</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>rear xtc direct</direct_filter_name>
+      <cross_filter_name>rear xtc cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters — adjust paths to your room measurements -->
+    <coeff>
+      <name>DRC front left</name>
+      <filename>~/current_filters/drc_front_left.wav</filename>
+    </coeff>
+    <coeff>
+      <name>DRC front right</name>
+      <filename>~/current_filters/drc_front_right.wav</filename>
+    </coeff>
+    <coeff>
+      <name>DRC rear left</name>
+      <filename>~/current_filters/drc_rear_left.wav</filename>
+    </coeff>
+    <coeff>
+      <name>DRC rear right</name>
+      <filename>~/current_filters/drc_rear_right.wav</filename>
+    </coeff>
+
+    <!--
+      Derived coeffs — front direct paths, split by the crossover:
+        front xtc direct * loudness * DRC * high pass filter  →  monitors
+        front xtc direct * loudness * DRC * low pass filter   →  subwoofer
+    -->
+    <coeff>
+      <name>front direct HP left</name>
+      <convol_coeff>front xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front left</convol_coeff>
+      <convol_coeff>high pass filter</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>front direct LP left</name>
+      <convol_coeff>front xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front left</convol_coeff>
+      <convol_coeff>low pass filter</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>front direct HP right</name>
+      <convol_coeff>front xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front right</convol_coeff>
+      <convol_coeff>high pass filter</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>front direct LP right</name>
+      <convol_coeff>front xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front right</convol_coeff>
+      <convol_coeff>low pass filter</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- Derived coeffs — front cross paths (monitors only, no crossover) -->
+    <coeff>
+      <name>front cross left</name>
+      <convol_coeff>front xtc cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>front cross right</name>
+      <convol_coeff>front xtc cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC front right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- Derived coeffs — rear paths (full-range, no crossover) -->
+    <coeff>
+      <name>rear direct left</name>
+      <convol_coeff>rear xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC rear left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>rear cross left</name>
+      <convol_coeff>rear xtc cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC rear left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>rear direct right</name>
+      <convol_coeff>rear xtc direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC rear right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+    <coeff>
+      <name>rear cross right</name>
+      <convol_coeff>rear xtc cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC rear right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>front_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>front_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+      <!-- Rear NAE reads the same stereo source as the front NAE -->
+      <port>
+        <name>rear_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>rear_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>front_output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>front_output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>sub_output_left</name>
+        <destname>system:playback_3</destname>
+      </port>
+      <port>
+        <name>sub_output_right</name>
+        <destname>system:playback_4</destname>
+      </port>
+      <port>
+        <name>rear_output_left</name>
+        <destname>system:playback_5</destname>
+      </port>
+      <port>
+        <name>rear_output_right</name>
+        <destname>system:playback_6</destname>
+      </port>
+    </jack_output>
+
+    <!-- Front NAE: alpha dipole (main + ambience blend) -->
+    <nae>
+      <name>front stereo</name>
+      <mode>alpha</mode>
+      <front_gain>-0.5</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>front_input_left</input_left>
+      <input_right>front_input_right</input_right>
+      <output_left>front_nae_left</output_left>
+      <output_right>front_nae_right</output_right>
+    </nae>
+
+    <!-- Rear NAE: beta dipole (surround / decorrelated signal extraction) -->
+    <nae>
+      <name>surround</name>
+      <mode>beta</mode>
+      <rear_gain>4.0</rear_gain>
+      <input_left>rear_input_left</input_left>
+      <input_right>rear_input_right</input_right>
+      <output_left>rear_nae_left</output_left>
+      <output_right>rear_nae_right</output_right>
+    </nae>
+
+    <!--
+      Front convols.
+      Left NAE output  →  HP direct to left monitor  +  LP direct to left sub
+                          +  cross-cancellation to right monitor
+      Right NAE output →  HP direct to right monitor  +  LP direct to right sub
+                          +  cross-cancellation to left monitor
+    -->
+    <convol>
+      <name>front direct HP left</name>
+      <coeff_name>front direct HP left</coeff_name>
+      <from_nae>front_nae_left</from_nae>
+      <to_output>front_output_left</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>front direct LP left</name>
+      <coeff_name>front direct LP left</coeff_name>
+      <from_nae>front_nae_left</from_nae>
+      <to_output>sub_output_left</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>front cross right</name>
+      <coeff_name>front cross right</coeff_name>
+      <from_nae>front_nae_left</from_nae>
+      <to_output>front_output_right</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>front direct HP right</name>
+      <coeff_name>front direct HP right</coeff_name>
+      <from_nae>front_nae_right</from_nae>
+      <to_output>front_output_right</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>front direct LP right</name>
+      <coeff_name>front direct LP right</coeff_name>
+      <from_nae>front_nae_right</from_nae>
+      <to_output>sub_output_right</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>front cross left</name>
+      <coeff_name>front cross left</coeff_name>
+      <from_nae>front_nae_right</from_nae>
+      <to_output>front_output_left</to_output>
+      <gain>0.0</gain>
+      <delay>0</delay>
+    </convol>
+
+    <!-- Rear convols (adjust <gain> to balance surround vs. front level) -->
+    <convol>
+      <name>rear direct left</name>
+      <coeff_name>rear direct left</coeff_name>
+      <from_nae>rear_nae_left</from_nae>
+      <to_output>rear_output_left</to_output>
+      <gain>6.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>rear cross right</name>
+      <coeff_name>rear cross right</coeff_name>
+      <from_nae>rear_nae_left</from_nae>
+      <to_output>rear_output_right</to_output>
+      <gain>6.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>rear direct right</name>
+      <coeff_name>rear direct right</coeff_name>
+      <from_nae>rear_nae_right</from_nae>
+      <to_output>rear_output_right</to_output>
+      <gain>6.0</gain>
+      <delay>0</delay>
+    </convol>
+    <convol>
+      <name>rear cross left</name>
+      <coeff_name>rear cross left</coeff_name>
+      <from_nae>rear_nae_right</from_nae>
+      <to_output>rear_output_left</to_output>
+      <gain>6.0</gain>
+      <delay>0</delay>
+    </convol>
+
+  </natambio>
+</main>

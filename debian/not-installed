@@ -1,0 +1,9 @@
+# The upstream Makefile.am installs these via dist_doc_DATA into
+# /usr/share/doc/NatAmbio/. They are intentionally not packaged from there:
+# README, README.md and README.CONFIG are shipped via debian/*.docs into the
+# per-package /usr/share/doc/<pkg>/ dirs, LICENSE is covered by debian/copyright,
+# and AUTHORS is reflected in debian/copyright too.
+usr/share/doc/NatAmbio/AUTHORS
+usr/share/doc/NatAmbio/LICENSE
+usr/share/doc/NatAmbio/README.CONFIG
+usr/share/doc/NatAmbio/README.md

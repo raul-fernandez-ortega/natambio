@@ -1,0 +1,202 @@
+<main>
+  <natambio>
+    <!--
+      NAE + XTC + DRC front dipole vs. bypass — jack_snapshot switching config.
+
+      Two parallel output paths, all four ports left unconnected (no destname)
+      so that jack_snapshot can switch between them with zero-gap routing:
+
+        output_L / output_R   —  NAE (alpha dipole) → XTC + DRC
+        bypass_L / bypass_R   —  direct pass-through (delta convol, no processing)
+
+      LEVEL MATCHING
+      Before saving the jack_snapshot presets, adjust the <gain> tags (dB) in
+      the convol blocks below so that both paths sound equally loud.
+
+      With the loudness filter active, the processed path will almost certainly
+      be louder than the bypass — the loudness curve adds several dB of
+      broadband gain (especially in the lows) to compensate for reduced
+      sensitivity at low listening levels. On top of that, NAE alpha mode can
+      push the ambience component up by several more dB. Expect the bypass path
+      to need a noticeable positive gain trim, or reduce the processed convol
+      gains, before the two paths are level-matched.
+
+      Adjust by ear with a well-known track before the switching session.
+      Once levels are matched, the comparison can be run blind with a small
+      script that calls jack_snapshot at random intervals, e.g.:
+
+          while true; do
+              jack_snapshot --load preset_processed.xml   # or preset_bypass.xml
+              sleep $(( RANDOM % 8 + 4 ))
+          done
+
+      The random dwell time (here 4–11 s) prevents the listener from predicting
+      the switch and keeps the test honest.
+    -->
+
+    <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness filter</filter_name>
+    </loudness>
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs: XTC * loudness * DRC of the destination speaker -->
+    <coeff>
+      <name>XTC direct DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- All four ports left unconnected: wire them in jack_snapshot presets -->
+      <port>
+        <name>output_L</name>
+      </port>
+      <port>
+        <name>output_R</name>
+      </port>
+      <port>
+        <name>bypass_L</name>
+      </port>
+      <port>
+        <name>bypass_R</name>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: splits input into main (front) and ambience components -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>nae_out_left</output_left>
+      <output_right>nae_out_right</output_right>
+    </nae>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- PATH A: NAE + XTC + DRC                                             -->
+    <!-- Adjust <gain> here to match the loudness of the bypass path.        -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <!-- Left monitor: direct path + cross-cancellation from right NAE output -->
+    <convol>
+      <name>XTC direct DRC left</name>
+      <coeff_name>XTC direct DRC left</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC left</name>
+      <coeff_name>XTC cross DRC left</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left NAE output -->
+    <convol>
+      <name>XTC direct DRC right</name>
+      <coeff_name>XTC direct DRC right</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC right</name>
+      <coeff_name>XTC cross DRC right</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- PATH B: bypass (delta — no convolution, delay or gain only)         -->
+    <!-- Adjust <gain> here to match the loudness of the processed path.     -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <convol>
+      <name>bypass left</name>
+      <coeff_name>delta</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>bypass_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>bypass right</name>
+      <coeff_name>delta</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>bypass_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

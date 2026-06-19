@@ -1,0 +1,298 @@
+<main>
+  <natambio>
+    <!--
+      Two independent front-dipole systems driven from a single stereo input.
+
+      Each system has its own NAE alpha engine, XTC block, equal-loudness
+      filter and per-channel DRC FIR — fully independent processing chains
+      sharing only the physical input signal.  Both pairs of JACK input ports
+      point to the same capture source so the signal is read once but
+      processed twice in parallel.
+
+      System 1  (sys1_output_L / sys1_output_R)  —  e.g. main monitors
+      System 2  (sys2_output_L / sys2_output_R)  —  e.g. secondary monitors
+
+      Paths per system (4 × 2 = 8 convols total):
+        XTC direct × loudness × DRC left   ←  nae_left  → output_L
+        XTC cross  × loudness × DRC left   ←  nae_right → output_L
+        XTC direct × loudness × DRC right  ←  nae_right → output_R
+        XTC cross  × loudness × DRC right  ←  nae_left  → output_R
+
+      Tune each system's <phon>/<ref_phon>, XTC geometry, NAE gains and DRC
+      paths independently to match its listening position and room response.
+    -->
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- SYSTEM 1 — equal-loudness, XTC, DRC                                 -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness sys1</filter_name>
+    </loudness>
+
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC1 direct</direct_filter_name>
+      <cross_filter_name>XTC1 cross</cross_filter_name>
+    </xtc>
+
+    <coeff>
+      <name>DRC sys1 left</name>
+      <filename>~/filters/sys1_drc_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC sys1 right</name>
+      <filename>~/filters/sys1_drc_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs system 1: XTC × loudness × DRC -->
+    <coeff>
+      <name>sys1 XTC direct DRC left</name>
+      <convol_coeff>XTC1 direct</convol_coeff>
+      <convol_coeff>loudness sys1</convol_coeff>
+      <convol_coeff>DRC sys1 left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys1 XTC cross DRC left</name>
+      <convol_coeff>XTC1 cross</convol_coeff>
+      <convol_coeff>loudness sys1</convol_coeff>
+      <convol_coeff>DRC sys1 left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys1 XTC direct DRC right</name>
+      <convol_coeff>XTC1 direct</convol_coeff>
+      <convol_coeff>loudness sys1</convol_coeff>
+      <convol_coeff>DRC sys1 right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys1 XTC cross DRC right</name>
+      <convol_coeff>XTC1 cross</convol_coeff>
+      <convol_coeff>loudness sys1</convol_coeff>
+      <convol_coeff>DRC sys1 right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- SYSTEM 2 — equal-loudness, XTC, DRC                                 -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <loudness>
+      <phon>75</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness sys2</filter_name>
+    </loudness>
+
+    <xtc>
+      <itd_us>200</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>22</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC2 direct</direct_filter_name>
+      <cross_filter_name>XTC2 cross</cross_filter_name>
+    </xtc>
+
+    <coeff>
+      <name>DRC sys2 left</name>
+      <filename>~/filters/sys2_drc_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC sys2 right</name>
+      <filename>~/filters/sys2_drc_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs system 2: XTC × loudness × DRC -->
+    <coeff>
+      <name>sys2 XTC direct DRC left</name>
+      <convol_coeff>XTC2 direct</convol_coeff>
+      <convol_coeff>loudness sys2</convol_coeff>
+      <convol_coeff>DRC sys2 left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys2 XTC cross DRC left</name>
+      <convol_coeff>XTC2 cross</convol_coeff>
+      <convol_coeff>loudness sys2</convol_coeff>
+      <convol_coeff>DRC sys2 left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys2 XTC direct DRC right</name>
+      <convol_coeff>XTC2 direct</convol_coeff>
+      <convol_coeff>loudness sys2</convol_coeff>
+      <convol_coeff>DRC sys2 right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>sys2 XTC cross DRC right</name>
+      <convol_coeff>XTC2 cross</convol_coeff>
+      <convol_coeff>loudness sys2</convol_coeff>
+      <convol_coeff>DRC sys2 right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- JACK ports                                                           -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <!-- System 1 reads the same physical source as System 2 -->
+      <port>
+        <name>sys1_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>sys1_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+      <port>
+        <name>sys2_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>sys2_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>sys1_output_L</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>sys1_output_R</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>sys2_output_L</name>
+        <destname>system:playback_3</destname>
+      </port>
+      <port>
+        <name>sys2_output_R</name>
+        <destname>system:playback_4</destname>
+      </port>
+    </jack_output>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- NAE engines                                                          -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <nae>
+      <name>sys1 front dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>sys1_input_left</input_left>
+      <input_right>sys1_input_right</input_right>
+      <output_left>sys1_nae_left</output_left>
+      <output_right>sys1_nae_right</output_right>
+    </nae>
+
+    <nae>
+      <name>sys2 front dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>sys2_input_left</input_left>
+      <input_right>sys2_input_right</input_right>
+      <output_left>sys2_nae_left</output_left>
+      <output_right>sys2_nae_right</output_right>
+    </nae>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- SYSTEM 1 convols                                                     -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <convol>
+      <name>sys1 XTC direct DRC left</name>
+      <coeff_name>sys1 XTC direct DRC left</coeff_name>
+      <from_nae>sys1_nae_left</from_nae>
+      <to_output>sys1_output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys1 XTC cross DRC left</name>
+      <coeff_name>sys1 XTC cross DRC left</coeff_name>
+      <from_nae>sys1_nae_right</from_nae>
+      <to_output>sys1_output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys1 XTC direct DRC right</name>
+      <coeff_name>sys1 XTC direct DRC right</coeff_name>
+      <from_nae>sys1_nae_right</from_nae>
+      <to_output>sys1_output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys1 XTC cross DRC right</name>
+      <coeff_name>sys1 XTC cross DRC right</coeff_name>
+      <from_nae>sys1_nae_left</from_nae>
+      <to_output>sys1_output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- SYSTEM 2 convols                                                     -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <convol>
+      <name>sys2 XTC direct DRC left</name>
+      <coeff_name>sys2 XTC direct DRC left</coeff_name>
+      <from_nae>sys2_nae_left</from_nae>
+      <to_output>sys2_output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys2 XTC cross DRC left</name>
+      <coeff_name>sys2 XTC cross DRC left</coeff_name>
+      <from_nae>sys2_nae_right</from_nae>
+      <to_output>sys2_output_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys2 XTC direct DRC right</name>
+      <coeff_name>sys2 XTC direct DRC right</coeff_name>
+      <from_nae>sys2_nae_right</from_nae>
+      <to_output>sys2_output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>sys2 XTC cross DRC right</name>
+      <coeff_name>sys2 XTC cross DRC right</coeff_name>
+      <from_nae>sys2_nae_left</from_nae>
+      <to_output>sys2_output_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

@@ -1,0 +1,66 @@
+<main>
+  <natambio>
+    <!--
+      NAE-only client (natambio_nae).
+      Splits the stereo input into four independent JACK output ports:
+        front_L / front_R  —  main (front) component
+        amb_L   / amb_R    —  ambience component
+
+      Intended to feed natambio_xtc_drc (see xtc_drc_front_amb_in.xml), but
+      the four outputs are left as separate ports so the user can connect or
+      disconnect each pair manually in qjackctl (e.g. bypass ambience, route
+      front only, adjust gains externally, etc.).
+
+      Start this client AFTER natambio_xtc_drc so the auto-connect destnames
+      can resolve. If started first, connect the ports manually.
+    -->
+
+    <jack_input>
+      <clientname>natambio_nae</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- Main (front) component outputs -->
+      <port>
+        <name>front_L</name>
+        <destname>natambio_xtc_drc:front_L</destname>
+      </port>
+      <port>
+        <name>front_R</name>
+        <destname>natambio_xtc_drc:front_R</destname>
+      </port>
+      <!-- Ambience component outputs -->
+      <port>
+        <name>amb_L</name>
+        <destname>natambio_xtc_drc:amb_L</destname>
+      </port>
+      <port>
+        <name>amb_R</name>
+        <destname>natambio_xtc_drc:amb_R</destname>
+      </port>
+    </jack_output>
+
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <!-- front_output_* and amb_output_* resolve to the JACK ports above -->
+      <front_output_left>front_L</front_output_left>
+      <front_output_right>front_R</front_output_right>
+      <amb_output_left>amb_L</amb_output_left>
+      <amb_output_right>amb_R</amb_output_right>
+    </nae>
+
+  </natambio>
+</main>

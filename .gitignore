@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# NatAmbio .gitignore
+# Source-only repo: build artifacts are regenerated (autotools / make / debian).
+# ---------------------------------------------------------------------------
+
+# ---- Compiled objects, libraries, dependency files ----
+*.o
+*.a
+*.so
+*.lo
+*.la
+*.d
+*.pyc
+
+# ---- Compiled programs / stray output ----
+/src/natambio
+/src/out
+/tools/xtc_filters/xtc_filters
+/tools/race_filters/race_filters
+/tools/ladspa_nae_natambio/ladspa_nae_natambio.so
+
+# Generated filter outputs
+/tools/race_filters/filters/*.wav
+
+# ---- Editor backups / IDE / logs ----
+*~
+.anjuta*
+.anjuta_sym_db.db
+qjackctl.log
+
+# ---- Python ----
+__pycache__/
+
+# ---- Autotools generated (run ./autogen.sh after a fresh checkout) ----
+/autom4te.cache/
+/aclocal.m4
+/configure
+/config.h
+/config.h.in
+/config.log
+/config.status
+/stamp-h1
+# Generated makefiles at any level (keep Makefile.am and Makefile.simple)
+Makefile
+Makefile.in
+/compile
+/depcomp
+/install-sh
+/missing
+/libtool
+/ltmain.sh
+/config.guess
+/config.sub
+.deps/
+.dirstamp
+
+# ---- Debian packaging build artifacts ----
+/debian/tmp/
+/debian/.debhelper/
+/debian/files
+/debian/debhelper-build-stamp
+/debian/*.substvars
+/debian/*.debhelper.log
+/debian/autoreconf.before
+/debian/autoreconf.after
+/debian/natambio/
+/debian/natambio-drc/
+/debian/natambio-tools/
+/debian/natambio-ladspa/
+*.deb
+*.buildinfo
+*.changes

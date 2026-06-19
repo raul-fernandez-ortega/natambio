@@ -1,0 +1,197 @@
+<main>
+  <natambio>
+    <!--
+      120 Hz crossover + equal-loudness compensation + DRC + XTC integrated
+      via <convol_coeff>, no NAE.
+
+      Monitor paths (high-pass band): four XTC paths, each pre-convolved with
+      loudness, DRC and the HP filter:
+        XTC direct × loudness × DRC left  × HP  →  input_left  → output_left
+        XTC cross  × loudness × DRC left  × HP  →  input_right → output_left
+        XTC direct × loudness × DRC right × HP  →  input_right → output_right
+        XTC cross  × loudness × DRC right × HP  →  input_left  → output_right
+
+      Subwoofer (low-pass band): stereo sum, loudness + DRC, no XTC.
+      The loudness filter contributes its low-frequency boost to the sub path;
+      the HP component of the curve is irrelevant below 120 Hz but harmless
+      (it is buried under the LP rolloff).  Omit loudness from the sub coeffs
+      if you prefer to drive bass level by ear via the <gain> tag alone.
+        loudness × DRC left  × LP  →  input_left  → output_sub  (-3 dB)
+        loudness × DRC right × LP  →  input_right → output_sub  (-3 dB)
+    -->
+
+    <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness filter</filter_name>
+    </loudness>
+
+    <!-- Crossover at 120 Hz -->
+    <low_and_high_filter>
+      <frequency>120.0</frequency>
+      <dB_octave>24</dB_octave>
+      <gain>0</gain>
+      <length>8192</length>
+      <low_pass_coeff_name>LP 120Hz</low_pass_coeff_name>
+      <high_pass_coeff_name>HP 120Hz</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Monitors: XTC × loudness × DRC × HP (one coeff per XTC path and destination speaker) -->
+    <coeff>
+      <name>XTC direct loudness HP DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross loudness HP DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct loudness HP DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross loudness HP DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- Subwoofer: loudness × DRC × LP (no XTC; bass is non-directional) -->
+    <coeff>
+      <name>loudness LP DRC left</name>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>loudness LP DRC right</name>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>output_sub</name>
+        <destname>system:playback_3</destname>
+      </port>
+    </jack_output>
+
+    <!-- Left monitor: direct path + cross-cancellation from right input -->
+    <convol>
+      <name>XTC direct loudness HP DRC left</name>
+      <coeff_name>XTC direct loudness HP DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross loudness HP DRC left</name>
+      <coeff_name>XTC cross loudness HP DRC left</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left input -->
+    <convol>
+      <name>XTC direct loudness HP DRC right</name>
+      <coeff_name>XTC direct loudness HP DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross loudness HP DRC right</name>
+      <coeff_name>XTC cross loudness HP DRC right</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Subwoofer: L+R low-pass sum, -3 dB per branch -->
+    <convol>
+      <name>loudness LP DRC sub left</name>
+      <coeff_name>loudness LP DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+    <convol>
+      <name>loudness LP DRC sub right</name>
+      <coeff_name>loudness LP DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+  </natambio>
+</main>

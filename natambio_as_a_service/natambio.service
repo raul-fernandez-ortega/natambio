@@ -1,0 +1,32 @@
+[Unit]
+Description=natambio DSP processor (panambio)
+After=natambio-jackd.service
+# natambio lives exactly as long as jackd: if jackd stops/crashes, natambio
+# stops; if jackd comes back, Upholds (in natambio-jackd.service) restarts it.
+BindsTo=natambio-jackd.service
+Requires=natambio-jackd.service
+
+[Service]
+Type=simple
+# Wait until jackd is serving ports before starting (avoids the race after
+# a jackd restart).
+ExecStartPre=%h/control_scripts/wait_jack.sh
+ExecStart=%h/control_scripts/start_natambio_systemd.sh
+Restart=always
+RestartSec=1
+LimitRTPRIO=infinity
+LimitMEMLOCK=infinity
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target
+
+# --- MULTI-PROCESS MODE (separated: natambio_only + eq) ----------------------
+# If you switch back to start_natambio_separated.sh (2 natambio processes),
+# use an instantiated template instead of this unit. Create natambio@.service
+# with:
+#     ExecStart=/usr/local/bin/natambio %h/nat_ambio_surround_config/%i.xml
+# and start:
+#     systemctl --user enable --now natambio@test_natambio_only_<tag> \
+#                                    natambio@test_eq_only_subwoofer_<tag>
+# (add the same BindsTo/After natambio-jackd.service to the template).

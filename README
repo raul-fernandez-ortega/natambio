@@ -1,0 +1,83 @@
+Nat(ural) Ambio(phonis) Surround
+================================================================================
+
+natambio is a real-time JACK audio application that combines two processing
+stages on live audio streams:
+
+  1. Panambio  - PCA-based spatial decomposition of a stereo signal into
+                 main + ambience components (front mode) or surround signal
+                 (rear mode), driven by a 2x2 covariance eigenvalue solver
+                 running in dedicated real-time worker threads.
+
+  2. Convolution - per-channel partitioned FFT convolution via Fons
+                   Adriaensen's zita-convolver library, configurable as
+                   arbitrary routing graphs (chained convolvers, bypass via
+                   the "delta" coefficient, per-output gain and delay).
+
+Both stages are driven by a single XML configuration file. The two stages can
+run in one JACK client (Panambio -> Convolution chained internally) or split
+across two JACK clients (natambio + smoothfir blocks in the same file).
+
+
+Features
+--------------------------------------------------------------------------------
+ - XML configuration (libxml2), with `~` home-directory expansion for paths.
+ - Up to 64 convolution channels (the zita-convolver limit).
+ - Many-to-many routing: any input port can feed multiple convolvers; any
+   convolver can drive multiple output ports; convolver outputs can feed
+   other convolver inputs.
+ - "delta" bypass coefficient for pass-through paths with gain and delay only.
+ - Panambio outputs available as JACK ports OR as virtual buffers consumed
+   directly by downstream convolvers (no JACK round-trip).
+ - Sample-accurate per-channel output delay and linear gain.
+ - Impulse responses loaded from any libsndfile-supported audio format
+   (mono channel selectable, sample rate must match JACK).
+ - Derived coefficients: a <coeff> may be built at load time from the
+   convolution of one or more other coeffs (via <convol_coeff>) instead of
+   from an audio file, so composite filters (e.g. RACE * EQ) can be assembled
+   directly from the configuration.
+
+
+Dependencies
+--------------------------------------------------------------------------------
+ - JACK            (jack/jack.h)
+ - zita-convolver  (Fons Adriaensen, https://kokkinizita.linuxaudio.org)
+ - libsndfile      (impulse response file loading)
+ - libxml2         (configuration parsing)
+ - fftw3f          (single-precision FFT, pulled in by zita-convolver)
+ - pthreads, librt
+
+
+Build and install
+--------------------------------------------------------------------------------
+With the autotools build system:
+
+    ./autogen.sh        # only needed when building from a git checkout
+    ./configure
+    make
+    sudo make install
+
+A simple fallback Makefile is also provided under src/:
+
+    cd src && make
+
+The installed binary is `natambio` (default prefix /usr/local).
+
+
+Usage
+--------------------------------------------------------------------------------
+    natambio [-quiet] <configuration-file.xml>
+
+Use Ctrl+C (SIGINT) to stop.
+
+Several example XML configurations are provided under tests/.
+A full description of the XML schema is in README.CONFIG, and an extended
+developer reference is in src/README.md.
+
+
+License
+--------------------------------------------------------------------------------
+Distributed under the terms of the GNU General Public License, version 2.
+See the LICENSE file for the full text.
+
+(c) 2013-2025 Raul Fernandez Ortega

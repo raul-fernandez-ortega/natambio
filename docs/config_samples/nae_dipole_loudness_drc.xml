@@ -1,0 +1,102 @@
+<main>
+  <natambio>
+    <!--
+      NAE front dipole (alpha) + equal-loudness compensation + per-channel DRC,
+      no subwoofer, no XTC.
+
+      The loudness filter is pre-convolved with each DRC FIR so each output
+      path runs through a single convolver (loudness × DRC per channel).
+      Adjust the <phon> / <ref_phon> values to match your listening level and
+      mastering reference.
+    -->
+
+    <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness filter</filter_name>
+    </loudness>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs: loudness × DRC of the destination speaker -->
+    <coeff>
+      <name>loudness DRC left</name>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>8192</length>
+    </coeff>
+
+    <coeff>
+      <name>loudness DRC right</name>
+      <convol_coeff>loudness filter</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>8192</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: blends main component and ambience -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>nae_out_left</output_left>
+      <output_right>nae_out_right</output_right>
+    </nae>
+
+    <!-- Loudness + DRC applied to the NAE output, left channel -->
+    <convol>
+      <name>loudness DRC left</name>
+      <coeff_name>loudness DRC left</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Loudness + DRC applied to the NAE output, right channel -->
+    <convol>
+      <name>loudness DRC right</name>
+      <coeff_name>loudness DRC right</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

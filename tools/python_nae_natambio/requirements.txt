@@ -1,0 +1,5 @@
+# Dependencias de python_nae_natambio (NAE offline).
+# Instalar con:  pip install -r requirements.txt
+numpy
+soundfile
+matplotlib

@@ -1,0 +1,132 @@
+<main>
+  <natambio>
+    <!--
+      DRC + XTC stereo from WAV files, no subwoofer, no NAE.
+
+      Functionally identical to convol_drc_xtc.xml but the XTC filters are
+      loaded from external WAV files instead of being synthesised by an <xtc>
+      block.  This is useful when the filters were computed by an external tool
+      (e.g. tools/xtc_filters, Matlab, or any other FIR design workflow) and
+      need to be applied verbatim — no parametric model involved.
+
+      The loaded coeffs are named "XTC direct" and "XTC cross" so the rest of
+      the config (derived coeffs, convols) is identical to the <xtc> version
+      and the two files can be swapped by changing only the first two <coeff>
+      blocks.
+
+        XTC direct * DRC left  →  input_left  → output_left   (direct path)
+        XTC cross  * DRC left  →  input_right → output_left   (cross-cancellation)
+        XTC direct * DRC right →  input_right → output_right  (direct path)
+        XTC cross  * DRC right →  input_left  → output_right  (cross-cancellation)
+    -->
+
+    <!-- XTC FIR filters loaded from WAV — substitute your own files -->
+    <coeff>
+      <name>XTC direct</name>
+      <filename>~/filters/xtc_direct.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross</name>
+      <filename>~/filters/xtc_cross.wav</filename>
+    </coeff>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs: XTC * DRC of the destination speaker -->
+    <coeff>
+      <name>XTC direct DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!-- Left monitor: direct path + cross-cancellation from right input -->
+    <convol>
+      <name>XTC direct DRC left</name>
+      <coeff_name>XTC direct DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC left</name>
+      <coeff_name>XTC cross DRC left</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left input -->
+    <convol>
+      <name>XTC direct DRC right</name>
+      <coeff_name>XTC direct DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC right</name>
+      <coeff_name>XTC cross DRC right</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

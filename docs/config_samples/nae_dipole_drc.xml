@@ -1,0 +1,74 @@
+<main>
+  <natambio>
+    <!--
+      NAE front stereo dipole (alpha), no subwoofer, with per-channel DRC filters
+      loaded from WAV files.  Adjust the file paths to your actual measurements.
+      No crossover, no sub.
+    -->
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: blends main component and ambience -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>nae_out_left</output_left>
+      <output_right>nae_out_right</output_right>
+    </nae>
+
+    <!-- DRC applied to the NAE output, left channel -->
+    <convol>
+      <name>DRC left</name>
+      <coeff_name>DRC monitor left</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- DRC applied to the NAE output, right channel -->
+    <convol>
+      <name>DRC right</name>
+      <coeff_name>DRC monitor right</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

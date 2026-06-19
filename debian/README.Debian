@@ -1,0 +1,30 @@
+NatAmbio for Debian
+===================
+
+The source produces four binary packages:
+
+  natambio         The real-time JACK client (/usr/bin/natambio) plus example
+                   configurations in /usr/share/natambio/examples/. A JACK
+                   server (jackd) must be running before you start it; the
+                   config file is a positional argument:
+
+                       natambio /usr/share/natambio/examples/xtc_sample.xml
+
+  natambio-tools   Offline C generators, installed under namespaced names:
+                       natambio-xtc-filters
+
+  natambio-ladspa  LADSPA plugin (the NAE / Panambio engine), installed in the
+                   multiarch LADSPA directory so any LADSPA host can load it.
+
+  natambio-drc     Offline Python toolkit. The scripts and their reference data
+                   (target curves, DRC configs, mic calibration files) live
+                   under /usr/share/natambio/python_pca4drc/ and
+                   /usr/share/natambio/python_nae_natambio/. They are exposed as
+                   /usr/bin wrappers:
+
+                       natambio-pca4drc      natambio-wav2raw
+                       natambio-sweepgen     natambio-raw2wav
+                       natambio-fft-convolve natambio-check-capture
+                       natambio-nae
+
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>

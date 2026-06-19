@@ -1,0 +1,14 @@
+# Keep editor backups, build artefacts and IDE droppings out of the native
+# source tarball (this tree is not a clean checkout).
+tar-ignore = "*~"
+tar-ignore = "#*#"
+tar-ignore = ".#*"
+tar-ignore = "*.o"
+tar-ignore = "*.so"
+tar-ignore = "*.a"
+tar-ignore = "__pycache__"
+tar-ignore = "*.pyc"
+tar-ignore = ".anjuta"
+tar-ignore = ".anjuta_sym_db.db"
+tar-ignore = "qjackctl.log"
+tar-ignore = ".git"

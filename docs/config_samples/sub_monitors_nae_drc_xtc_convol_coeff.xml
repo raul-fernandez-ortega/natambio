@@ -1,0 +1,190 @@
+<main>
+  <natambio>
+    <!--
+      NAE front dipole (alpha) + 120 Hz crossover + DRC + XTC
+      integrated via <convol_coeff>.
+
+      Monitors (high-pass band): four XTC paths, each pre-convolved with
+      the DRC of the destination speaker:
+        XTC direct * DRC left  * HP 120Hz  →  nae_out_left  → output_left
+        XTC cross  * DRC left  * HP 120Hz  →  nae_out_right → output_left
+        XTC direct * DRC right * HP 120Hz  →  nae_out_right → output_right
+        XTC cross  * DRC right * HP 120Hz  →  nae_out_left  → output_right
+
+      Subwoofer (low-pass band): stereo sum, no XTC (bass is non-directional):
+        DRC left  * LP 120Hz  →  nae_out_left  → output_sub  (-3 dB)
+        DRC right * LP 120Hz  →  nae_out_right → output_sub  (-3 dB)
+    -->
+
+    <!-- Crossover at 120 Hz -->
+    <low_and_high_filter>
+      <frequency>120.0</frequency>
+      <dB_octave>24</dB_octave>
+      <gain>0</gain>
+      <length>8192</length>
+      <low_pass_coeff_name>LP 120Hz</low_pass_coeff_name>
+      <high_pass_coeff_name>HP 120Hz</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Monitors: XTC * DRC * HP (one coeff per XTC path and destination speaker) -->
+    <coeff>
+      <name>XTC direct HP DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross HP DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct HP DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross HP DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <!-- Subwoofer: DRC * LP (no XTC; bass is non-directional) -->
+    <coeff>
+      <name>LP DRC left</name>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>LP DRC right</name>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>output_sub</name>
+        <destname>system:playback_3</destname>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: blends main component and ambience -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>nae_out_left</output_left>
+      <output_right>nae_out_right</output_right>
+    </nae>
+
+    <!-- Left monitor: direct path + cross-cancellation from right NAE output -->
+    <convol>
+      <name>XTC direct HP DRC left</name>
+      <coeff_name>XTC direct HP DRC left</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross HP DRC left</name>
+      <coeff_name>XTC cross HP DRC left</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left NAE output -->
+    <convol>
+      <name>XTC direct HP DRC right</name>
+      <coeff_name>XTC direct HP DRC right</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross HP DRC right</name>
+      <coeff_name>XTC cross HP DRC right</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Subwoofer: L+R low-pass sum from NAE, -3 dB per branch -->
+    <convol>
+      <name>LP DRC sub left</name>
+      <coeff_name>LP DRC left</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+    <convol>
+      <name>LP DRC sub right</name>
+      <coeff_name>LP DRC right</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+  </natambio>
+</main>

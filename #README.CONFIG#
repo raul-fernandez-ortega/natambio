@@ -1,0 +1,414 @@
+Configuration file format for nat_ambio_surround (natambio)
+================================================================================
+
+natambio is configured by a single XML file passed on the command line. Lines
+that should be ignored can be wrapped in standard XML comments (<!-- ... -->).
+Tag content with leading/trailing whitespace is taken as-is.
+
+This document describes the schema as accepted by the parser in src/naconf.cpp.
+Tags not listed here are silently ignored. Several example configurations live
+under the tests/ and sample_configs/ directory.
+
+
+Document structure
+--------------------------------------------------------------------------------
+The parser scans for the first <natambio> element either as the root element
+or as a direct child of the root element. Everything outside <natambio> is
+ignored. A typical wrapper looks like:
+
+    <main>
+      <natambio>
+        ... blocks below ...
+      </natambio>
+    </main>
+
+Inside <natambio> the following top-level blocks are recognised, in any order:
+
+    <coeff>        one convolution coefficient set (from a file or derived
+                   from the convolution of other coeffs)
+    <race>         a RACE crosstalk-cancellation filter generator that
+                   synthesises a pair of coeffs (direct + cross)
+    <low_and_high_filter>
+                   a crossover filter generator that synthesises a
+                   complementary low-pass / high-pass coeff pair
+    <loudness>     an equal-loudness compensation filter generator that
+                   synthesises a single minimum-phase coeff
+    <convol>       one convolution routing channel
+    <panambio>     one PCA spatial-decomposition engine
+    <jack_input>   JACK client name and input ports
+    <jack_output>  JACK output ports
+
+<coeff>, <race>, <low_and_high_filter>, <loudness>, <convol> and <panambio>
+may appear any number of times.
+<jack_input> and <jack_output> should appear once each.
+
+
+Sample rate
+--------------------------------------------------------------------------------
+There is no global sample-rate tag. Before parsing the configuration, natambio
+opens a minimal short-lived JACK client to read the running server's sample
+rate, and uses it for everything:
+
+  - the <race>, <low_and_high_filter> and <loudness> blocks generate their
+    filters at that rate (so they take no <sample_rate> tag), and
+  - every <coeff> loaded from a <filename> is checked against it; a file whose
+    sample rate differs aborts the program with an error.
+
+JACK must therefore be running before natambio is started.
+
+
+Gain convention
+--------------------------------------------------------------------------------
+`<attenuation>` fields (in <coeff>, <convol> and <low_and_high_filter>) are
+expressed in dB of *attenuation*, converted internally via `pow(10, -dB/20)`:
+
+    positive value  -> attenuation (quieter)
+    negative value  -> amplification (louder)
+    0               -> unity
+
+The Panambio gain fields (<main_gain>, <ambience_gain>, <surround_gain>) use the
+OPPOSITE sign -- a plain dB gain converted via `pow(10, dB/20)`:
+
+    positive value  -> amplification (louder)
+    negative value  -> attenuation (quieter)
+    0               -> unity
+
+For the Panambio gain fields, omitting the value for the active mode is a parse
+error (an unset gain cannot be told apart from 0 dB internally).
+
+
+<coeff> -- convolution coefficient set
+--------------------------------------------------------------------------------
+A coeff holds one set of convolution coefficients. It is obtained in one of two
+ways:
+
+  (a) loaded from an audio file (<filename>), or
+  (b) derived from the convolution of other coeffs (one or more <convol_coeff>).
+
+All <coeff> blocks must appear before any <convol> that references them, and a
+derived coeff must appear after all the coeffs it references (convol_coeffs are
+resolved in document order, after the whole file has been read).
+
+(a) File-loaded coeff
+--------------------------------------------------------------------------------
+Loads one channel from an audio file (any libsndfile-supported format).
+
+    <coeff>
+      <name>direct left</name>
+      <filename>~/IR/direct_left.wav</filename>
+      <channel>1</channel>
+      <skip>0</skip>
+      <length>8192</length>
+      <attenuation>0.0</attenuation>
+    </coeff>
+
+    name         Unique identifier referenced by <convol>/<coeff_name>.       (required)
+    filename     Path to the audio file. `~` expands to $HOME.                 (required unless
+                                                                                <convol_coeff> is used)
+    channel      1-based channel index to read.                                (optional, default 1)
+    skip         Frames to skip at the start of the file.                      (optional, default 0)
+    length       Frames to read. When omitted (or 0) the whole file is read    (optional, default:
+                 and length is set to the file's total frame count, or that     whole file)
+                 count minus <skip> when leading frames are skipped.
+    attenuation  Per-coefficient gain in dB attenuation.                       (optional, default 0)
+
+The file's sample rate must equal the JACK sample rate. natambio probes the
+running JACK server's sample rate at start-up (before parsing) and checks every
+loaded file against it; a mismatch aborts with an error.
+
+(b) Derived (convolved) coeff
+--------------------------------------------------------------------------------
+When one or more <convol_coeff> tags are present, <filename> is ignored and the
+coeff is built, after the whole config is parsed, by convolving the referenced
+coeffs together (left to right):
+
+    <coeff>
+      <name>RACE EQ direct left</name>
+      <convol_coeff>RACE direct</convol_coeff>   <!-- convolved with... -->
+      <convol_coeff>DRC EQ left</convol_coeff>   <!-- ...this one        -->
+      <length>16384</length>
+    </coeff>
+
+    name         Unique identifier referenced by <convol>/<coeff_name>.       (required)
+    convol_coeff Name of another <coeff> to convolve. Repeatable (1..n).      (>= 1)
+    length       Output length in samples. The convolution result is          (optional, default:
+                 truncated (or zero-padded) to this length; 0/omitted keeps    full convolution
+                 the full linear-convolution length.                           length)
+    attenuation  Extra gain in dB attenuation applied to the result.          (optional, default 0)
+
+With a single <convol_coeff> the referenced coeff is copied (truncated/padded to
+<length>); with several they are convolved in sequence. The convolution is a
+single-precision FFT convolution (the fft_convolve_truncate routine in src/dsp.c).
+
+When <length> is omitted the derived coeff is set to the full linear-convolution
+length, i.e. the sum of the referenced coeffs' lengths minus (count - 1). This
+is computed while parsing when every referenced coeff is already declared;
+references to coeffs generated later (<race>, <low_and_high_filter>, <loudness>)
+are instead resolved when the convolutions are built.
+
+All referenced coeffs must share the same sample rate; the derived coeff
+inherits it. As with file-loaded coeffs, that sample rate must equal the JACK
+sample rate.
+
+Referenced coeffs may themselves be derived coeffs, as long as they are declared
+earlier in the file.
+
+Special name: a <convol> that references `<coeff_name>delta</coeff_name>`
+activates bypass mode (no convolution; only the convol's delay and
+attenuation are applied to the mixed input).
+
+
+<race> -- RACE crosstalk-cancellation filter generator
+--------------------------------------------------------------------------------
+A <race> block synthesises, from scratch, a pair of FIR filters implementing
+the RACE (Recursive Ambiophonic Crosstalk Elimination) recursion combined with
+a van Opstal ILD model. It produces two coeffs -- a direct-path filter and a
+cross-path filter -- that are added to the coeff list under the names given by
+<direct_filter_name> / <cross_filter_name>, exactly as if they had been loaded
+from a file. They can then be referenced by <convol>/<coeff_name> (see the
+four <convol> blocks in sample_configs/race_sample_02.xml) or even by a derived
+coeff's <convol_coeff>.
+
+    <race>
+      <itd_us>180</itd_us>
+      <ild_db>20.5</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>RACE direct</direct_filter_name>
+      <cross_filter_name>RACE cross</cross_filter_name>
+    </race>
+
+    itd_us              Inter-aural time difference, microseconds. Converted   (optional, default 0)
+                        to the RACE recursion delay using the JACK sample rate.
+    ild_db              Inter-aural level difference per recursion step, in dB  (optional, default 0)
+                        of attenuation.
+    ild_alpha           van Opstal ILD model scale factor.                     (optional, default 0)
+    azimuth_deg         Source azimuth, degrees, fed to the ILD model.         (optional, default 0)
+    length              Length of each generated filter, in samples.           (required, > 0)
+    direct_filter_name  Name of the resulting direct-path coeff.               (required)
+    cross_filter_name   Name of the resulting cross-path coeff.                (required)
+
+The two generated coeffs are created at the JACK sample rate (see "Sample rate"
+above; there is no <sample_rate> tag). The filter names must not collide with
+any other coeff name. RACE coeffs are generated after all <coeff> blocks have
+been read, so a derived coeff may convolve them via <convol_coeff>.
+
+
+<low_and_high_filter> -- complementary crossover filter generator
+--------------------------------------------------------------------------------
+A <low_and_high_filter> block synthesises, from scratch, a complementary pair of
+FIR filters that split a signal at a crossover frequency: a low-pass and a
+high-pass. It produces two coeffs added to the coeff list under the names given
+by <low_pass_coeff_name> / <high_pass_coeff_name>, exactly as if they had been
+loaded from a file. They can then be referenced by <convol>/<coeff_name> (see
+the four <convol> blocks in sample_configs/subwoofer_sample.xml -- a typical
+subwoofer / satellite split) or by a derived coeff's <convol_coeff>.
+
+    <low_and_high_filter>
+      <frequency>100.0</frequency>
+      <dB_octave>24</dB_octave>
+      <attenuation>0</attenuation>
+      <length>8192</length>
+      <low_pass_coeff_name>Low pass FIR</low_pass_coeff_name>
+      <high_pass_coeff_name>High pass FIR</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    frequency             Crossover (cut-off) frequency, Hz.                 (required, > 0)
+    dB_octave             Low-pass roll-off slope above the crossover, in    (optional, default 0)
+                          dB per octave.
+    attenuation           Pass-band attenuation applied to both filters, dB. (optional, default 0)
+    length                Length of each generated filter, in samples.       (required, > 0)
+    low_pass_coeff_name   Name of the resulting low-pass coeff.              (required)
+    high_pass_coeff_name  Name of the resulting high-pass coeff.             (required)
+
+The low-pass is designed with firwin2 (a flat pass-band at -attenuation dB up to
+<frequency>, then a constant <dB_octave> dB/octave roll-off). The high-pass is
+its exact complement -- an attenuation-adjusted linear-phase delta minus the
+low-pass -- so that the two filters sum back to an (attenuated) delta. Both are
+then converted to minimum phase, and those minimum-phase filters are what get
+applied.
+
+The two generated coeffs are created at the JACK sample rate (see "Sample rate"
+above; there is no <sample_rate> tag). The filter names must not collide with
+any other coeff name. They are generated after all <coeff> blocks have been
+read, so a derived coeff may convolve them via <convol_coeff>.
+
+
+<loudness> -- equal-loudness compensation filter generator
+--------------------------------------------------------------------------------
+A <loudness> block synthesises a single FIR filter that follows an equal-loudness
+(isophonic) contour. It produces one coeff -- added to the coeff list under the
+name given by <filter_name> -- whose magnitude is the DIFFERENCE between the
+chosen model's contour at <phon> and its contour at <ref_phon> (each contour
+normalised to 0 dB at 1 kHz). The result is a "playback at <phon>, mastered for
+<ref_phon>" loudness compensation curve: it is flat (0 dB) at 1 kHz and boosts
+the low (and high) frequencies when <phon> is below <ref_phon>. The coeff is
+minimum phase.
+
+    <loudness>
+      <phon>70</phon>
+      <ref_phon>90</ref_phon>
+      <model>fletcher-munson</model>
+      <length>4096</length>
+      <filter_name>loudness filter</filter_name>
+    </loudness>
+
+    phon         Target listening level, phon.                              (required)
+    ref_phon     Reference (mastering) level, phon; subtracted from the     (required)
+                 target contour.
+    model        Equal-loudness model. One of:                              (required)
+                   iso226-2003, iso226-2023  (analytic ISO 226 formula)
+                   fletcher-munson           (tabulated 1933 curves)
+                   a-weighting, b-weighting, c-weighting
+                                             (IEC weightings; these ignore
+                                              phon, so the difference curve is
+                                              flat and the filter is a unit
+                                              impulse)
+                 (robinson-dadson is not implemented.)
+    length       Length of the generated filter, in samples.                (required, > 0)
+    filter_name  Name of the resulting coeff.                               (required)
+
+The contour difference is sampled by firwin2 (a flat-at-1 kHz target curve,
+log-interpolated/extrapolated from the model's tabulated points, rolling off to
+silence outside 10 Hz - 20 kHz) and the resulting linear-phase filter is
+converted to minimum phase. The generated coeff is created at the JACK sample
+rate (see "Sample rate" above; there is no <sample_rate> tag). Its name must not
+collide with any other coeff name. It is generated after all <coeff> blocks have
+been read, so a derived coeff may convolve it via <convol_coeff> (see
+sample_configs/drc_eq_loudness_sample.xml, which convolves it with a DRC EQ
+filter).
+
+
+<jack_input> -- JACK client name and input ports
+--------------------------------------------------------------------------------
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    clientname   JACK client name. Default: "natambio".                        (optional, one tag)
+    port         JACK input port definition. May appear multiple times.        (>= 1 required)
+      name       Port name (as seen on the JACK graph).                        (required)
+      destname   External port to auto-connect on startup.                     (optional)
+
+
+<jack_output> -- JACK output ports
+--------------------------------------------------------------------------------
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      ...
+    </jack_output>
+
+    port         JACK output port definition. May appear multiple times.       (>= 1 required)
+      name       Port name.                                                    (required)
+      destname   External port to auto-connect on startup.                     (optional)
+
+
+<panambio> -- PCA spatial decomposition
+--------------------------------------------------------------------------------
+Each <panambio> block defines ONE Panambio engine. Use multiple <panambio>
+blocks for multiple engines.
+
+    <panambio>
+      <name>front stereo</name>
+      <mode>front</mode>
+      <steps_length>3</steps_length>
+      <main_gain>-2.0</main_gain>
+      <ambience_gain>2.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>pn_output_left</output_left>
+      <output_right>pn_output_right</output_right>
+    </panambio>
+
+    name             Label for diagnostics.                                    (optional)
+    mode             "front" or "rear".                                        (required)
+    steps_length     PCA analysis window length, in JACK buffer periods.       (required, >= 0)
+    main_gain        Main-component gain, dB (positive = amplification;        (required for front)
+                     see Gain convention). (front mode only)
+    ambience_gain    Ambience-component gain, dB (positive = amplification).   (required for front)
+                     (front mode only)
+    surround_gain    Surround-component gain, dB (positive = amplification).   (required for rear)
+                     (rear mode only)
+    input_left       Source JACK input port for the left channel.              (required)
+    input_right      Source JACK input port for the right channel.             (required)
+    output_left      Left output: a <jack_output>/<port>/<name>, or a          (required, or
+                     virtual name consumed by <convol>/<from_panambio>.         mid/side equivalent)
+    output_right     Right output (same resolution as output_left).            (required, or
+                                                                                mid/side equivalent)
+    mid_output_left, mid_output_right
+    side_output_left, side_output_right
+                     Optional separate outputs for the mid/side intermediate
+                     signals (same name resolution as output_left/right).      (optional)
+
+Mode semantics:
+    front: writes main component to *output_left/right channels, ambience
+           is mixed in via the ambience_gain.
+    rear : writes surround signal to *output_left/right channels using
+           inter-channel correlation to distinguish centred from decorrelated
+           content.
+
+Port name resolution: when <output_left> / <output_right> / mid_* / side_*
+match a <jack_output>/<port>/<name>, the signal is written directly to that
+JACK output port. Otherwise the name acts as a virtual buffer that <convol>
+blocks can pick up via <from_panambio>.
+
+See sample_configs/panambio_process.xml for a full example: a front engine
+routed through its mid/side outputs and a rear engine through plain left/right
+outputs.
+
+
+<convol> -- convolution routing channel
+--------------------------------------------------------------------------------
+Each <convol> defines one channel through the convolution engine. Inputs from
+multiple sources are summed before convolution; outputs may fan out to several
+sinks. There may be up to 64 <convol> blocks (zita-convolver hard limit).
+
+    <convol>
+      <name>direct left</name>
+      <coeff_name>direct left</coeff_name>
+      <from_input>input_left</from_input>
+      <from_panambio>pn_output_left</from_panambio>
+      <from_convol>some other convolver</from_convol>
+      <to_output>output_left</to_output>
+      <attenuation>5.0</attenuation>
+      <delay>0</delay>
+    </convol>
+
+    name           Unique identifier; targeted by other convolvers'           (required)
+                   <from_convol>.
+    coeff_name     Reference to a <coeff>/<name>, or "delta" for bypass.      (required)
+    from_input     Mix in a <jack_input>/<port>/<name>. Repeatable.           (>= 0)
+    from_panambio  Mix in a Panambio virtual output (left/right/mid/side).    (>= 0)
+                   Repeatable.
+    from_convol    Mix in another <convol>'s output by name. Repeatable.      (>= 0)
+    to_output      Send convolver output to a <jack_output>/<port>/<name>.    (>= 0)
+                   Repeatable. A convol with no <to_output> is intermediate-
+                   only and feeds other convolvers via <from_convol>.
+    attenuation    Output gain in dB attenuation.                              (optional, default 0)
+    delay          Output delay in samples (sample-accurate ring buffer).      (optional, default 0)
+
+Care must be taken not to create convolution loops with chained <from_convol>
+references.
+
+
+Notes
+--------------------------------------------------------------------------------
+ - The example XML files under tests/ are kept for reference but may use
+   tag names from earlier schema revisions (e.g. nested <pca> blocks inside
+   <panambio>, or <left_channel>/<right_channel>). The schema above
+   reflects what the current parser in src/naconf.cpp accepts; tags it does
+   not recognise are silently ignored, which can mask configuration errors.
+ - An extended developer-oriented description of the program architecture
+   (not the file format) lives in src/README.md.

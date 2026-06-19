@@ -1,0 +1,80 @@
+<main>
+  <natambio>
+    <!--
+      120 Hz crossover + mono subwoofer, no NAE.
+      High-pass  →  left and right monitors
+      Low-pass   →  subwoofer (stereo sum, -3 dB per branch)
+    -->
+
+    <!-- Crossover at 120 Hz -->
+    <low_and_high_filter>
+      <frequency>120.0</frequency>
+      <dB_octave>24</dB_octave>
+      <gain>0</gain>
+      <length>8192</length>
+      <low_pass_coeff_name>LP 120Hz</low_pass_coeff_name>
+      <high_pass_coeff_name>HP 120Hz</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>output_sub</name>
+        <destname>system:playback_3</destname>
+      </port>
+    </jack_output>
+
+    <convol>
+      <name>HP monitor left</name>
+      <coeff_name>HP 120Hz</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>HP monitor right</name>
+      <coeff_name>HP 120Hz</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Low-pass to sub: both channels sum into the same output_sub -->
+    <convol>
+      <name>LP sub left</name>
+      <coeff_name>LP 120Hz</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+    <convol>
+      <name>LP sub right</name>
+      <coeff_name>LP 120Hz</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+  </natambio>
+</main>

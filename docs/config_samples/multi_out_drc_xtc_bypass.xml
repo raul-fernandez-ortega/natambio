@@ -1,0 +1,189 @@
+<main>
+  <natambio>
+    <!--
+      Three parallel output paths from a single stereo input — no NAE.
+
+      All six output ports are left unconnected (no destname) so they can be
+      wired freely in qjackctl or switched between jack_snapshot presets.
+
+        Path A  (output_A_L / output_A_R)  —  DRC only
+        Path B  (output_B_L / output_B_R)  —  DRC + XTC
+        Path C  (output_C_L / output_C_R)  —  bypass (delta, no processing)
+
+      This config shows the general pattern for parallelising any number of
+      processing chains inside a single JACK client.  The approach scales to
+      more paths and more complex chains (e.g. per-path loudness targets,
+      different crossover frequencies, or separate room correction zones)
+      without changing the fundamental structure.
+
+      LEVEL MATCHING
+      Path A and Path B will differ in level because XTC reshapes the spectrum.
+      Adjust the <gain> tags (dB) below so all three paths sound equally loud
+      before switching between them.
+    -->
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Path B derived coeffs: XTC × DRC of the destination speaker -->
+    <coeff>
+      <name>XTC direct DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- All ports left unconnected: wire them manually or via jack_snapshot -->
+      <port>
+        <name>output_A_L</name>
+      </port>
+      <port>
+        <name>output_A_R</name>
+      </port>
+      <port>
+        <name>output_B_L</name>
+      </port>
+      <port>
+        <name>output_B_R</name>
+      </port>
+      <port>
+        <name>output_C_L</name>
+      </port>
+      <port>
+        <name>output_C_R</name>
+      </port>
+    </jack_output>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- PATH A: DRC only                                                     -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <convol>
+      <name>A DRC left</name>
+      <coeff_name>DRC monitor left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_A_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>A DRC right</name>
+      <coeff_name>DRC monitor right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_A_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- PATH B: DRC + XTC                                                    -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <!-- Left monitor: direct path + cross-cancellation from right input -->
+    <convol>
+      <name>B XTC direct DRC left</name>
+      <coeff_name>XTC direct DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_B_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>B XTC cross DRC left</name>
+      <coeff_name>XTC cross DRC left</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_B_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left input -->
+    <convol>
+      <name>B XTC direct DRC right</name>
+      <coeff_name>XTC direct DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_B_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>B XTC cross DRC right</name>
+      <coeff_name>XTC cross DRC right</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_B_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- ------------------------------------------------------------------ -->
+    <!-- PATH C: bypass (delta — no convolution, delay or gain only)         -->
+    <!-- ------------------------------------------------------------------ -->
+
+    <convol>
+      <name>C bypass left</name>
+      <coeff_name>delta</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_C_L</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>C bypass right</name>
+      <coeff_name>delta</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_C_R</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

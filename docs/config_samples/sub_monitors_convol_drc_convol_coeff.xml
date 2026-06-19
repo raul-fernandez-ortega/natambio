@@ -1,0 +1,123 @@
+<main>
+  <natambio>
+    <!--
+      120 Hz crossover + DRC integrated via <convol_coeff>, no NAE.
+      The DRC filters are pre-convolved with each crossover half:
+
+        HP DRC left/right  =  DRC monitor L/R  *  HP 120Hz  →  monitors
+        LP DRC left/right  =  DRC monitor L/R  *  LP 120Hz  →  subwoofer
+
+      Result: a single convolver per output path.
+    -->
+
+    <!-- Crossover at 120 Hz -->
+    <low_and_high_filter>
+      <frequency>120.0</frequency>
+      <dB_octave>24</dB_octave>
+      <gain>0</gain>
+      <length>8192</length>
+      <low_pass_coeff_name>LP 120Hz</low_pass_coeff_name>
+      <high_pass_coeff_name>HP 120Hz</high_pass_coeff_name>
+    </low_and_high_filter>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>HP DRC left</name>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>HP DRC right</name>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>HP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>LP DRC left</name>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>LP DRC right</name>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <convol_coeff>LP 120Hz</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+      <port>
+        <name>output_sub</name>
+        <destname>system:playback_3</destname>
+      </port>
+    </jack_output>
+
+    <convol>
+      <name>HP DRC monitor left</name>
+      <coeff_name>HP DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>HP DRC monitor right</name>
+      <coeff_name>HP DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Low-pass + DRC to subwoofer (L and R sum into the same output, -3 dB each) -->
+    <convol>
+      <name>LP DRC sub left</name>
+      <coeff_name>LP DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+    <convol>
+      <name>LP DRC sub right</name>
+      <coeff_name>LP DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_sub</to_output>
+      <gain>-3.0</gain>
+    </convol>
+
+  </natambio>
+</main>

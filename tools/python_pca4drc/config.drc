@@ -1,0 +1,221 @@
+# Strong correction settings
+
+# Wide prefiltering windows (544 ms at 20 Hz, 108 ms at 100 Hz, 10.8 ms at 1 KHz, 0.54 ms at 20 KHz)
+# Normal peak limiting (6.02 dB Max)
+# Minimum phase excess phase allpass recovering to reduce pre-echo
+# Soft pre-echo truncation
+# Minimum phase postfiltering to reduce I/O latency
+# Soft ringing truncation
+
+#PCA_analysis config
+#PCAImpulsesDir = i_left/
+
+# Base file directory
+BCBaseDir = p_left/
+
+# BC = Base Configuration
+BCInFile = PCA_0.raw
+BCSampleRate = 48000
+BCInFileType = F
+BCImpulseCenterMode = A
+BCImpulseCenter = 0
+BCInitWindow = 131072
+BCPreWindowLen = 1024
+BCPreWindowGap = 768
+BCNormFactor = 1.0
+BCNormType = E
+
+# MC = Microphone compensation stage
+MCFilterType = N
+MCInterpolationType = H
+MCMultExponent = 3
+MCFilterLen = 65535
+MCNumPoints = 0
+MCPointsFile = wm-61a.txt
+MCMagType = D
+MCFilterFile = rmcf.raw
+MCFilterFileType = F
+MCOutWindow = 0
+MCNormFactor = 1.0
+MCNormType = E
+MCOutFile = rmc.raw
+MCOutFileType = F
+
+# Base configuration dip limiting stage
+BCDLType = L
+BCDLMinGain = 1e-6 # -120.0 dB Min, just to prevent overflow/underflow problems
+BCDLStartFreq = 20
+BCDLEndFreq = 20000
+BCDLStart = 0.75
+BCDLMultExponent = 3
+
+# HD = Homomorphic Deconvolution
+HDMultExponent = 4
+
+HDMPNormFactor = 1.0
+HDMPNormType = E
+HDMPOutFile = rmp.raw
+HDMPOutFileType = F
+
+HDEPNormFactor = 1.0
+HDEPNormType = E
+HDEPOutFile = rep.raw
+HDEPOutFileType = F
+
+# MP = Minimum phase band windowing stage
+MPPrefilterType = s
+MPPrefilterFctn = B
+MPWindowGap = 48
+MPLowerWindow = 48000 #500 ms 
+MPUpperWindow = 48 # 0.5 ms
+MPStartFreq = 40
+MPEndFreq = 20000
+MPFilterLen = 65536
+MPFSharpness = 0.25
+MPBandSplit = 3
+MPWindowExponent = 0.85
+MPHDRecover = Y
+MPEPPreserve = Y
+MPHDMultExponent = 3
+MPPFFinalWindow = 48000
+MPPFNormFactor = 1.0
+MPPFNormType = E
+MPPFOutFile = rmppf.raw
+MPPFOutFileType = F
+
+# DL = Dip limiting stage
+DLType = M
+DLMinGain = 0.01 # -40.0 dB Min
+DLStartFreq = 40
+DLEndFreq = 20000
+DLStart = 0.75
+DLMultExponent = 3
+
+# EP = Excess phase phase band windowing stage
+EPPrefilterType = S
+EPPrefilterFctn = B
+EPWindowGap = 48
+EPLowerWindow = 2044 # 21.3 ms
+EPUpperWindow = 48 # 0.5 ms
+EPStartFreq = 40
+EPEndFreq = 20000
+EPFilterLen = 65536
+EPFSharpness = 0.25
+EPBandSplit = 3
+EPWindowExponent = 0.85
+EPPFFlatGain = 1.0
+EPPFOGainFactor = 0.0
+EPPFFlatType = M
+EPPFFGMultExponent = 3
+EPPFFinalWindow = 2044
+EPPFNormFactor = 1.0
+EPPFNormType = E
+EPPFOutFile = reppf.raw
+EPPFOutFileType = F
+
+# PC = Prefiltering completion stage
+PCOutWindow = 0
+PCNormFactor = 1.0
+PCNormType = E
+PCOutFile = rpc.raw
+PCOutFileType = F
+
+# IS = Inversion stage
+ISType = T
+ISPETType = f
+ISPrefilterFctn = B
+ISPELowerWindow = 1022
+ISPEUpperWindow = 766
+ISPEStartFreq = 40
+ISPEEndFreq = 20000
+ISPEFilterLen = 8192
+ISPEFSharpness = 0.50
+ISPEBandSplit = 3
+ISPEWindowExponent = 0.85
+ISPEOGainFactor = 0.0
+ISSMPMultExponent = 4
+ISOutWindow = 0
+ISNormFactor = 1.0
+ISNormType = M
+ISOutFile = ris.raw
+ISOutFileType = F
+
+# PT = Psychoacoustic target stage
+PTType = M
+PTReferenceWindow = 28800 # 300 ms
+PTDLType = M
+PTDLMinGain = 0.1 # -20.0 dB Min
+PTDLStartFreq = 40
+PTDLEndFreq = 20000
+PTDLStart = 0.75
+PTDLMultExponent = 3
+PTBandWidth = -2
+PTPeakDetectionStrength = 15
+PTMultExponent = 0
+PTFilterLen = 16384
+PTFilterFile = rptf_dbg.raw
+PTFilterFileType = F
+PTNormFactor = 1.0
+PTNormType = E
+PTOutFile = rpt.raw
+PTOutFileType = F
+PTOutWindow = 0
+
+# PL = Peak limiting stage
+PLType = M
+PLMaxGain = 2.0 # +6.02 dB Max
+PLStart = 0.75
+PLStartFreq = 100
+PLEndFreq = 10000
+PLMultExponent = 3
+PLOutWindow = 0
+PLNormFactor = 1.0
+PLNormType = E
+PLOutFile = rpl.raw
+PLOutFileType = F
+
+# RT = Ringing truncation stage
+RTType = S
+RTPrefilterFctn = B
+RTWindowGap = 48
+RTLowerWindow = 48000 # 500 ms
+RTUpperWindow = 48 # 0.5 ms
+RTStartFreq = 20
+RTEndFreq = 20000
+RTFilterLen = 16384
+RTFSharpness = 0.25
+RTBandSplit = 3
+RTWindowExponent = 0.8
+RTOutWindow = 48000
+RTNormFactor = 1.0
+RTNormType = E
+RTOutFile = rrt.raw
+RTOutFileType = F
+
+# PS = Target response stage
+PSFilterType = M
+PSInterpolationType = S
+PSMultExponent = 3
+PSFilterLen = 16383
+PSNumPoints = 0
+PSPointsFile = ../target/48.0 kHz/subultra-48.0.txt
+PSMagType = D
+PSOutWindow = 16384
+PSNormFactor = 1.0
+PSNormType = M
+PSOutFile = rps.raw
+PSOutFileType = F
+
+# Minimum phase filter extraction stage
+MSMultExponent = 3
+MSOutWindow = 8192
+MSNormFactor = 1.0
+MSNormType = M
+MSOutFile = rms.raw
+MSOutFileType = F
+
+# Test convolution stage
+TCNormFactor = 1.0
+TCNormType = M
+TCOutFile = rtc.raw
+TCOutFileType = F

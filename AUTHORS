@@ -1,0 +1,19 @@
+NatAmbio (Nat(ural) Ambio(phonics) Surround) — Authors
+================================================================================
+
+Primary author
+--------------
+Raul Fernandez Ortega  <natambio.audio@gmail.com>
+
+
+Acknowledgements
+----------------
+The build infrastructure and the convolution engine used by this project derive
+from earlier free-software work by:
+
+  Fons Adriaensen  <fons@linuxaudio.org>
+    - zita-convolver library (partitioned FFT convolution engine)
+
+Project home: https://kokkinizita.linuxaudio.org/linuxaudio/
+
+License: GNU General Public License, version 2 (see the LICENSE file).

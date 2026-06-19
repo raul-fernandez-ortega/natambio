@@ -1,0 +1,147 @@
+<main>
+  <natambio>
+    <!--
+      XTC + DRC client (natambio_xtc_drc).
+      Receives four input ports from natambio_nae (see nae_front_amb_out.xml):
+        front_L / front_R  —  main (front) component
+        amb_L   / amb_R    —  ambience component
+
+      The front and ambience pairs are summed inside each convol before XTC
+      processing, so the full left signal (front_L + amb_L) drives the direct
+      and cross paths for the left speaker, and symmetrically for the right.
+      Disconnecting either pair in qjackctl effectively mutes that component
+      without stopping either client.
+
+      No subwoofer, no crossover — stereo monitors only.
+
+      Start this client BEFORE natambio_nae so its input ports exist when
+      the NAE client tries to auto-connect.
+    -->
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs: XTC * DRC of the destination speaker -->
+    <coeff>
+      <name>XTC direct DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC left</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC right</name>
+      <convol_coeff>XTC cross</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio_xtc_drc</clientname>
+      <!-- No destnames: connections are managed by natambio_nae or manually -->
+      <port>
+        <name>front_L</name>
+      </port>
+      <port>
+        <name>front_R</name>
+      </port>
+      <port>
+        <name>amb_L</name>
+      </port>
+      <port>
+        <name>amb_R</name>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!--
+      Left monitor:
+        direct path  — full left signal (front_L + amb_L) convolved with XTC direct * DRC left
+        cross path   — full right signal (front_R + amb_R) convolved with XTC cross  * DRC left
+    -->
+    <convol>
+      <name>XTC direct DRC left</name>
+      <coeff_name>XTC direct DRC left</coeff_name>
+      <from_input>front_L</from_input>
+      <from_input>amb_L</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC left</name>
+      <coeff_name>XTC cross DRC left</coeff_name>
+      <from_input>front_R</from_input>
+      <from_input>amb_R</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!--
+      Right monitor:
+        direct path  — full right signal (front_R + amb_R) convolved with XTC direct * DRC right
+        cross path   — full left signal  (front_L + amb_L) convolved with XTC cross  * DRC right
+    -->
+    <convol>
+      <name>XTC direct DRC right</name>
+      <coeff_name>XTC direct DRC right</coeff_name>
+      <from_input>front_R</from_input>
+      <from_input>amb_R</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC right</name>
+      <coeff_name>XTC cross DRC right</coeff_name>
+      <from_input>front_L</from_input>
+      <from_input>amb_L</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

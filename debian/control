@@ -1,0 +1,86 @@
+Source: natambio
+Section: sound
+Priority: optional
+Maintainer: Raul Fernandez Ortega <natambio.audio@gmail.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ autoconf,
+ automake,
+ libtool,
+ pkg-config,
+ libjack-jackd2-dev | libjack-dev,
+ libzita-convolver-dev,
+ libsndfile1-dev,
+ libxml2-dev,
+ libfftw3-dev,
+ ladspa-sdk
+Standards-Version: 4.6.2
+Homepage: https://kokkinizita.linuxaudio.org/linuxaudio/
+Rules-Requires-Root: no
+
+Package: natambio
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends}
+Recommends: jackd2 | jackd
+Suggests: natambio-tools, natambio-drc
+Description: real-time JACK ambiophonic / surround processor
+ NatAmbio (Nat(ural) Ambio(phonics) Surround) is a real-time JACK audio client
+ that chains two processing stages driven by a single XML configuration:
+ .
+  * NAE -- PCA-based spatial decomposition of a stereo signal into main +
+    ambience (front) or a surround signal (rear), via a 2x2 covariance
+    eigenvalue solver running in dedicated real-time worker threads.
+  * Convolution -- per-channel partitioned FFT convolution using Fons
+    Adriaensen's zita-convolver, as arbitrary routing graphs of channels.
+ .
+ This package contains the real-time JACK client and example configurations.
+
+Package: natambio-tools
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends}
+Description: offline FIR filter generators for NatAmbio (C tools)
+ Command-line helpers that reuse NatAmbio's shared filter-design code to
+ produce filters offline, outside the real-time JACK client:
+ .
+  * natambio-xtc-filters  -- XTC (crosstalk cancellation) FIR pair generator.
+ .
+ This package contains the compiled C/C++ tools.
+
+Package: natambio-ladspa
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends}
+Description: LADSPA plugin port of the NatAmbio NAE / Panambio engine
+ A LADSPA module implementing NatAmbio's PCA-based stereo spatial
+ decomposition (the Panambio engine), so the same main/ambience separation
+ can be run in any LADSPA-compatible host (e.g. ecasound) outside the JACK
+ application. Useful for quick experimentation and algorithm verification.
+
+Package: natambio-drc
+Architecture: all
+Depends:
+ ${misc:Depends},
+ python3,
+ python3-numpy,
+ python3-scipy,
+ python3-soundfile
+Recommends: natambio-tools
+Description: offline Python toolkit for NatAmbio (DRC measurement + offline NAE)
+ Standalone Python utilities shipped with NatAmbio. They do not require a
+ running JACK server and are exposed as namespaced commands:
+ .
+  * natambio-pca4drc      -- PCA decomposition of a set of impulse responses
+    for digital room correction (no pyDRC dependency).
+  * natambio-sweepgen     -- log-sweep excitation / inverse pair generator.
+  * natambio-fft-convolve -- FFT convolution of two WAV files.
+  * natambio-check-capture-- clipping / level / SNR check of a capture.
+  * natambio-wav2raw / natambio-raw2wav -- WAV <-> float32 raw conversion.
+  * natambio-nae          -- offline NAE (ambient extraction) over a WAV file.
+ .
+ The scripts and their reference data (target curves, DRC configs, microphone
+ calibration files) are installed under /usr/share/natambio/.

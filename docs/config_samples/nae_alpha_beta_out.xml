@@ -1,0 +1,82 @@
+<main>
+  <natambio>
+    <!--
+      NAE alpha (front stereo dipole) + NAE beta (rear surround extraction)
+      — no convolution stage.
+
+      Both engines read the same stereo input via separate port pairs that
+      auto-connect to the same JACK capture channels.  Each engine writes its
+      blended output directly to a dedicated pair of unconnected JACK ports:
+
+        alpha_L / alpha_R  —  front dipole  (front × front_gain + amb × ambience_gain)
+        beta_L  / beta_R   —  rear surround (decorrelated / diffuse component × rear_gain)
+
+      All four output ports are left unconnected for free wiring in qjackctl
+      or switching via jack_snapshot.  Connect alpha to front monitors and
+      beta to rear/surround monitors, or feed each pair to a downstream JACK
+      client for independent processing chains.
+    -->
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <!-- Alpha NAE reads from the stereo input -->
+      <port>
+        <name>alpha_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>alpha_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+      <!-- Beta NAE reads from the same stereo input -->
+      <port>
+        <name>beta_input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>beta_input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- All ports left unconnected: wire them manually in qjackctl -->
+      <port>
+        <name>alpha_L</name>
+      </port>
+      <port>
+        <name>alpha_R</name>
+      </port>
+      <port>
+        <name>beta_L</name>
+      </port>
+      <port>
+        <name>beta_R</name>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: blends main component and ambience -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>alpha_input_left</input_left>
+      <input_right>alpha_input_right</input_right>
+      <output_left>alpha_L</output_left>
+      <output_right>alpha_R</output_right>
+    </nae>
+
+    <!-- Rear surround: extracts the decorrelated / diffuse component -->
+    <nae>
+      <name>surround</name>
+      <mode>beta</mode>
+      <rear_gain>4.0</rear_gain>
+      <input_left>beta_input_left</input_left>
+      <input_right>beta_input_right</input_right>
+      <output_left>beta_L</output_left>
+      <output_right>beta_R</output_right>
+    </nae>
+
+  </natambio>
+</main>

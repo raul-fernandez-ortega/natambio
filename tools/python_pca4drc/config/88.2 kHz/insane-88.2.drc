@@ -1,0 +1,220 @@
+# Insane correction settings
+# Used only to show the effect of correction artifacts
+
+# Excessive prefiltering windows (1486 ms at 20 Hz, 295 ms at 100 Hz, 29.5 at 1 kHz, 1.50 ms at 20 kHz)
+# Normal peak limiting (+6.02 dB Max)
+# Minimum phase excess phase allpass recovering to reduce pre-echo
+# Minimal pre-echo truncation
+# Minimum phase postfiltering to reduce I/O latency
+# Minimal ringing truncation
+
+# Base file directory
+# BCBaseDir = /usr/share/drc/
+
+# BC = Base Configuration
+BCInFile = rs.pcm
+BCSampleRate = 88200
+BCInFileType = F
+BCImpulseCenterMode = A
+BCImpulseCenter = 0
+BCInitWindow = 262144
+BCPreWindowLen = 2048
+BCPreWindowGap = 1536
+BCNormFactor = 0.0
+BCNormType = E
+
+# MC = Mic compensation stage
+MCFilterType = N
+MCInterpolationType = H
+MCMultExponent = 3
+MCFilterLen = 65535
+MCNumPoints = 0
+MCPointsFile = wm-61a.txt
+MCMagType = D
+# MCFilterFile = rmcf.pcm
+MCFilterFileType = F
+MCOutWindow = 0
+MCNormFactor = 0.0
+MCNormType = E
+# MCOutFile = rmc.pcm
+MCOutFileType = F
+
+# Base configuration dip limiting stage
+BCDLType = L
+BCDLMinGain = 1e-6 # -120.0 dB Min, just to prevent overflow/underflow problems
+BCDLStartFreq = 20
+BCDLEndFreq = 20000
+BCDLStart = 0.75
+BCDLMultExponent = 3
+
+# HD = Homomorphic Deconvolution
+HDMultExponent = 4
+
+HDMPNormFactor = 1.0
+HDMPNormType = E
+# HDMPOutFile = rmp.pcm
+HDMPOutFileType = F
+
+HDEPNormFactor = 1.0
+HDEPNormType = E
+# HDEPOutFile = rep.pcm
+HDEPOutFileType = F
+
+# MP = Minimum phase frequency dependent windowing
+MPPrefilterType = s
+MPPrefilterFctn = B
+MPWindowGap = 262
+MPLowerWindow = 262144 # 1486 ms
+MPUpperWindow = 262 # 1.50 ms
+MPStartFreq = 20
+MPEndFreq = 20000
+MPFilterLen = 131072
+MPFSharpness = 0.25
+MPBandSplit = 3
+MPWindowExponent = 1.0
+MPHDRecover = Y
+MPEPPreserve = Y
+MPHDMultExponent = 3
+MPPFFinalWindow = 262144
+MPPFNormFactor = 0.0
+MPPFNormType = E
+# MPPFOutFile = rmppf.pcm
+MPPFOutFileType = F
+
+# DL = Dip limiting stage
+DLType = M
+DLMinGain = 0.01 # -40.0 dB Min
+DLStartFreq = 20
+DLEndFreq = 20000
+DLStart = 0.75
+DLMultExponent = 3
+
+# EP = Excess phase frequency dependent windowing
+EPPrefilterType = s
+EPPrefilterFctn = B
+EPWindowGap = 262
+EPLowerWindow = 10920 # 61.9 ms
+EPUpperWindow = 262 # 1.50 ms
+EPStartFreq = 20
+EPEndFreq = 20000
+EPFilterLen = 131072
+EPFSharpness = 0.25
+EPBandSplit = 3
+EPWindowExponent = 1.0
+EPPFFlatGain = 1.0
+EPPFOGainFactor = 0.0
+EPPFFlatType = M
+EPPFFGMultExponent = 3
+EPPFFinalWindow = 10920
+EPPFNormFactor = 0.0
+EPPFNormType = E
+# EPPFOutFile = reppf.pcm
+EPPFOutFileType = F
+
+# PC = Prefiltering completion stage
+PCOutWindow = 0
+PCNormFactor = 0.0
+PCNormType = E
+# PCOutFile = rpc.pcm
+PCOutFileType = F
+
+# IS = Inversion stage
+ISType = T
+ISPETType = f
+ISPrefilterFctn = B
+ISPELowerWindow = 5460
+ISPEUpperWindow = 4096
+ISPEStartFreq = 20
+ISPEEndFreq = 20000
+ISPEFilterLen = 16384
+ISPEFSharpness = 0.50
+ISPEBandSplit = 3
+ISPEWindowExponent = 1.0
+ISPEOGainFactor = 0.0
+ISSMPMultExponent = 4
+ISOutWindow = 0
+ISNormFactor = 0.0
+ISNormType = E
+# ISOutFile = ris.pcm
+ISOutFileType = F
+
+# PT = Psychoacoustic target stage
+PTType = M
+PTReferenceWindow = 52920 # 300 ms
+PTDLType = M
+PTDLMinGain = 0.1 # -20.0 dB Min
+PTDLStartFreq = 20
+PTDLEndFreq = 20000
+PTDLStart = 0.75
+PTDLMultExponent = 3
+PTBandWidth = -2
+PTPeakDetectionStrength = 15
+PTMultExponent = 0
+PTFilterLen = 65536
+# PTFilterFile = rptf.pcm
+PTFilterFileType = F
+PTNormFactor = 0.0
+PTNormType = E
+# PTOutFile = rpt.pcm
+PTOutFileType = F
+PTOutWindow = 0
+
+# PL = Peak limiting stage
+PLType = W
+PLMaxGain = 2.0 # +6.02 dB Max
+PLStart = 0.75
+PLStartFreq = 100
+PLEndFreq = 10000
+PLMultExponent = 3
+PLOutWindow = 0
+PLNormFactor = 0.0
+PLNormType = E
+# PLOutFile = rpl.pcm
+PLOutFileType = F
+
+# RT = Ringing truncation stage
+RTType = s
+RTPrefilterFctn = B
+RTWindowGap = 262
+RTLowerWindow = 262144 # 1486 ms
+RTUpperWindow = 262 # 1.50 ms
+RTStartFreq = 20
+RTEndFreq = 20000
+RTFilterLen = 131072
+RTFSharpness = 0.25
+RTBandSplit = 3
+RTWindowExponent = 1.0
+RTOutWindow = 131072
+RTNormFactor = 0.0
+RTNormType = E
+# RTOutFile = rrt.pcm
+RTOutFileType = F
+
+# PS = Target respose stage
+PSFilterType = T
+PSInterpolationType = S
+PSMultExponent = 3
+PSFilterLen = 131071
+PSNumPoints = 0
+PSPointsFile = pa-88.2.txt
+PSMagType = D
+PSOutWindow = 131072
+PSNormFactor = 1.0
+PSNormType = E
+PSOutFile = rps.pcm
+PSOutFileType = F
+
+# Minimum phase filter extraction stage
+MSMultExponent = 3
+MSOutWindow = 131072
+MSFilterDelay = 5460
+MSNormFactor = 1.0
+MSNormType = E
+# MSOutFile = rms.pcm
+MSOutFileType = F
+
+# Test convolution stage
+TCNormFactor = 0.0
+TCNormType = M
+TCOutFile = rtc.pcm
+TCOutFileType = F

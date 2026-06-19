@@ -1,0 +1,8 @@
+natambio (1.0.0) unstable; urgency=medium
+
+  * Initial Debian packaging.
+  * Split into natambio (real-time JACK client), natambio-tools (offline C
+    FIR/DRC generators), natambio-ladspa (LADSPA plugin) and natambio-drc
+    (offline Python toolkit).
+
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Tue, 16 Jun 2026 20:02:55 +0200

@@ -1,0 +1,23 @@
+[Unit]
+Description=JACK server for natambio (raw jackd, panambio)
+After=sound.target
+Wants=sound.target
+# Keeps natambio running whenever jackd is active, including restarting it
+# after an automatic jackd restart (systemd >= 249).
+Upholds=natambio.service
+# Do not limit the number of restarts (e.g. if FireWire HW takes time to appear).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=%h/control_scripts/start_jackd_systemd.sh
+Restart=always
+RestartSec=1
+# Realtime permissions (the audio group already grants rtprio 95 / memlock unlimited).
+LimitRTPRIO=infinity
+LimitMEMLOCK=infinity
+KillMode=control-group
+TimeoutStopSec=5
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,78 @@
+# --------------------------------------------------------------------------------
+#
+#  Simple-build fallback Makefile for nat_ambio_surround (natambio).
+#
+#  The supported build is autotools (./configure && make from the project
+#  root). This file lets you build natambio directly from src/ without
+#  generating ./configure, e.g. during local development.
+#
+#  Usage:
+#      cd src
+#      make -f Makefile.simple
+#      sudo make -f Makefile.simple install
+#
+#  Copyright (C) 2013-2025 Raul Fernandez Ortega <natambio.audio@gmail.com>
+#  Build-system structure based on smoothfir's Makefile
+#  Copyright (C) 2005-2021 Fons Adriaensen <fons@linuxaudio.org>
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+# --------------------------------------------------------------------------------
+
+
+PREFIX  ?= /usr/local
+BINDIR  ?= $(PREFIX)/bin
+
+VERSION  = 1.0.0
+CPPFLAGS += -MMD -MP -DVERSION=\"$(VERSION)\"
+CXXFLAGS += -O3 -Wall -fPIC
+CFLAGS  += -O3 -Wall -fPIC
+# Diagnostic builds (mutually exclusive). Uncomment one if needed.
+#CXXFLAGS += -DDEBUG -DNRTDEBUG
+#CXXFLAGS += -DDEBUG -DRTDEBUG
+
+LIBINCLUDES = -I/usr/include/libxml2
+LDLIBS  += -lxml2 -lzita-convolver -lfftw3f -lsndfile -ljack -pthread -lrt
+
+# Shared C filter-design code (binaural_cues, dsp, xtc, loudness) lives in
+# ../lib and is compiled here via VPATH; -I../lib lets naconf.cpp find its headers.
+LIBDIR   = ../lib
+VPATH    = $(LIBDIR)
+
+INC      = $(LIBINCLUDES) -I$(LIBDIR)
+
+NATAMBIO_O = main.o natambio.o iojack.o convchannel.o naconf.o nae.o dsp.o xtc.o binaural_cues.o loudness.o
+NATAMBIO_D = $(NATAMBIO_O:.o=.d)
+
+.PHONY: all install uninstall clean
+
+all:	natambio
+
+%.o : %.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(INC) -c $< -o $@
+
+%.o : %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INC) -c $< -o $@
+
+natambio: $(NATAMBIO_O)
+	$(CXX) -o $@ $(NATAMBIO_O) $(LDLIBS)
+
+install: all
+	install -d $(DESTDIR)$(BINDIR)
+	install -m 755 natambio $(DESTDIR)$(BINDIR)
+
+uninstall:
+	rm -f $(DESTDIR)$(BINDIR)/natambio
+
+clean:
+	/bin/rm -f *~ *.o *.a *.d *.so natambio
+
+-include $(NATAMBIO_D)

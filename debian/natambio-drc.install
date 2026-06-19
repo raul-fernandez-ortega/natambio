@@ -1,0 +1,9 @@
+usr/share/natambio/python_pca4drc
+usr/share/natambio/python_nae_natambio
+usr/bin/natambio-pca4drc
+usr/bin/natambio-sweepgen
+usr/bin/natambio-fft-convolve
+usr/bin/natambio-check-capture
+usr/bin/natambio-wav2raw
+usr/bin/natambio-raw2wav
+usr/bin/natambio-nae

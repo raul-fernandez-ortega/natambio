@@ -1,0 +1,43 @@
+#!/usr/bin/make -f
+# NatAmbio Debian packaging.
+#
+# The autotools build (SUBDIRS = lib src tools/xtc_filters
+# tools/ladspa_nae_natambio) builds the JACK client, the xtc_filters generator
+# (noinst) and the LADSPA plugin. Everything is staged into debian/tmp and split
+# into the binary packages via the *.install files.
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+TMP := debian/tmp
+SHAREDIR := $(TMP)/usr/share/natambio
+BINDIR := $(TMP)/usr/bin
+
+%:
+	dh $@
+
+override_dh_auto_install:
+	dh_auto_install
+	# --- C tools -> namespaced commands in /usr/bin (natambio-tools) ---
+	install -D -m0755 tools/xtc_filters/xtc_filters    $(BINDIR)/natambio-xtc-filters
+	# --- LADSPA plugin -> multiarch ladspa dir (natambio-ladspa) ---
+	install -D -m0644 tools/ladspa_nae_natambio/ladspa_nae_natambio.so \
+	    $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/ladspa/ladspa_nae_natambio.so
+	# --- Python toolkits -> private dir under /usr/share (natambio-drc) ---
+	install -d $(SHAREDIR)/python_pca4drc
+	cp -a tools/python_pca4drc/*.py        $(SHAREDIR)/python_pca4drc/
+	cp -a tools/python_pca4drc/measure_pca4drc.sh $(SHAREDIR)/python_pca4drc/
+	cp -a tools/python_pca4drc/target      $(SHAREDIR)/python_pca4drc/
+	cp -a tools/python_pca4drc/config      $(SHAREDIR)/python_pca4drc/
+	cp -a tools/python_pca4drc/mic         $(SHAREDIR)/python_pca4drc/
+	install -d $(SHAREDIR)/python_nae_natambio
+	cp -a tools/python_nae_natambio/*.py   $(SHAREDIR)/python_nae_natambio/
+	find $(SHAREDIR) -name '*.py' -exec chmod 0644 {} +
+	# --- /usr/bin wrappers for the Python tools (natambio-drc) ---
+	debian/gen-wrappers.sh $(BINDIR)
+	# --- example XML configurations (natambio) ---
+	install -d $(SHAREDIR)/examples
+	install -m0644 docs/config_samples/*.xml    $(SHAREDIR)/examples/
+
+# zita-convolver ships no .so version symlink consumed via pkg-config; nothing
+# special needed for dh_shlibdeps.

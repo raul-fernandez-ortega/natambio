@@ -1,0 +1,58 @@
+<main>
+  <natambio>
+    <!--
+      NAE alpha (front stereo dipole) only — no convolution stage.
+
+      The blended output (front × front_gain + ambience × ambience_gain) is
+      written directly to two unconnected JACK output ports.  No <convol>
+      blocks are needed: <output_left>/<output_right> can reference a JACK
+      output port name directly.
+
+      Use cases:
+        - Inspect the NAE output in real time (connect to a metering plugin)
+        - Drive a downstream JACK client that applies its own processing
+        - Quick A/B of NAE vs. dry signal via qjackctl patch bay
+
+      To expose the front (main) and ambience components as separate port
+      pairs instead of the blended mix, replace <output_left>/<output_right>
+      with <front_output_left>/<front_output_right> and
+      <amb_output_left>/<amb_output_right>, adding two extra jack_output ports.
+      See nae_front_amb_out.xml for that topology.
+    -->
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- Ports left unconnected: wire them manually in qjackctl -->
+      <port>
+        <name>output_L</name>
+      </port>
+      <port>
+        <name>output_R</name>
+      </port>
+    </jack_output>
+
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <!-- These names match the jack_output port names above — no convol needed -->
+      <output_left>output_L</output_left>
+      <output_right>output_R</output_right>
+    </nae>
+
+  </natambio>
+</main>
