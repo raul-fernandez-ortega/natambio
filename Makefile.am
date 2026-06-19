@@ -10,7 +10,7 @@ SUBDIRS = lib src tools/xtc_filters tools/ladspa_nae_natambio
 
 dist_doc_DATA = \
 	docs/README.md \
-	README.CONFIG \
+	docs/README.CONFIG \
 	AUTHORS      \
 	LICENSE
 

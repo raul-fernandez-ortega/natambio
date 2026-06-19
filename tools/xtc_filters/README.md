@@ -37,4 +37,4 @@ XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_cross.wav
 ```
 
 The same filters can be generated in-process by `natambio` via a `<xtc>` block
-(see `README.CONFIG`); this tool is for producing them offline as WAV files.
+(see `docs/README.CONFIG`); this tool is for producing them offline as WAV files.

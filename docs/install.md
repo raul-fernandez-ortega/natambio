@@ -153,7 +153,7 @@ A running JACK server is required before starting `natambio`.
 
 ## Configuration
 
-The current XML schema is described in [`README.CONFIG`](../README.CONFIG), which
+The current XML schema is described in [`README.CONFIG`](README.CONFIG), which
 is authoritative for the parser implemented in `src/naconf.cpp`.
 
 Supported top-level blocks in `<natambio>` include:
@@ -228,7 +228,7 @@ subdirectory.
 
 ## References
 
-- [`README.CONFIG`](../README.CONFIG) — XML schema and parser reference.
+- [`README.CONFIG`](README.CONFIG) — XML schema and parser reference.
 - [`src/README.md`](../src/README.md) — internal architecture and implementation notes.
 
 ## License

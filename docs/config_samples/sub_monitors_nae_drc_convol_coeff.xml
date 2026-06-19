@@ -39,7 +39,7 @@
       Derived coeffs: DRC convolved with each crossover half.
       <low_and_high_filter> coeffs are generated after all <coeff> blocks are
       read, so references to "HP 120Hz" / "LP 120Hz" are resolved at
-      convolution-build time (see README.CONFIG).
+      convolution-build time (see docs/README.CONFIG).
     -->
     <coeff>
       <name>HP DRC left</name>
