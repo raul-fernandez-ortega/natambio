@@ -1,56 +1,56 @@
 # python_nae_natambio
 
-Versión **Python offline** del algoritmo **NAE** (*NatAmbio Ambient Extraction*).
+*Also available in: [Español](README_es.md)*
 
-Es el mismo algoritmo que las otras dos encarnaciones del proyecto, pero fuera de
-tiempo real:
+**Offline Python** version of the **NAE** (*NatAmbio Ambient Extraction*) algorithm.
 
-| Implementación | Lenguaje | Contexto |
+It is the same algorithm as the project's other two incarnations, but out of
+real time:
+
+| Implementation | Language | Context |
 | --- | --- | --- |
-| `tools/ladspa_nae_natambio` | C | Plugin LADSPA (tiempo real) |
-| `src/nae.cpp` | C++ | Motor NAE del cliente JACK `natambio` (tiempo real) |
-| **`tools/python_nae_natambio`** | **Python** | **Offline sobre un fichero WAV** |
+| `tools/ladspa_nae_natambio` | C | LADSPA plugin (real time) |
+| `src/nae.cpp` | C++ | NAE engine of the `natambio` JACK client (real time) |
+| **`tools/python_nae_natambio`** | **Python** | **Offline, over a WAV file** |
 
-Este directorio es un **proyecto Python autónomo**: no comparte código con el
-resto del repositorio.
+This directory is a **self-contained Python project**: it shares no code with the
+rest of the repository.
 
-## Qué hace
+## What it does
 
-Descompone una señal estéreo mediante PCA (autovalores/autovectores de la matriz
-de covarianza 2×2 sobre las componentes *mid/side*, con una ventana solapada de
-`covsteps` frames) en dos componentes:
+It decomposes a stereo signal via PCA (eigenvalues/eigenvectors of the 2×2
+covariance matrix over the *mid/side* components, with an overlapping window of
+`covsteps` frames) into two components:
 
-- **C1 — principal (main)**
-- **C2 — ambiente (ambient)**
+- **C1 — main**
+- **C2 — ambient**
 
-y las escribe como `<entrada>_c1.wav` y `<entrada>_c2.wav` junto al WAV de
-entrada.
+and writes them as `<input>_c1.wav` and `<input>_c2.wav` next to the input WAV.
 
-Tiene dos propósitos:
+It has two purposes:
 
-1. **Ejecutar** el algoritmo NAE sobre un WAV de forma reproducible, sin
-   necesidad de un servidor de audio en tiempo real (JACK).
-2. **Analizar** el proceso: con `--analysis true` genera gráficas matplotlib
-   (correlación L/R y su histograma, rotación de autovectores, relación de
-   autovalores, niveles de las componentes C1/C2, y dispersión *mid/side* con los
-   autovectores superpuestos). Cada título incluye el nombre del WAV y el modo.
+1. **Run** the NAE algorithm over a WAV reproducibly, without needing a
+   real-time audio server (JACK).
+2. **Analyse** the process: with `--analysis true` it generates matplotlib plots
+   (L/R correlation and its histogram, eigenvector rotation, eigenvalue ratio,
+   C1/C2 component levels, and a *mid/side* scatter with the eigenvectors
+   overlaid). Each title includes the WAV name and the mode.
 
-## Multiplataforma
+## Cross-platform
 
-Se apoya únicamente en `numpy`, `soundfile` y `matplotlib` —todas
-multiplataforma—, por lo que es ejecutable tanto en **GNU/Linux** como en
-**MS Windows** sin cambios.
+It relies only on `numpy`, `soundfile` and `matplotlib` —all cross-platform—, so
+it runs on both **GNU/Linux** and **MS Windows** without changes.
 
-## Dependencias
+## Dependencies
 
 - Python 3
 - [`numpy`](https://numpy.org/)
-- [`soundfile`](https://python-soundfile.readthedocs.io/) (lectura/escritura WAV)
-- [`matplotlib`](https://matplotlib.org/) (gráficas de análisis)
+- [`soundfile`](https://python-soundfile.readthedocs.io/) (WAV read/write)
+- [`matplotlib`](https://matplotlib.org/) (analysis plots)
 
-### Instalación
+### Installation
 
-Se recomienda un entorno virtual.
+A virtual environment is recommended.
 
 **GNU/Linux**
 
@@ -68,49 +68,49 @@ py -m venv .venv
 pip install numpy soundfile matplotlib
 ```
 
-> En Windows, `soundfile` incluye la librería `libsndfile`; en algunas distros
-> GNU/Linux puede hacer falta instalar el paquete del sistema `libsndfile1`.
+> On Windows, `soundfile` bundles the `libsndfile` library; on some GNU/Linux
+> distros you may need to install the system package `libsndfile1`.
 
-## Uso
+## Usage
 
 ```sh
-python nae_natambio.py <fichero.wav> [--ambient true|false]
-                                     [--analysis true|false]
-                                     [--frame-size N] [--covsteps N]
+python nae_natambio.py <file.wav> [--ambient true|false]
+                                  [--analysis true|false]
+                                  [--frame-size N] [--covsteps N]
 ```
 
-### Argumentos
+### Arguments
 
-| Argumento | Valor por defecto | Descripción |
+| Argument | Default | Description |
 | --- | --- | --- |
-| `wavfile` | *(obligatorio)* | Fichero WAV **estéreo** a analizar. |
-| `--ambient` | `false` | `true` = modo ambiente NAE; `false` = modo principal (main). |
-| `--analysis` | `true` | `true` = genera las gráficas matplotlib; `false` = solo procesa y escribe los WAV. |
-| `--frame-size` | `1024` | Tamaño de frame en muestras. |
-| `--covsteps` | `5` | Número de pasos de covarianza solapados. |
+| `wavfile` | *(required)* | **Stereo** WAV file to analyse. |
+| `--ambient` | `false` | `true` = NAE ambient mode; `false` = main mode. |
+| `--analysis` | `true` | `true` = generate the matplotlib plots; `false` = only process and write the WAVs. |
+| `--frame-size` | `1024` | Frame size in samples. |
+| `--covsteps` | `5` | Number of overlapped covariance steps. |
 
-Los flags booleanos aceptan `true/false`, `1/0`, `yes/no`, `on/off`.
+Boolean flags accept `true/false`, `1/0`, `yes/no`, `on/off`.
 
-### Ejemplos
+### Examples
 
-Procesar en modo principal con análisis (abre las gráficas):
-
-```sh
-python nae_natambio.py entrada.wav --ambient false --analysis true
-```
-
-Procesar en modo ambiente sin gráficas (solo genera los WAV de salida):
+Process in main mode with analysis (opens the plots):
 
 ```sh
-python nae_natambio.py entrada.wav --ambient true --analysis false
+python nae_natambio.py input.wav --ambient false --analysis true
 ```
 
-## Salida
+Process in ambient mode without plots (only generates the output WAVs):
 
-Junto al fichero de entrada se generan:
+```sh
+python nae_natambio.py input.wav --ambient true --analysis false
+```
 
-- `<entrada>_c1.wav` — componente principal (C1)
-- `<entrada>_c2.wav` — componente ambiente (C2)
+## Output
 
-En modo análisis, además, se muestran las ventanas de matplotlib (cada una
-bloquea hasta que se cierra).
+Next to the input file it generates:
+
+- `<input>_c1.wav` — main component (C1)
+- `<input>_c2.wav` — ambient component (C2)
+
+In analysis mode, the matplotlib windows are also shown (each blocks until
+closed).
