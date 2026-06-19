@@ -54,7 +54,7 @@ if [ -z "$TAG" ]; then
 fi
 
 CONFIGDIR=$HOME/nat_ambio_surround_config
-COMPLETEPANAMBIOCONFIG=test_complete_natambio_$TAG.xml
+COMPLETENATAMBIOCONFIG=test_complete_natambio_$TAG.xml
 
-echo "starting natambio ($COMPLETEPANAMBIOCONFIG)..."
-exec /usr/local/bin/natambio $CONFIGDIR/$COMPLETEPANAMBIOCONFIG
+echo "starting natambio ($COMPLETENATAMBIOCONFIG)..."
+exec /usr/local/bin/natambio $CONFIGDIR/$COMPLETENATAMBIOCONFIG
