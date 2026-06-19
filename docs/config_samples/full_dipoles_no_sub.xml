@@ -29,7 +29,7 @@
     <!-- Front XTC: typical near-field listening geometry -->
     <xtc>
       <itd_us>160</itd_us>
-      <ild_db>10.0</ild_db>
+      <ild_db>10</ild_db>
       <ild_alpha>1.8</ild_alpha>
       <azimuth_deg>20</azimuth_deg>
       <length>4096</length>
