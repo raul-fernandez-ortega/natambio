@@ -93,6 +93,10 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [Uso de natambio como servicio automático en un NatAmbio DSP procesador autónomo](../natambio_as_a_service/natambio_systemd.md).
 - ¿Cómo construir un equipo de audio que sea un sistema NatAmbio?
 
+### Otras herramientas disponibles
+
+- [python_nae_natambio](../tools/python_nae_natambio/README.md) Script python para la aplicación de NAE offline sobre ficheros wav. Posibilita pruebas específicas sobre los algoritmos NAE. Genera gráficas analíticas como las que presenta [NatAmbio Ambient Extractor (NAE)](nae/nae_es.md) 
+
 ### Intuiciones técnicas sobre potencialidades futuras del estéreo 
 
 ### Rincón audiófilo: las grabaciones que han hecho posible NatAmbio

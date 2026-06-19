@@ -16,11 +16,7 @@
 /src/natambio
 /src/out
 /tools/xtc_filters/xtc_filters
-/tools/race_filters/race_filters
 /tools/ladspa_nae_natambio/ladspa_nae_natambio.so
-
-# Generated filter outputs
-/tools/race_filters/filters/*.wav
 
 # ---- Editor backups / IDE / logs ----
 *~
