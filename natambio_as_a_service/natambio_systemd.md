@@ -1,4 +1,4 @@
-# Quick reference — natambio / jackd under systemd (panambio user)
+# Quick reference — natambio / jackd under systemd (<user>)
 
 > **Disclaimer:** `start_jackd_systemd.sh` and `start_natambio_systemd.sh` are
 > scripts from a specific audio system and are **not generic**. They hard-code the
@@ -42,7 +42,7 @@ Replaces the bash watchdog (`check_natambio.sh`). CPU cost ≈ 0 (no polling).
 
 ```sh
 # Allow services to start at boot without a login session:
-sudo loginctl enable-linger panambio
+sudo loginctl enable-linger <user>
 
 # Register and enable:
 systemctl --user daemon-reload
