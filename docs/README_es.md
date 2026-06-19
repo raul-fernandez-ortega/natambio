@@ -96,6 +96,9 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 ### Otras herramientas disponibles
 
 - [python_nae_natambio](../tools/python_nae_natambio/README.md) Script python para la aplicación de NAE offline sobre ficheros wav. Posibilita pruebas específicas sobre los algoritmos NAE. Genera gráficas analíticas como las que presenta [NatAmbio Ambient Extractor (NAE)](nae/nae_es.md) 
+- [ladspa_nae_natambio](../tools/ladspa_nae_natambio/README.md) Módulo NAE aplicable a procesadores audio compatibles con LADSPA (applyplugin, ecasound,...)
+- [xtc_filters](../tools/xtc_filters/README.md) Una herramienta escrita en c que implementa el [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc/xtc_filters_es.md) para su uso independiente de natambio. Genera los filtros FIR XTC para su uso en otro convolver.
+- [pca4drc](../tools/python_pca4drc/README.md) Incluye un conjunto de herramientas para tomar medidas acústicas de la sala, aplicar el método PCA4DRC y obtener un impulso de referencia a utilizar en un generador de filtros DRC FIR (se recomienda http://drc-fir.sourceforge.net) 
 
 ### Intuiciones técnicas sobre potencialidades futuras del estéreo 
 

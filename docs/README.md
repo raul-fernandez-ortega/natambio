@@ -93,6 +93,13 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [Running natambio as an automatic service on a standalone NatAmbio DSP processor](../natambio_as_a_service/natambio_systemd.md).
 - How to build an audio system that is a NatAmbio system.
 
+### Other available tools
+
+- [python_nae_natambio](../tools/python_nae_natambio/README.md) Python script for offline NAE processing of WAV files. Enables specific testing of the NAE algorithms. Generates analytical plots like those shown in [NatAmbio Ambient Extractor (NAE)](nae/nae_en.md).
+- [ladspa_nae_natambio](../tools/ladspa_nae_natambio/README.md) NAE module for LADSPA-compatible audio hosts (applyplugin, ecasound, …).
+- [xtc_filters](../tools/xtc_filters/README.md) A C tool that implements the [design of a stereo crosstalk canceller (XTC) by convolution for NatAmbio](xtc/xtc_filters_en.md) for standalone use outside natambio. Generates the XTC FIR filters for use in another convolver.
+- [pca4drc](../tools/python_pca4drc/README.md) A set of tools to take acoustic room measurements, apply the PCA4DRC method and obtain a reference impulse for use in a DRC FIR filter generator (http://drc-fir.sourceforge.net recommended).
+
 ### Technical intuitions on future possibilities of stereo
 
 ### Audiophile corner: the recordings that made NatAmbio possible
