@@ -114,9 +114,10 @@ using the ALSA backend do not require rtirq.
 Python tool dependencies:
 
 - Python 3
-- `numpy`
-- `soundfile`
-- `matplotlib`
+- `numpy` (both tools)
+- `soundfile` (both tools)
+- `scipy` (python_pca4drc)
+- `matplotlib` (python_nae_natambio)
 
 ## Build and install
 
