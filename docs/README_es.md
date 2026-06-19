@@ -69,7 +69,7 @@ Es necesario destacar una vez más que todas las funcionalidades que NatAmbio re
 
 NatAmbio es Software Libre, se licencia bajo GPLv3, lo que permite la redistribución y la modificación de su código bajo los términos recogidos en la propia GPLv3.
 
-## Documentación (enlaces pendientes)
+## Documentación 
 
 NatAmbio presenta una documentación variada, según el enfoque con que se quiera conocerlo. Los artículos técnicos desarrollan los modelos en los que se basa NatAmbio y que son más originales o novedosos. La documentación de uso es la propia de software NatAmbio. 
 

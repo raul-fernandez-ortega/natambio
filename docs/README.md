@@ -69,7 +69,7 @@ It is worth stressing once more that all functionality NatAmbio performs through
 
 NatAmbio is Free Software, licensed under GPLv3, which permits redistribution and modification of its source code under the terms of the GPLv3 itself.
 
-## Documentation (links pending)
+## Documentation 
 
 NatAmbio offers varied documentation depending on how you want to approach it. The technical articles develop the models on which NatAmbio is based — those that are most original or novel. The usage documentation covers the NatAmbio software itself.
 
