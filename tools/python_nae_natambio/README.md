@@ -87,7 +87,7 @@ python nae_natambio.py <fichero.wav> [--ambient true|false]
 | `--ambient` | `false` | `true` = modo ambiente NAE; `false` = modo principal (main). |
 | `--analysis` | `true` | `true` = genera las gráficas matplotlib; `false` = solo procesa y escribe los WAV. |
 | `--frame-size` | `1024` | Tamaño de frame en muestras. |
-| `--covsteps` | `3` | Número de pasos de covarianza solapados. |
+| `--covsteps` | `5` | Número de pasos de covarianza solapados. |
 
 Los flags booleanos aceptan `true/false`, `1/0`, `yes/no`, `on/off`.
 
