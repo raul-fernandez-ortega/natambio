@@ -1,5 +1,5 @@
 [Unit]
-Description=natambio DSP processor (panambio)
+Description=natambio DSP processor (<user>)
 After=natambio-jackd.service
 # natambio lives exactly as long as jackd: if jackd stops/crashes, natambio
 # stops; if jackd comes back, Upholds (in natambio-jackd.service) restarts it.

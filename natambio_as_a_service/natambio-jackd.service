@@ -1,5 +1,5 @@
 [Unit]
-Description=JACK server for natambio (raw jackd, panambio)
+Description=JACK server for natambio (raw jackd, <user>)
 After=sound.target
 Wants=sound.target
 # Keeps natambio running whenever jackd is active, including restarting it
