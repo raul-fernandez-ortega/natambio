@@ -9,7 +9,7 @@ ACLOCAL_AMFLAGS = -I m4
 SUBDIRS = lib src tools/xtc_filters tools/ladspa_nae_natambio
 
 dist_doc_DATA = \
-	README.md    \
+	docs/README.md \
 	README.CONFIG \
 	AUTHORS      \
 	LICENSE

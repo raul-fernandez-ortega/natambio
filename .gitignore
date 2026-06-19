@@ -24,9 +24,14 @@
 
 # ---- Editor backups / IDE / logs ----
 *~
+\#*#
+.#*
 .anjuta*
 .anjuta_sym_db.db
 qjackctl.log
+
+# Local-only: old root READMEs kept aside (GitHub front page is now docs/README.md)
+/README*.bak
 
 # ---- Python ----
 __pycache__/
