@@ -410,7 +410,7 @@ The empirical evaluation of listening to the signal called ambient in a stereo s
   </p>
 <div align="center"> <strong>Figure 29.</strong> Temporal evolution of the levels of each component C<sub>1</sub> and C<sub>2</sub> and the level differences between them for the I Am In Love sample after applying the beta modeling</div><br>
 
-It must be borne in mind that this second approach to NAE does not aim to artificially increase the amount of spatial sound present in the recording. Its objective is to reduce PCA's tendency to interpret dominant lateral sources as independent components liable to be transferred to the ambient output.
+It must be noted that this second approach to NAE does not aim to artificially increase the amount of spatial sound present in the recording. Its objective is to reduce PCA's tendency to interpret dominant lateral sources as independent components liable to be transferred to the ambient output.
 
 NatAmbio uses both NAE approaches in its two stereo dipoles, with different objectives but in a coordinated manner between the two. The following sections describe the transition from the description of its algorithm to the final implementation in real-time processing software that forms part of the NatAmbio application.
 
