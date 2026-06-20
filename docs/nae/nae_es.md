@@ -309,14 +309,14 @@ La primera aproximación de NAE puede interpretarse como una búsqueda de los po
 
 Asumiendo que el problema puede deberse a la baja correlación entre canales $L/R$, se puede hacer una transformación previa al paso a PCA que haga aumentar esta correlación:
 
-$$ l^\prime = ( 1- \gamma)\space l + \gamma \space r$$
-$$ r^\prime = ( 1- \gamma)\space r + \gamma \space l$$
+$$ l^\prime = ( 1- \mu)\space l + \mu \space r$$
+$$ r^\prime = ( 1- \mu)\space r + \mu \space l$$
 
 De esta forma las señales M/S quedan:
 
 $$ m = l + r $$
-$$ s = ( 1 - 2 \gamma) (l -r) = \beta (l-r)$$
-$$ siendo\space \beta = ( 1 - 2 \gamma), \qquad \gamma \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
+$$ s = ( 1 - 2 \mu) (l -r) = \beta (l-r)$$
+$$ siendo\space \beta = ( 1 - 2 \mu), \qquad \mu \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
 
 De esta forma, con el factor $\beta$ se puede hacer disminuir la componente side en el peso $M/S$. La cuestión pendiente es decidir cuál será el mejor ajuste de $\beta$, que necesariamente tendrá que depender de la naturaleza de la propia grabación. Si en el caso de Kind of Blue no se necesita o será suficiente con un factor $\beta$ próximo a 1, en el caso de At The Blackhawk, parece lógico pensar que será conveniente introducir $\beta$ más reducido. En cualquier caso, es evidente que tiene que ser la propia grabación, con sus características de correlación, la que genere su propia $\beta$ variable con su evolución.
 La parametrización propuesta para aplicar en el algoritmo NAE y generar $\beta$  parte de la observación, anteriormente comentada, de que hay una fuerte relación entre la correlacion $L/R$ y la rotación de ejes PCA. Si el objetivo es evitar esta rotación, un candidato a la parametrización de $\beta$ es la propia correlación $L/R$. La correlación no se utiliza únicamente como una medida perceptual de amplitud estéreo. En el contexto de NAE actúa además como un indicador indirecto de la estabilidad de la descomposición PCA. Correlaciones elevadas producen nubes $M/S$ más alargadas y autovectores más estables, mientras que correlaciones reducidas generan distribuciones más isotrópicas y orientaciones PCA más sensibles a pequeñas variaciones estadísticas.
@@ -409,7 +409,7 @@ Debido a los requisitos de funcionamiento en tiempo real, esta estimación utili
 
 Como se ha explicado, NAE tiene finalmente dos posibles implementaciones: una primera aproximación, sin adaptación específica de la señal de entrada, que, para NatAmbio, recibe el nombre de NAE modo $\alpha$; y una segunda aproximación, con adaptación especial de la señal de entrada utilizando el parámetro $\beta$, que en NatAmbio recibe el nombre de NAE modo $\beta$.
 
-Conviene precisar la notación para evitar confusiones. Los nombres de modo $\alpha$ y $\beta$ identifican las dos implementaciones de NAE y no deben confundirse con los parámetros empleados en las ecuaciones: el coeficiente de mezcla $\gamma$ y el peso de la componente side $\beta = 1 - 2\gamma$. El modo $\alpha$ corresponde al caso sin mezcla previa ($\gamma = 0$, equivalente a $\beta = 1$), mientras que el modo $\beta$ aplica la adaptación dinámica de $\beta$ en función de la correlación $L/R$.
+Conviene precisar la notación para evitar confusiones. Los nombres de modo $\alpha$ y $\beta$ identifican las dos implementaciones de NAE y no deben confundirse con los parámetros empleados en las ecuaciones: el coeficiente de mezcla $\mu$ y el peso de la componente side $\beta = 1 - 2\mu$. El modo $\alpha$ corresponde al caso sin mezcla previa ($\mu = 0$, equivalente a $\beta = 1$), mientras que el modo $\beta$ aplica la adaptación dinámica de $\beta$ en función de la correlación $L/R$.
 
 Esquema funcional de NAE, ambos modos, $\alpha$ y $\beta$:
 
