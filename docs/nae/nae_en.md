@@ -56,22 +56,22 @@ The intention of these definitions is to give meaning to the core of NAE's devel
 
 During the early phases of this algorithm's development, different ways of representing the stereo information were explored. The objective was not only to find a valid mathematical transformation, but to reorganize the information contained in the stereo signal so that certain spatial structures became more evident both in visual analysis and in critical listening to commercial recordings used as test signals.
 
-In this sense, the choice of the $M/S$ representation did not initially arise from a formal mathematical deduction, but naturally from the definition of ambience signal developed in the previous section. The $L/R$ representation is natural for stereo reproduction, but is not especially descriptive from the spatial point of view. By contrast, the $M/S$ representation provides a simple separation between the information common to both channels and the differential information between them. If one thinks in terms of common information and differential information versus correlation and anti-correlation:
+In this sense, the choice of the M/S representation did not initially arise from a formal mathematical deduction, but naturally from the definition of ambience signal developed in the previous section. The L/R representation is natural for stereo reproduction, but is not especially descriptive from the spatial point of view. By contrast, the M/S representation provides a simple separation between the information common to both channels and the differential information between them. If one thinks in terms of common information and differential information versus correlation and anti-correlation:
 
 $$ mid = l + r; \qquad mid \rightarrow principal $$
 $$ side = l -r;  \qquad side \rightarrow ambient$$
 
-From a perceptual point of view, the mid component is associated with what both channels share, while the side component represents the lateral differences present in the recording. As a first approximation, $M/S$ comes closer to the sought decomposition into $C_{main}$ and $C_{amb}$ than the canonical stereo form $L/R$.
+From a perceptual point of view, the mid component is associated with what both channels share, while the side component represents the lateral differences present in the recording. As a first approximation, M/S comes closer to the sought decomposition into $C_{main}$ and $C_{amb}$ than the canonical stereo form L/R.
 
-During the study that gave rise to NAE, when representing the samples in the $M/S$ plane it was observed that many musical recordings presented clearly defined geometric structures. This suggested the possibility of applying PCA over that space to automatically identify the dominant directions of energy present in the recording. From a geometric point of view, PCA makes it possible to identify the principal axes of the stereo energy distribution within the $M/S$ plane. As developed later, this interpretation proved especially useful for studying recordings with different spatial characteristics and analyzing the relationship between central content, lateral content and ambient sound. In this context, PCA is not used as a generic dimension-reduction technique, but as a tool to automatically identify the dominant directions associated with the principal/ambient representation defined earlier.
+During the study that gave rise to NAE, when representing the samples in the M/S plane it was observed that many musical recordings presented clearly defined geometric structures. This suggested the possibility of applying PCA over that space to automatically identify the dominant directions of energy present in the recording. From a geometric point of view, PCA makes it possible to identify the principal axes of the stereo energy distribution within the M/S plane. As developed later, this interpretation proved especially useful for studying recordings with different spatial characteristics and analyzing the relationship between central content, lateral content and ambient sound. In this context, PCA is not used as a generic dimension-reduction technique, but as a tool to automatically identify the dominant directions associated with the principal/ambient representation defined earlier.
 
-For this reason, although PCA could be applied directly to $L/R$, the $M/S$ representation produces a much more interpretable geometry for the purpose of ambient extraction, since it allows the relationship between central information (mid) and lateral information (side) to be visualized directly.
+For this reason, although PCA could be applied directly to L/R, the M/S representation produces a much more interpretable geometry for the purpose of ambient extraction, since it allows the relationship between central information (mid) and lateral information (side) to be visualized directly.
 
 ## Principal Component Analysis (PCA) within NAE
 
-The next step after the $L/R$ $\rightarrow$ $M/S$ transformation is the application of PCA to these $M/S$ components, taking samples of size N within the recording being studied. Since it is only necessary to diagonalize a 2×2 covariance matrix, the computational cost is extremely low and compatible with real-time processing. The result will yield a principal component and a secondary component, and an eigenvector that is the one allowing the rotation of all N $M/S$ points of the processed sample to axes on which the resulting points will have zero correlation with each other.
+The next step after the L/R $\rightarrow$ M/S transformation is the application of PCA to these M/S components, taking samples of size N within the recording being studied. Since it is only necessary to diagonalize a 2×2 covariance matrix, the computational cost is extremely low and compatible with real-time processing. The result will yield a principal component and a secondary component, and an eigenvector that is the one allowing the rotation of all N M/S points of the processed sample to axes on which the resulting points will have zero correlation with each other.
 
-The plot presented below makes it possible to understand how PCA acts on each point of a given sample in the $M/S$ space, and how, from a point $(m,s)$, two points $(mC_1, sC_1)$ and $(mC_2, sC_2)$ will be generated with very special properties between them that will be developed later.
+The plot presented below makes it possible to understand how PCA acts on each point of a given sample in the M/S space, and how, from a point $(m,s)$, two points $(mC_1, sC_1)$ and $(mC_2, sC_2)$ will be generated with very special properties between them that will be developed later.
 
 <p align="center">
   <img src="images/pca_stereo_01_detalle_v01.png" alt="Projection onto M/S axes">
@@ -84,7 +84,7 @@ Since the algorithm is being applied to musical recordings, the study of results
 
 ## Relationship between stereo correlation and stability of the PCA decomposition
 
-The following plots show, at five arbitrary points of the selected excerpt So What from Kind Of Blue: on the left, the $M/S$ signal itself, and on the right, its representation on the $M/S$ axes, as well as the rotation axes marked by the eigenvectors of the PCA transformation of the sample corresponding to the represented point cloud.
+The following plots show, at five arbitrary points of the selected excerpt So What from Kind Of Blue: on the left, the M/S signal itself, and on the right, its representation on the M/S axes, as well as the rotation axes marked by the eigenvectors of the PCA transformation of the sample corresponding to the represented point cloud.
 
 <p align="center">
   <img src="alpha_processed/davis_kind_of_blue_so_what_midside_000.png" alt="Kind of Blue sample 1">
@@ -105,7 +105,7 @@ The following plots show, at five arbitrary points of the selected excerpt So Wh
 
 As can be seen, there is an internal structure in the mid vs side relationship, and the PCA axes mark a rotation in which the first component tends to project more mid signal than side, and vice versa for the second component. That, in the case of this recording, the mid signal is generally greater than its corresponding side signal indicates that the mid signal is really the principal one, where the musical instruments will be more localized.
 
-The evolution of the correlation between the $L/R$ signal is also indicative of the weight of the PCA principal component in the recording:
+The evolution of the correlation between the L/R signal is also indicative of the weight of the PCA principal component in the recording:
 
 <p align="center">
   <img src="alpha_processed/davis_kind_of_blue_so_what_correlation.png" alt="Kind of Blue correlation">
@@ -119,18 +119,18 @@ In the correlation histogram it can be observed that the correlation is very hig
 </p>
 <div align="center"> <strong>Figure 8.</strong> Histogram of the l/r correlation for the analyzed sample of So What</div><br>
 
-Likewise, the rotation of the PCA axes over the $M/S$ axes is very controlled, rarely going beyond ±20°.
+Likewise, the rotation of the PCA axes over the M/S axes is very controlled, rarely going beyond ±20°.
 
 <p align="center">
   <img src="alpha_processed/davis_kind_of_blue_so_what_eigenvectors_rotation.png" alt="Kind of Blue eingenvectors rotation">
 </p>
 <div align="center"> <strong>Figure 9.</strong> Temporal evolution of the PCA-axis rotations over the M/S plane</div><br>
 
-There is a direct relationship between all these graphical representations on which it is worth pausing. The figure of temporal evolution of the $L/R$ correlation shows that the analyzed recording presents a predominantly high correlation during most of its duration. Although occasional drops associated with certain musical events appear, the statistical distribution of the correlation is clearly concentrated at values close to 1.
+There is a direct relationship between all these graphical representations on which it is worth pausing. The figure of temporal evolution of the L/R correlation shows that the analyzed recording presents a predominantly high correlation during most of its duration. Although occasional drops associated with certain musical events appear, the statistical distribution of the correlation is clearly concentrated at values close to 1.
 
 This behavior can be observed more clearly in the correlation histogram. Most of the analyzed windows present high positive correlations, indicating that both channels contain a significant amount of common information. From a perceptual point of view, this usually corresponds to recordings in which the sound scene maintains a well-defined stereo center and where the lateral information represents a relatively small fraction of the total energy.
 
-When the signal is represented in the $M/S$ plane, this high correlation translates geometrically into a clearly elongated point cloud. The signal energy is distributed mainly along a dominant direction, while the dispersion perpendicular to that direction is significantly smaller.
+When the signal is represented in the M/S plane, this high correlation translates geometrically into a clearly elongated point cloud. The signal energy is distributed mainly along a dominant direction, while the dispersion perpendicular to that direction is significantly smaller.
 
 Under these conditions, the application of PCA produces an especially stable decomposition. The first eigenvector is well defined by the geometry of the point cloud and concentrates most of the observed variance. The second eigenvector, orthogonal to the first, captures only the secondary variations present in the recording.
 
@@ -138,22 +138,22 @@ This situation can be appreciated in the plot of temporal rotation of the eigenv
 
 From NAE's point of view, this stability is especially relevant. When there is a clearly identifiable dominant direction, the principal component $C_1$ concentrates most of the correlated energy of the recording, while the secondary component $C_2$ collects spatial variations of smaller magnitude.
 
-It is important to note that PCA does not explicitly identify sound sources nor distinguish between direct sound and ambience. However, when the stereo correlation remains high for prolonged intervals, the geometry of the $M/S$ space favors the appearance of a clearly dominant principal component and an energetically reduced secondary component. This circumstance is one of the reasons why NAE's first approach produces especially satisfactory results in recordings such as So What by Miles Davis.
+It is important to note that PCA does not explicitly identify sound sources nor distinguish between direct sound and ambience. However, when the stereo correlation remains high for prolonged intervals, the geometry of the M/S space favors the appearance of a clearly dominant principal component and an energetically reduced secondary component. This circumstance is one of the reasons why NAE's first approach produces especially satisfactory results in recordings such as So What by Miles Davis.
 
-The observation of this relationship between stereo correlation, $M/S$ geometry and stability of the PCA decomposition was one of the elements that motivated the algorithm's subsequent development. Likewise, the analysis of recordings with persistently lower correlations made it possible to identify the limitations of this first approach and led to the development of the second approach described in the following sections.
+The observation of this relationship between stereo correlation, M/S geometry and stability of the PCA decomposition was one of the elements that motivated the algorithm's subsequent development. Likewise, the analysis of recordings with persistently lower correlations made it possible to identify the limitations of this first approach and led to the development of the second approach described in the following sections.
 
 ## Recovery of the L/R presentation
 
 Once $(m,s)$ has been transformed into $(C_1, C_2)$ —where $C_1$ is the principal component and $C_2$ is the secondary one— and both points have been projected onto the reference mid and side axes, we find 4 points: $mC_1$ and $sC_1$ (mid and side of $C_1$) and $mC_2$ and $sC_2$ (mid and side of $C_2$).
 
-From $mC_1$, $sC_1$, $mC_2$ and $sC_2$, the last necessary step is to return to the $L/R$ representation, only that now four components are available, two for left —principal and secondary— and two for right —also principal and secondary.
+From $mC_1$, $sC_1$, $mC_2$ and $sC_2$, the last necessary step is to return to the L/R representation, only that now four components are available, two for left —principal and secondary— and two for right —also principal and secondary.
 
-For the principal component, $C_1$, the left and right channels are obtained by transposition from $M/S$:
+For the principal component, $C_1$, the left and right channels are obtained by transposition from M/S:
 
 $$ l_{c1} =  \frac {mC_1 + sC_1}{2} $$
 $$ r_{c1} =  \frac {mC_1 - sC_1}{2} $$
 
-Likewise for the ambient component, only that in this case the $M/S$ channels proper to $C_2$ are taken:
+Likewise for the ambient component, only that in this case the M/S channels proper to $C_2$ are taken:
 
 $$ l_{c2} =  \frac {mC_2 + sC_2}{2} $$
 $$ r_{c2} =  \frac {mC_2 - sC_2}{2} $$
@@ -175,7 +175,7 @@ Then $mC_x$ and $sC_x$ are proportional:
 
 $$ sC_x =  \frac {v_{x2}} {v_{x1}} mC_x  = k_x * mC_x $$
 
-Therefore, recomposing the $L/R$ signals from $M/S$, we find that $l_{cx}$ and $r_{cx}$ are also proportional:
+Therefore, recomposing the L/R signals from M/S, we find that $l_{cx}$ and $r_{cx}$ are also proportional:
 
 $$ l_{cx} = \frac {mC_{x} + sC_{x}}{2}  = \frac {1 + k_x}{2} mC_x $$
 $$ r_{cx} = \frac {mC_{x} - sC_{x}}{2}  = \frac {1 - k_x}{2} mC_x $$
@@ -186,7 +186,10 @@ $$ |v_{11}| > |v_{12}| \rightarrow |k_1| < 1 $$
 
 So for the principal component:
 
-$$ l_{c1} = \lambda \times r_{c1} \quad \text{always with } \lambda > 0 $$
+$$
+l_{c1} = \lambda \times r_{c1} \quad \text{always with } \lambda > 0
+$$
+
 Therefore the correlation between $l_{c1}$ and $r_{c1}$ will always be 1.
 
 By contrast, for $C_2$ the sign is just the opposite, being closer to the side component:
@@ -195,13 +198,15 @@ $$ |v_{22}| > |v_{21}| \rightarrow |k_2| > 1 $$
 
 Then:
 
-$$ l_{c2} = \lambda \times r_{c2} \quad \text{always with } \lambda < 0 $$
+$$
+l_{c2} = \lambda \times r_{c2} \quad \text{always with } \lambda < 0
+$$
 
 Therefore the correlation between $l_{c2}$ and $r_{c2}$ will always be exactly -1.
 
-The extraction of a stereo component with correlation 1 and another exactly with correlation -1 is not the result of an artificial decorrelation processing, but a direct consequence of representing both PCA components in the $L/R$ coordinate system.
+The extraction of a stereo component with correlation 1 and another exactly with correlation -1 is not the result of an artificial decorrelation processing, but a direct consequence of representing both PCA components in the L/R coordinate system.
 
-These properties of the algorithm, which are a natural consequence of the $M/S$ decomposition, are especially interesting from the perceptual point of view. Having obtained, by PCA decomposition, an anti-correlated secondary component places it as a candidate for the ambient component defined at the beginning of this development. Likewise, obtaining a principal signal with unit correlation places it as a candidate for the principal component, according to its prior definition.
+These properties of the algorithm, which are a natural consequence of the M/S decomposition, are especially interesting from the perceptual point of view. Having obtained, by PCA decomposition, an anti-correlated secondary component places it as a candidate for the ambient component defined at the beginning of this development. Likewise, obtaining a principal signal with unit correlation places it as a candidate for the principal component, according to its prior definition.
 
 Therefore, by a mathematically simple procedure, two pairs of signals with characteristics compatible with those sought have been obtained. After numerous empirical tests, it has been verified that, with high-correlation recordings, the secondary component usually matches the ambience very well. And the principal component incorporates the main (musical) information in the foreground, with a simple stereo balance (level panning without any phase contribution). And all of this extracted from the original information itself and through linear transformation processes without prior arbitrary parameters.
 
@@ -214,12 +219,12 @@ As can be verified in the analyzed case, the $C_1$ component presents a signific
   </p>
 <div align="center"> <strong>Figure 10.</strong> Temporal evolution of the levels of each component C<sub>1</sub> and C<sub>2</sub> and the level differences between them</div><br>
 
-Regarding the relative $L/R$ panning of each of the two components, there is a special characteristic that is worth highlighting. Since for the $C_1$ component its $L/R$ representation is:
+Regarding the relative L/R panning of each of the two components, there is a special characteristic that is worth highlighting. Since for the $C_1$ component its L/R representation is:
 
 $$ l_{c1} = \frac {mC_{1} + sC_{1}}{2}  = \frac {1 + k_1}{2} mC_1 $$
 $$ r_{c1} = \frac {mC_{1} - sC_{1}}{2}  = \frac {1 - k_1}{2} mC_1 $$
 
-The $L/R$ balance of $C_1$ and $C_2$ depend on:
+The L/R balance of $C_1$ and $C_2$ depend on:
 $$ \frac {l_{c1}}{r_{c1}} = \frac {{1 + k_1}}{1 - k_1}$$
 $$ \frac {l_{c2}}{r_{c2}} = \frac {{1 + k_2}}{1 - k_2}$$
 Since the components $C_1$ and $C_2$ are orthogonal to each other (see [figure 1](#figure_01)), it holds that:
@@ -230,11 +235,11 @@ So that:
 
 $$ \frac {l_{c2}}{r_{c2}} = \frac {{1 + k_2}}{1 - k_2} = \frac {{1 + \frac {-1}{k_1}}}{1 - \frac {-1}{k_1}} = \frac {k_1 - 1}{k_1 + 1} = - \frac {r_{c1}}{l_{c1}}$$
 
-Computing the relative $L/R$ levels, it results:
+Computing the relative L/R levels, it results:
 
 $$ \left| \frac {l_{c2}}{r_{c2}} \right| = \left| \frac {r_{c1}}{l_{c1}} \right|$$
 
-Which means that the components $C_1$ and $C_2$ present inverse $L/R$ balances: when one component is panned to one side, the other is panned in the opposite direction. This can be appreciated visually in the following plot:
+Which means that the components $C_1$ and $C_2$ present inverse L/R balances: when one component is panned to one side, the other is panned in the opposite direction. This can be appreciated visually in the following plot:
 
 <p align="center">
   <img src="alpha_processed/davis_kind_of_blue_so_what_lr_differences.png" alt="C1_C2 L_r panning evolution">
@@ -245,7 +250,7 @@ They are curves with a strong symmetry: when $C_1$ is panned in one direction, $
 
 ## Limitations of the first approach: low-correlation recordings
 
-Up to now, the model presents coherent results because it has been applied to stereo signals with very high correlation. This is not always the case; numerous recordings can be found where the $L/R$ correlation is very low. This happens when the sound sources are very strongly panned to one side or the other, something that has occurred and continues to occur in numerous recordings. If until now we have associated ambient component with strongly panned sources, for these recordings the association ceases to work directly.
+Up to now, the model presents coherent results because it has been applied to stereo signals with very high correlation. This is not always the case; numerous recordings can be found where the L/R correlation is very low. This happens when the sound sources are very strongly panned to one side or the other, something that has occurred and continues to occur in numerous recordings. If until now we have associated ambient component with strongly panned sources, for these recordings the association ceases to work directly.
 
 As already mentioned, this algorithm was developed with an empirical analysis methodology using commercial recordings themselves as test signals. For the analysis of this new case, the development has been carried out on a recording with very high instrumental panning, the track I Am In Love from the album [At The Blackhawk 3 by the group Shelly Manne and his Men](https://en.wikipedia.org/wiki/At_the_Black_Hawk_3). This album was recorded live in a jazz club, so one is sure that natural atmospheric sound exists, but, as is usual in recordings by the Contemporary Records company, the instruments are very heavily panned and there is no significant central presence. It is a clear case of a low-correlation recording, which is analyzed below.
 
@@ -263,9 +268,9 @@ In the correlation histogram it can be observed that the correlation is much low
   </p>
 <div align="center"> <strong>Figure 13.</strong> Histogram of the L/R correlation for the analyzed sample of I Am In Love</div><br>
 
-Moreover, the histogram is much wider, and many points are in negative correlation, which indicates numerous transitions to statistically different regions, and in turn anticipates the difficulties that PCA will face in indicating the principal direction in the $M/S$ plane.
+Moreover, the histogram is much wider, and many points are in negative correlation, which indicates numerous transitions to statistically different regions, and in turn anticipates the difficulties that PCA will face in indicating the principal direction in the M/S plane.
 
-The strong relationship between the $L/R$ correlation and the rotation of the PCA eigenvectors over $M/S$ appears again, although with a different result: in this case, low $L/R$ correlation implies more aggressive rotations of the PCA axes. One estimator makes it possible to assess the other, which will have relevant consequences in the following sections.
+The strong relationship between the L/R correlation and the rotation of the PCA eigenvectors over M/S appears again, although with a different result: in this case, low L/R correlation implies more aggressive rotations of the PCA axes. One estimator makes it possible to assess the other, which will have relevant consequences in the following sections.
 
 <p align="center">
   <img src="alpha_processed/manne_his_men_i_am_in_love_eigenvectors_rotation.png" alt="At the Blackhawk eingenvectors rotation">
@@ -274,7 +279,7 @@ The strong relationship between the $L/R$ correlation and the rotation of the PC
 
 These first plots indicate that, when the stereo correlation decreases in a sustained manner, the orientation of the eigenvectors ceases to reflect a global spatial structure of the recording and comes to be determined by local musical events. This fits the reality of the recording with high panning of the virtual sources.
 
-Below, the $M/S$ information and the PCA axes of five arbitrary moments of the process are presented graphically:
+Below, the M/S information and the PCA axes of five arbitrary moments of the process are presented graphically:
 <p align="center">
   <img src="alpha_processed/manne_his_men_i_am_in_love_midside_000.png" alt="At the Blackhawk sample 1">
 </p>
@@ -292,7 +297,7 @@ Below, the $M/S$ information and the PCA axes of five arbitrary moments of the p
 </p>
 <div align="center"> <strong>Figures 15 to 19.</strong> Temporal and spatial visualization of the M/S points for selected samples of I Am In Love. The axes of the PCA transformation over the M/S plane are included</div><br>
 
-It can be appreciated that the $M/S$ information is very dispersed, with very high rotation of the principal component over the mid axis, which will make it difficult for the first approach to the NAE model to offer an ambience signal. In the case of the third and fourth plots, it would even seem that the principal axis is not such. In those cases, the variance associated with both components is very similar. This can be verified from the comparative level plot between $C_1$ and $C_2$, where it can be seen that the difference is much smaller than in the case of So What. There are many points where $level(C_1) \approx level(C_2)$.
+It can be appreciated that the M/S information is very dispersed, with very high rotation of the principal component over the mid axis, which will make it difficult for the first approach to the NAE model to offer an ambience signal. In the case of the third and fourth plots, it would even seem that the principal axis is not such. In those cases, the variance associated with both components is very similar. This can be verified from the comparative level plot between $C_1$ and $C_2$, where it can be seen that the difference is much smaller than in the case of So What. There are many points where $level(C_1) \approx level(C_2)$.
 
 <p align="center">
   <img src="alpha_processed/manne_his_men_i_am_in_love_eigenvalues.png" alt="Eigenvalues evolution">
@@ -303,11 +308,11 @@ The result is that, while for the case of Kind Of Blue the direct listening of t
 
 The comparative analysis of both recordings, Kind of Blue vs At The Blackhawk, shows that the perceptual quality of a first approach to the NAE algorithm depends strongly on the statistical stability of the stereo signal. When there is a clearly defined dominant direction, PCA produces a perceptually satisfactory separation. However, in recordings with moderate or low correlation sustained over time, the decomposition begins to identify legitimate musical elements associated with stable lateral positions as independent components.
 
-NAE's first approach can be interpreted as a search for the principal/ambient poles defined earlier. However, this approach implicitly presupposes that there is a clearly identifiable dominant direction in the $M/S$ space. When the stereo correlation decreases, that hypothesis ceases to hold and PCA begins to identify strongly panned musical elements as independent components. This observation motivated the development of a second approach, which will be presented below. The objective was no longer to modify the geometry of the PCA decomposition, but to dynamically adapt the amount of information transferred to the spatial component as a function of the global statistical state of the recording, estimated from the $L/R$ stereo correlation.
+NAE's first approach can be interpreted as a search for the principal/ambient poles defined earlier. However, this approach implicitly presupposes that there is a clearly identifiable dominant direction in the M/S space. When the stereo correlation decreases, that hypothesis ceases to hold and PCA begins to identify strongly panned musical elements as independent components. This observation motivated the development of a second approach, which will be presented below. The objective was no longer to modify the geometry of the PCA decomposition, but to dynamically adapt the amount of information transferred to the spatial component as a function of the global statistical state of the recording, estimated from the L/R stereo correlation.
 
 ## A second approach to the NAE algorithm
 
-Assuming that the problem may be due to the low correlation between $L/R$ channels, a transformation can be made prior to the PCA step that increases this correlation:
+Assuming that the problem may be due to the low correlation between L/R channels, a transformation can be made prior to the PCA step that increases this correlation:
 
 $$ l^\prime = ( 1- \gamma)\space l + \gamma \space r$$
 $$ r^\prime = ( 1- \gamma)\space r + \gamma \space l$$
@@ -318,8 +323,8 @@ $$ m = l + r $$
 $$ s = ( 1 - 2 \gamma) (l -r) = \beta (l-r)$$
 $$ \text{with}\space \beta = ( 1 - 2 \gamma), \qquad \gamma \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
 
-In this way, with the factor $\beta$, the side component can be reduced in the $M/S$ weight. The pending question is to decide what the best setting of $\beta$ will be, which will necessarily have to depend on the nature of the recording itself. If in the case of Kind of Blue it is not needed, or a $\beta$ factor close to 1 will suffice, in the case of At The Blackhawk it seems logical to think that it will be convenient to introduce a smaller $\beta$. In any case, it is evident that it must be the recording itself, with its correlation characteristics, that generates its own $\beta$, variable with its evolution.
-The parametrization proposed for application in the NAE algorithm to generate $\beta$ starts from the previously discussed observation that there is a strong relationship between the $L/R$ correlation and the rotation of the PCA axes. If the objective is to avoid this rotation, a candidate for the parametrization of $\beta$ is the $L/R$ correlation itself. Correlation is not used only as a perceptual measure of stereo width. In the context of NAE it also acts as an indirect indicator of the stability of the PCA decomposition. High correlations produce more elongated $M/S$ clouds and more stable eigenvectors, while low correlations generate more isotropic distributions and PCA orientations more sensitive to small statistical variations.
+In this way, with the factor $\beta$, the side component can be reduced in the M/S weight. The pending question is to decide what the best setting of $\beta$ will be, which will necessarily have to depend on the nature of the recording itself. If in the case of Kind of Blue it is not needed, or a $\beta$ factor close to 1 will suffice, in the case of At The Blackhawk it seems logical to think that it will be convenient to introduce a smaller $\beta$. In any case, it is evident that it must be the recording itself, with its correlation characteristics, that generates its own $\beta$, variable with its evolution.
+The parametrization proposed for application in the NAE algorithm to generate $\beta$ starts from the previously discussed observation that there is a strong relationship between the L/R correlation and the rotation of the PCA axes. If the objective is to avoid this rotation, a candidate for the parametrization of $\beta$ is the L/R correlation itself. Correlation is not used only as a perceptual measure of stereo width. In the context of NAE it also acts as an indirect indicator of the stability of the PCA decomposition. High correlations produce more elongated M/S clouds and more stable eigenvectors, while low correlations generate more isotropic distributions and PCA orientations more sensitive to small statistical variations.
 
 Empirically, the proposal included in NAE is:
 
@@ -350,7 +355,7 @@ The desired effect has been achieved: the rotations of the PCA axes are now boun
   </p>
 <div align="center"> <strong>Figure 23.</strong> Temporal evolution of the PCA-axis rotations over the M/S plane for I Am In Love after applying the beta modeling</div><br>
 
-Below, the new representations of $M/S$ points and PCA axes are shown for the same 5 samples of the situation prior to this newly added transformation:
+Below, the new representations of M/S points and PCA axes are shown for the same 5 samples of the situation prior to this newly added transformation:
 <p align="center">
   <img src="beta_processed/manne_his_men_i_am_in_love_midside_000.png" alt="At the Blackhawk sample 1">
 </p>
@@ -403,13 +408,13 @@ Therefore, it must be taken into account that each audio sample participates in 
 
 In any case, within NAE in NatAmbio, there is the possibility of arbitrarily readjusting the gains for each of the obtained components. On the other hand, no perceptible advantage was observed when using additional weighting functions, so the final implementation uses a rectangular sliding window.
 
-The computation of the $L/R$ correlation used to determine β uses a more extensive time window than that used by PCA. Specifically, twenty consecutive windows are considered. This decision introduces a more stable estimate of the global correlation of the recording, avoiding excessively rapid variations of $\beta$ that could be transferred to the spatial processing.
+The computation of the L/R correlation used to determine β uses a more extensive time window than that used by PCA. Specifically, twenty consecutive windows are considered. This decision introduces a more stable estimate of the global correlation of the recording, avoiding excessively rapid variations of $\beta$ that could be transferred to the spatial processing.
 
 Due to the real-time operation requirements, this estimate mainly uses past information of the signal, accepting a small compromise between temporal symmetry and latency.
 
 As explained, NAE finally has two possible implementations: a first approach, without specific adaptation of the input signal, which, for NatAmbio, is called NAE $\alpha$ mode; and a second approach, with special adaptation of the input signal using the $\beta$ parameter, which in NatAmbio is called NAE $\beta$ mode.
 
-It is worth clarifying the notation to avoid confusion. The mode names $\alpha$ and $\beta$ identify the two implementations of NAE and must not be confused with the parameters used in the equations: the mixing coefficient $\gamma$ and the side-component weight $\beta = 1 - 2\gamma$. The $\alpha$ mode corresponds to the case without prior mixing ($\gamma = 0$, equivalent to $\beta = 1$), while the $\beta$ mode applies the dynamic adaptation of $\beta$ as a function of the $L/R$ correlation.
+It is worth clarifying the notation to avoid confusion. The mode names $\alpha$ and $\beta$ identify the two implementations of NAE and must not be confused with the parameters used in the equations: the mixing coefficient $\gamma$ and the side-component weight $\beta = 1 - 2\gamma$. The $\alpha$ mode corresponds to the case without prior mixing ($\gamma = 0$, equivalent to $\beta = 1$), while the $\beta$ mode applies the dynamic adaptation of $\beta$ as a function of the L/R correlation.
 
 Functional scheme of NAE, both modes, $\alpha$ and $\beta$:
 
@@ -432,7 +437,7 @@ For this reason, the $\alpha$ mode of NAE can be applied to a single-dipole NatA
 
 For the case of complete NatAmbio, with two dipoles, the proposal for the frontal dipole is maintained: extraction of components by $\alpha$ mode and rebalancing between them to the listener's taste.
 
-With the surround dipole, whose objective is to widen the enveloping sensation, the application of NAE is the one corresponding to the $\beta$ mode. Given its very lateralized rear location, it is very important that the $L/R$ channels sent do not have strongly panned instrumental signals, because they will be perceived behind the listener, causing an undesired sensation. By contrast, if the $L/R$ channels sent come from the NAE decomposition in $\beta$ mode, and only the anti-correlated ambient component itself is sent —discarding the principal component— the ambience effect is enhanced. That perceptual effect, in this case, has been formed by the composition of two ambient components: that of NAE $\alpha$ mode acting on the frontal dipole and that of NAE $\beta$ mode acting on the surround dipole. The possibility of adjusting the relative gains between the two components allows the listener to adjust the enveloping sensation to their taste.
+With the surround dipole, whose objective is to widen the enveloping sensation, the application of NAE is the one corresponding to the $\beta$ mode. Given its very lateralized rear location, it is very important that the L/R channels sent do not have strongly panned instrumental signals, because they will be perceived behind the listener, causing an undesired sensation. By contrast, if the L/R channels sent come from the NAE decomposition in $\beta$ mode, and only the anti-correlated ambient component itself is sent —discarding the principal component— the ambience effect is enhanced. That perceptual effect, in this case, has been formed by the composition of two ambient components: that of NAE $\alpha$ mode acting on the frontal dipole and that of NAE $\beta$ mode acting on the surround dipole. The possibility of adjusting the relative gains between the two components allows the listener to adjust the enveloping sensation to their taste.
 
 It must be taken into account that the ambient dipole's own XTC also acts on it, so the ambient component of the $\beta$ mode, sounding through it exclusively, without any principal component, generates a perception that is not rear, but delocalized. The surround dipole can be arranged with its loudspeakers at a closed angle (around $40^{\circ}$) and the XTC effect will do its job of moving the decorrelated signal of NAE $\beta$ mode to the delocalized space.
 
