@@ -1,0 +1,174 @@
+When a firewire audio interface is connected to a GNU/Linux PC, there is a branch at /sys/bus/firewire/devices/fwX` (X usually 1) for identification:
+
+/sys/bus/firewire/devices/fw1/guid → 0x0040ab0000c224
+/sys/bus/firewire/devices/fw1/model_name → EDIROL FA-101
+/sys/bus/firewire/devices/fw1/vendor_name → EDIROL
+
+# Introspect dbus ffado looking for audio device
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager org.freedesktop.DBus.Introspectable.Introspect
+
+#Output example
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager org.freedesktop.DBus.Introspectable.Introspect
+method return time=1781969853.455709 sender=:1.123 -> destination=:1.122 serial=16 reply_serial=2
+   string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/org/ffado/Control/DeviceManager">
+	<interface name="org.ffado.Control.Element.Container">
+		<method name="getNbElements">
+			<arg direction="out" type="i" name="count"/>
+		</method>
+		<method name="getElementName">
+			<arg direction="in" type="i" name="id"/>
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<signal name="Destroyed">
+		</signal>
+		<signal name="Updated">
+		</signal>
+		<signal name="PreUpdate">
+		</signal>
+		<signal name="PostUpdate">
+		</signal>
+	</interface>
+	<interface name="org.ffado.Control.Element.Element">
+		<method name="getId">
+			<arg direction="out" type="t" name="id"/>
+		</method>
+		<method name="getName">
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<method name="getLabel">
+			<arg direction="out" type="s" name="label"/>
+		</method>
+		<method name="getDescription">
+			<arg direction="out" type="s" name="description"/>
+		</method>
+		<method name="canChangeValue">
+			<arg direction="out" type="b" name="can_change"/>
+		</method>
+		<method name="getVerboseLevel">
+			<arg direction="out" type="i" name="level"/>
+		</method>
+		<method name="setVerboseLevel">
+			<arg direction="in" type="i" name="level"/>
+		</method>
+	</interface>
+	<interface name="org.freedesktop.DBus.Introspectable">
+		<method name="Introspect">
+			<arg direction="out" type="s" name="data"/>
+		</method>
+	</interface>
+	<node name="0040ab0000c22497"/>
+</node>"
+
+
+# Introspect audio device config blocks
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0040ab0000c22497 org.freedesktop.DBus.Introspectable.Introspect
+
+# Output example
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0040ab0000c22497 org.freedesktop.DBus.Introspectable.Introspect
+method return time=1781969955.724823 sender=:1.123 -> destination=:1.124 serial=17 reply_serial=2
+   string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/org/ffado/Control/DeviceManager/0040ab0000c22497">
+	<interface name="org.ffado.Control.Element.Container">
+		<method name="getNbElements">
+			<arg direction="out" type="i" name="count"/>
+		</method>
+		<method name="getElementName">
+			<arg direction="in" type="i" name="id"/>
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<signal name="Destroyed">
+		</signal>
+		<signal name="Updated">
+		</signal>
+		<signal name="PreUpdate">
+		</signal>
+		<signal name="PostUpdate">
+		</signal>
+	</interface>
+	<interface name="org.ffado.Control.Element.Element">
+		<method name="getId">
+			<arg direction="out" type="t" name="id"/>
+		</method>
+		<method name="getName">
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<method name="getLabel">
+			<arg direction="out" type="s" name="label"/>
+		</method>
+		<method name="getDescription">
+			<arg direction="out" type="s" name="description"/>
+		</method>
+		<method name="canChangeValue">
+			<arg direction="out" type="b" name="can_change"/>
+		</method>
+		<method name="getVerboseLevel">
+			<arg direction="out" type="i" name="level"/>
+		</method>
+		<method name="setVerboseLevel">
+			<arg direction="in" type="i" name="level"/>
+		</method>
+	</interface>
+	<interface name="org.freedesktop.DBus.Introspectable">
+		<method name="Introspect">
+			<arg direction="out" type="s" name="data"/>
+		</method>
+	</interface>
+	<node name="ConfigRom"/>
+	<node name="Generic"/>
+	<node name="Mixer"/>
+</node>"
+
+# Phantom switch on
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0014860f9628513b/PhantomPower org.ffado.Control.Element.Discrete.setValue int32:1
+method return time=1761060157.624424 sender=:1.20 -> destination=:1.40 serial=2278 reply_serial=2
+   int32 1
+
+# Phantom switch off
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0014860f9628513b/PhantomPower org.ffado.Control.Element.Discrete.setValue int32:0
+method return time=1761060230.738809 sender=:1.20 -> destination=:1.41 serial=2279 reply_serial=2
+   int32 0
+
+# Save configuration in rom memory for recovery after Audiofire4 restart
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.freedesktop.DBus.Introspectable.Introspect
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.ffado.Control.Element.Discrete.getValue
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.ffado.Control.Element.Discrete.setValue int32:1
+
+#Sample rate at 48000 Hz
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/SamplerateSelect org.ffado.Control.Element.Enum.select int32:2
+
+# Card sincro to SPDIF
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/ClockSelect org.ffado.Control.Element.AttributeEnum.select int32:1
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/ClockSelect org.ffado.Control.Element.AttributeEnum.getEnumLabel int32:0
+
+OUTPUT ----> method return time=1709405142.695693 sender=:1.121 -> destination=:1.220 serial=262130 reply_serial=2
+   string "Internal sync"
+
+# hange nominal output of OUT0 to +4 dBu
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Nominal org.ffado.Control.Element.Discrete.setValue int32:0
+
+# Change nominal output of OUT0 to -10 dBV
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Nominal org.ffado.Control.Element.Discrete.setValue int32:1
+
+# Check channel OUT0 current gain
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Gain org.ffado.Control.Element.Continuous.getValue
+
+OUTPUT ---> method return time=1709405535.850025 sender=:1.121 -> destination=:1.227 serial=294181 reply_serial=2
+   double 2.8557e+06
+
+#Modify output channel OUT0 gain
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT1Gain org.ffado.Control.Element.Continuous.setValue double:2.8557e+06
