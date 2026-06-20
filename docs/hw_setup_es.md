@@ -38,8 +38,8 @@ Recomendación: siempre que sea posible, utilizar una entrada SPDIF, ya sea ópt
 |---|---|---|---|---|---|
 | Behringer UMC204HD | USB | 2 In / 4 Out | Muy económica, funciona directamente | Ligero ruido de fondo | Primer sistema NatAmbio económico |
 | Focusrite Scarlett 6i6 | USB | 6 Out + SPDIF | Muy estable, buena calidad, ideal para NatAmbio | Requiere alsa-scarlett-gui | Sistema moderno recomendado |
-| Edirol FA-101 | FireWire | Muchas E/S | Excelente calidad, barata de segunda mano | Requiere FireWire (obsoleto) | Usuario Linux con hardware FireWire |
-| Echo Audiofire4 | FireWire | Compacta y muy configurable, barata de segunda mano | Calidad profesional, controles DBUS | Requiere FireWire (obsoleto) | Usuario avanzado que quiera máxima flexibilidad |
+| Edirol FA-101 | FireWire | M 8 Out + SPDIF | Excelente calidad, barata de segunda mano | Requiere FireWire (obsoleto) | Usuario Linux con hardware FireWire |
+| Echo Audiofire4 | FireWire | 4 Out + SPDIF | Calidad profesional, controles DBUS | Requiere FireWire (obsoleto) | Usuario avanzado que quiera máxima flexibilidad |
 
 ### Interfaces FireWire: guía básica de uso
 
