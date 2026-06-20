@@ -3,11 +3,11 @@
 
 <svg
    width="210mm"
-   height="317mm"
-   viewBox="0 0 210 317"
+   height="285mm"
+   viewBox="0 0 210 285"
    version="1.1"
    id="svg1"
-   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
    sodipodi:docname="ambio_two_dipole_v2.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -24,12 +24,12 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      inkscape:zoom="0.7581159"
-     inkscape:cx="352.18889"
-     inkscape:cy="600.83161"
+     inkscape:cx="351.52936"
+     inkscape:cy="916.74637"
      inkscape:window-width="1920"
-     inkscape:window-height="1111"
-     inkscape:window-x="-9"
-     inkscape:window-y="-9"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1" />
   <defs
@@ -72,17 +72,17 @@
     </marker>
     <inkscape:perspective
        sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="15.105447 : 573.49831 : 1"
-       inkscape:vp_y="0 : 243.06668 : 0"
-       inkscape:vp_z="59.678259 : 574.27811 : 1"
-       inkscape:persp3d-origin="36.93755 : 562.24632 : 1"
+       inkscape:vp_x="15.105447 : 541.49839 : 1"
+       inkscape:vp_y="0 : 243.06674 : 0"
+       inkscape:vp_z="59.678259 : 542.27819 : 1"
+       inkscape:persp3d-origin="36.93755 : 530.2464 : 1"
        id="perspective1" />
     <inkscape:perspective
        sodipodi:type="inkscape:persp3d"
-       inkscape:vp_x="53.645344 : 573.26833 : 1"
-       inkscape:vp_y="0 : 231.52608 : 0"
-       inkscape:vp_z="96.245012 : 574.0111 : 1"
-       inkscape:persp3d-origin="74.510983 : 562.55056 : 1"
+       inkscape:vp_x="53.645344 : 541.26841 : 1"
+       inkscape:vp_y="0 : 231.52614 : 0"
+       inkscape:vp_z="96.245012 : 542.01118 : 1"
+       inkscape:persp3d-origin="74.510983 : 530.55064 : 1"
        id="perspective1-7" />
     <marker
        style="overflow:visible"
@@ -273,7 +273,7 @@
        ry="14.83255" />
     <path
        style="fill:none;fill-opacity:1;stroke:#167217;stroke-width:0.765;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#ConcaveTriangle-7-6)"
-       d="m 90.939082,264.25343 c 0,0 0.09999,-50.78777 -1.396009,-68.40423 C 88.064369,178.43642 35.79691,151.17704 35.79691,151.17704"
+       d="m 90.939082,227.25931 c 0,0 0.09999,-13.79365 -1.396009,-31.41011 C 88.064369,178.43642 35.79691,151.17704 35.79691,151.17704"
        id="path10-7-8"
        sodipodi:nodetypes="csc" />
     <ellipse
@@ -285,7 +285,7 @@
        ry="47.865902" />
     <path
        style="fill:none;fill-opacity:1;stroke:#167217;stroke-width:0.765;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#ConcaveTriangle-7-6-2)"
-       d="m 122.49026,264.52869 c 0,0 -1.64501,-45.90176 -0.349,-67.00823 1.07103,-17.4426 48.51117,-47.81316 48.51117,-47.81316"
+       d="m 121.44326,226.83656 c 0,0 -0.59801,-8.20963 0.698,-29.3161 1.07103,-17.4426 48.51117,-47.81316 48.51117,-47.81316"
        id="path10-7-8-4"
        sodipodi:nodetypes="csc" />
     <rect
@@ -624,47 +624,47 @@
        width="98.418327"
        height="13.611044"
        x="57.900661"
-       y="264.22391" />
+       y="225.59503" />
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.665001;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
        x="75.928734"
-       y="281.75656"
+       y="241.82355"
        id="text2-8"
        transform="scale(1.0337552,0.967347)"><tspan
          sodipodi:role="line"
          id="tspan16"
          x="75.928734"
-         y="281.75656">NatAmbio mode β</tspan></text>
+         y="241.82355">NatAmbio mode β</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;white-space:pre;fill:#c3f0f2;fill-opacity:1;stroke:#000000;stroke-width:0.665001;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
        x="91.404762"
-       y="313.68613"
+       y="275.05637"
        id="text3-6"><tspan
          id="tspan3-1"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.665"
          x="91.404762"
-         y="313.68613">L</tspan></text>
+         y="275.05637">L</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:'Sans Serif Collection';-inkscape-font-specification:'Sans Serif Collection, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;writing-mode:lr-tb;direction:ltr;fill:#c3f0f2;fill-opacity:1;stroke:#000000;stroke-width:0.665001;stroke-linecap:round;stroke-linejoin:round;stroke-opacity:1"
        x="116.88184"
-       y="313.68613"
+       y="275.05637"
        id="text4-5"><tspan
          sodipodi:role="line"
          id="tspan4-4"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:7.05556px;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;stroke-width:0.665"
          x="116.88184"
-         y="313.68613">R</tspan></text>
+         y="275.05637">R</tspan></text>
     <path
        style="fill:#c3f0f2;fill-opacity:1;stroke:#000000;stroke-width:0.765;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#ConcaveTriangle-8)"
-       d="M 92.81209,304.31095 92.4631,277.78686"
+       d="M 92.81209,265.68154 92.4631,239.15745"
        id="path5-2"
        sodipodi:nodetypes="cc" />
     <path
        style="fill:#c3f0f2;fill-opacity:1;stroke:#000000;stroke-width:0.765;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#ConcaveTriangle-8-4)"
-       d="m 118.57686,305.2183 -0.34899,-26.52409"
+       d="M 118.57686,266.58889 118.22787,240.0648"
        id="path5-2-0"
        sodipodi:nodetypes="cc" />
     <path
