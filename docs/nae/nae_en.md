@@ -315,8 +315,8 @@ NAE's first approach can be interpreted as a search for the principal/ambient po
 
 Assuming that the problem may be due to the low correlation between L/R channels, a transformation can be made prior to the PCA step that increases this correlation:
 
-$$ l^\prime = ( 1- \gamma)\space l + \gamma \space r$$
-$$ r^\prime = ( 1- \gamma)\space r + \gamma \space l$$
+$$ l' = ( 1- \gamma)\space l + \gamma \space r$$
+$$ r' = ( 1- \gamma)\space r + \gamma \space l$$
 
 In this way the M/S signals become:
 
@@ -335,13 +335,13 @@ $$ \beta = 0.55 + 0.45\space|\rho_{lr}| $$
 
 Correlations close to 1 in absolute value will give rise to $\beta \approx 1$, so that the side component will hardly change its weight, while for correlations close to zero, $\beta$ $\approx$ 0.55, which has been empirically established as the minimum weight of the side component in this new transformation. The minimum value 0.55 does not arise from a formal mathematical optimization but from the empirical evaluation of multiple reference recordings. Lower values produce an excessive collapse of the stereo image, while higher values do not sufficiently stabilize the PCA orientation in strongly localized to the sides recordings. In any case, its nature is arbitrary and, functionally in NAE, any kind of increasing relationship between $corr(l/r)$ and $\beta$ is acceptable. Its perceptual result and subjective evaluation will be quite different.
 
-Below are the plots of the evolution of the $l^\prime/r^\prime$ correlation, its histogram and the PCA eigenvector rotations for the application of this transformation on the same sample of I Am In Love:
+Below are the plots of the evolution of the $l'/r'$ correlation, its histogram and the PCA eigenvector rotations for the application of this transformation on the same sample of I Am In Love:
 <p align="center">
   <img src="beta_processed/manne_his_men_i_am_in_love_correlation.png" alt="At the Blackhawk correlation">
   </p>
 <div align="center"> <strong>Figure 21.</strong> Plot of the temporal evolution of the L/R correlation for the analyzed sample of I Am In Love after applying the beta modeling</div><br>
 
-The temporal evolution of the $l^\prime/r^\prime$ correlation comes closer to unity. In the correlation histogram it can be observed that the correlation rises to values between 0.60 and 0.75.
+The temporal evolution of the $l'/r'$ correlation comes closer to unity. In the correlation histogram it can be observed that the correlation rises to values between 0.60 and 0.75.
 <p align="center">
   <img src="beta_processed/manne_his_men_i_am_in_love_correlation_histogram.png" alt="At the Blackhawk correlation histogram">
   </p>
