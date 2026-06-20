@@ -89,10 +89,6 @@ $$ F_{l}^{direct} = \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i
 
 where the exponent $i$ denotes $i$ successive convolutions of the same filter, and where the function $H_{xy}$ appears in the denominator when its inverse is being referred to.
 
-<!-- REVIEW (minor note, no action required): by commutativity of convolution,
-F_r^direct and F_l^direct are identical (H_rl*H_lr = H_lr*H_rl and H_rr*H_ll = H_ll*H_rr).
-The l/r distinction in the direct terms is cosmetic; under the symmetry assumption
-both collapse to the same F^direct. -->
 If we assume — something reasonable in symmetric (or near-symmetric) environments — that $H_{lr} = H_{rl} = H_{cross}$ and $H_{ll} = H_{rr} = H_{direct}$, the equations finally become:
 
 $$ F^{cross} = \sum_{i=1}^{N} \frac {-H_{cross}^{2i-1}} {H_{direct}^{2i-1}} $$
@@ -101,6 +97,7 @@ $$ F^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{cross}^{2i}} {H_{direct}^{2i}}
 We now define a function $G$ as the convolution of the cross acoustic impulse response with the inverse of the direct acoustic impulse response:
 
 $$ G = \frac {H_{cross}} {H_{direct}}$$
+
 This relation can be interpreted as the cross acoustic response normalized with respect to the direct path, that is, the amount of crossed signal that appears at the opposite ear for each unit of signal received at the corresponding ear. This interpretation, as will be developed later, opens the possibility of linking G with the main parameters of the HRTF model.
 
 In the case of $F^{cross}$, $G$ convolves in anti-phase, and in phase for $F^{direct}$; moreover, for $F^{direct}$ the first term is a $\delta$, indicating that the filter's first output is the input signal itself, intact. Rewriting these equations in a more simplified form gives:

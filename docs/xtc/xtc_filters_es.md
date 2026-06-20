@@ -88,10 +88,6 @@ $$ F_{l}^{direct} = \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i
 
 Donde la potencia $i$ indica $i$ convoluciones sucesivas de un mismo filtro, y donde la función $H_{xy}$ aparecerá en el denominador cuando se está haciendo referencia a su inversa.
 
-<!-- REVISIÓN (nota menor, no requiere acción): por conmutatividad de la convolución,
-F_r^direct y F_l^direct son idénticas (H_rl*H_lr = H_lr*H_rl y H_rr*H_ll = H_ll*H_rr).
-La distinción l/r en los términos directos es cosmética; bajo la hipótesis de
-simetría ambas colapsan al mismo F^direct. -->
 Si se asume, algo lógico en entornos simétricos (o próximos a la simetría), que $H_{lr} = H_{rl} = H_{cross}$ y que $H_{ll} = H_{rr} = H_{direct}$, las ecuaciones finalmente quedan como:
 
 $$ F^{cross} = \sum_{i=1}^{N} \frac {-H_{cross}^{2i-1}} {H_{direct}^{2i-1}} $$
@@ -100,6 +96,7 @@ $$ F^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{cross}^{2i}} {H_{direct}^{2i}}
 Definimos ahora una función $G$ como la convolución de la impulsiva acústica cruzada por la inversa de la impulsiva acústica directa:
 
 $$ G = \frac {H_{cross}} {H_{direct}}$$
+
 Esta relación puede interpretarse como la respuesta acústica cruzada normalizada respecto al camino directo, es decir, la cantidad de señal cruzada que aparece en el oído contrario por cada unidad de señal recibida por el oído correspondiente. Esta interpretación, como se desarrollará más adelante, abre la posibilidad de vincular G con los párametros principales del modelo HRTF.
 
 En el caso de $F^{cross}$, $G$ convoluciona en contrafase, así como en fase para el caso de $F^{direct}$ y, además, para $F^{direct}$ el primer término es una $\delta$, indicando que la primera entrega del filtro es la propia señal de entrada intacta. Reescribiendo de modo más simplificado estas ecuaciones se obtiene:
