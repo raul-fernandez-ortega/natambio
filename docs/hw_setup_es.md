@@ -8,7 +8,9 @@ NatAmbio tiene un cerebro, el PC DSP que alberga el software y todo el control, 
 
 En primer lugar se necesita un PC que albergue el sistema operativo GNU/Linux (recomendación: distribución Debian). Dado que va a estar inmerso en un sistema de sonido, uno de sus requisitos es que sea silencioso. Que funcione sin ruido. Existen muchos sistemas con ventiladores de bajo ruido, pero la que seguro la mejor opción es un PC con refrigeración pasiva. Ahí el ruido es cero. Tradicionalmente, los equipos de refrigeración pasiva estaban asociados a procesadores de baja potencia. Sin embargo, la situación actual es muy diferente y existen soluciones capaces de ejecutar NatAmbio con amplio margen de recursos.
 
-Como referencia práctica, mi sistema doméstico está montado empleando un PC silencioso con una placa base [Asrock N100DC-ITX](https://www.asrock.com/mb/Intel/N100DC-ITX/index.la.asp), trabajando sobre un equipo de sonido de doble dipolo estéreo más subwoofer gestionado por NatAmbio. La configuración incluye un NAE, dos filtros XTC, un filtro de cruce low/high-pass y cuatro filtros DRC, sumando diez procesos de convolución de 8192 muestras. La carga total de CPU ronda el 10% con jackd funcionando a 256 muestras por período. El procesador dispone de cuatro núcleos y NatAmbio aprovecha su naturaleza multithread para repartir eficientemente la carga.
+Como referencia práctica, mi sistema doméstico está montado empleando un PC silencioso con una placa base [Asrock N100DC-ITX](https://www.asrock.com/mb/Intel/N100DC-ITX/index.la.asp), trabajando sobre un equipo de sonido de doble dipolo estéreo más subwoofer gestionado por NatAmbio. La configuración incluye un NAE, dos filtros XTC, un filtro de cruce low/high-pass y cuatro filtros DRC, sumando diez procesos de convolución de 8192 muestras. La carga total de CPU ronda el 5% con jackd funcionando a 256 muestras por período. El procesador dispone de cuatro núcleos y NatAmbio aprovecha su naturaleza multithread para repartir eficientemente la carga.
+
+![CPU load NatAmbio](figs/htop_natambio.png)
 
 Otra posible placa base, que yo he tenido, y que funciona, aunque es de menor potencia que la anterior, es la placa base [Mini ITX Atom N2800MT E PD11TI-2](https://resources.mini-box.com/online/MBD-I-DN2800MT-PD11TI-MITAC/MBD-I-DN2800MT-PD11TI-MITAC-specs.pdf). Existen muchas otras placas de refrigeración pasiva candidatas a alojar un sistema NatAmbio, así como PC compactos también sin ventiladores, con todos los componentes ya integrados.
 
@@ -29,6 +31,20 @@ Para poder disponer de interfaz FireWire en el PC, he instalado en la placa base
 La opción actual más práctica es disponer de una interfaz de audio USB. Yo he probado el correcto funcionamiento de NatAmbio con una tarjeta muy sencilla, de calidad razonable, de Behringer, la UMC204HD, y con una tarjeta de calidad alta, la Focusrite Scarlett 6i6. En el caso de la tarjeta Scarlett es imprescindible instalar [alsa-scarlett-gui](https://github.com/geoffreybennett/alsa-scarlett-gui) para poder activarla y configurar todos sus controles de ruta y de nivel. La interfaz Focusrite Scarlett es muy estable durante días con jackd, al igual que la interfaz UMC204HD.
 
 Recomendación: siempre que sea posible, utilizar una entrada SPDIF, ya sea óptica o coaxial. Al mantener la señal en dominio digital hasta el propio PC, se evita introducir ruido analógico adicional en el trayecto de entrada. Del mismo modo, una salida SPDIF hacia un DAC externo moderno permite obtener una calidad de conversión excelente con un coste relativamente contenido (SMSL, Topping, etc.). 
+
+### Interfaces FireWire: guía básica de uso
+
+Cuando se conecta un interfaz firewire a un PC GNU/Linux, se puede identificar porque se crea una rama `/sys/bus/firewire/devices/fwX` (siendo X un número típicamente el 1). Alli se puede identificar:
+
+
+```
+/sys/bus/firewire/devices/fw1/guid → 0x0040ab0000c224
+
+/sys/bus/firewire/devices/fw1/model_name → EDIROL FA-101
+
+/sys/bus/firewire/devices/fw1/vendor_name → EDIROL
+
+```
 
 # Conectando el equipo al cerebro de NatAmbio
 
