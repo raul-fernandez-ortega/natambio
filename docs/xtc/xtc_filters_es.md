@@ -153,7 +153,7 @@ Analizando los cinco conjuntos citados de base de datos HRTF (tomando valores pr
 <div align="center"><img src="images/ILD_vs_azimuth.png"/></div>
 <br>
 
-Por otro lado, para $\text{ILD}_{spectrum}(f)$ se estudiaron los promedios de los diferentes modelos HRTF para diferentes ángulos:
+Por otro lado, para $ILD_{spectrum}(f)$ se estudiaron los promedios de los diferentes modelos HRTF para diferentes ángulos:
 
 Azimut a 10°:
 <br>
@@ -201,7 +201,7 @@ Una visualización de las impulsivas obtenidas y los espectros en frecuencia de 
 <div align="center"><img src="images/grafica_espectral.png"/></div>
 <br>
 
-Se puede comprobar que el filtro Direct XTC se aproxima mucho a una $\delta$ y que su rizado como filtro "peine" está controlado en la banda de $\pm 2 \space dB$. En cuanto al filtro Cross XTC, su nivel está por debajo del de Direct XTC en un valor promedio de 10 dB. Asimismo, es visible que, al partir de un modelado de impulsivas en fase mínima, los filtros XTC obtenidos no introducen retardo de transporte apreciable a la señal procesada (el pico de Direct XTC se sitúa en $t=0$).
+Se puede comprobar que el filtro Direct XTC se aproxima mucho a una $\delta$ y que su rizado como filtro "peine" está controlado en la banda de $\pm 2$ dB. En cuanto al filtro Cross XTC, su nivel está por debajo del de Direct XTC en un valor promedio de 10 dB. Asimismo, es visible que, al partir de un modelado de impulsivas en fase mínima, los filtros XTC obtenidos no introducen retardo de transporte apreciable a la señal procesada (el pico de Direct XTC se sitúa en $t=0$).
 
 Como se ha comentado anteriormente, el filtro XTC cross está acotado a 200 Hz, para evitar que su efecto sea percibido no como XTC sino como un realce indeseado en graves. Para frecuencias por debajo de 200 Hz se atenúa el nivel con una rampa de bajada de 6 dB/octava.
 
