@@ -1,4 +1,4 @@
-# Cómo se monta un equipo NatAmbio para ejecutar en software NatAmbio
+# Cómo se monta un equipo NatAmbio para ejecutar el software NatAmbio
 
 Una vez desarrollado el concepto, explicadas las ideas y el algoritmo, presentadas las herramientas y el software principal del sistema, llega la pregunta que todo futuro usuario se hará: ¿Cómo se construye un equipo NatAmbio completo?
 
@@ -6,7 +6,7 @@ NatAmbio tiene un cerebro, el PC DSP que alberga el software y todo el control, 
 
 ## Un PC para DSP/NatAmbio
 
-En primer lugar se necesita un PC que albergue el sistema operativo GNU/Linux (recomendación: distribución Debian). Dado que va a estar inmerso en un sistema de sonido, uno de sus requisitos es que sea silencioso. Que funcione sin ruido. Existen muchos sistemas con ventiladores de bajo ruido, pero la que seguro la mejor opción es un PC con refrigeración pasiva. Ahí el ruido es cero. Tradicionalmente, los equipos de refrigeración pasiva estaban asociados a procesadores de baja potencia. Sin embargo, la situación actual es muy diferente y existen soluciones capaces de ejecutar NatAmbio con amplio margen de recursos.
+En primer lugar se necesita un PC que albergue el sistema operativo GNU/Linux (recomendación: distribución Debian). Dado que va a estar inmerso en un sistema de sonido, uno de sus requisitos es que sea silencioso. Que funcione sin ruido. Existen muchos sistemas con ventiladores de bajo ruido, pero seguramente la mejor opción es un PC con refrigeración pasiva. Ahí el ruido es cero. Tradicionalmente, los equipos de refrigeración pasiva estaban asociados a procesadores de baja potencia. Sin embargo, la situación actual es muy diferente y existen soluciones capaces de ejecutar NatAmbio con amplio margen de recursos.
 
 Como referencia práctica, mi sistema doméstico está montado empleando un PC silencioso con una placa base [Asrock N100DC-ITX](https://www.asrock.com/mb/Intel/N100DC-ITX/index.la.asp), trabajando sobre un equipo de sonido de doble dipolo estéreo más subwoofer gestionado por NatAmbio. La configuración incluye un NAE, dos filtros XTC, un filtro de cruce low/high-pass y cuatro filtros DRC, sumando diez procesos de convolución de 16384 muestras. La carga total de CPU ronda el 5% con jackd funcionando a 256 muestras por período. El procesador dispone de cuatro núcleos y NatAmbio aprovecha su naturaleza multithread para repartir eficientemente la carga.
 
@@ -18,7 +18,7 @@ Otra posible placa base, que yo he tenido, y que funciona, aunque es de menor po
 
 Una ventaja de este tipo de soluciones para NatAmbio es que son bastante económicas.
 
-Por supuesto, al menos mi equipo NatAmbio doméstico no tiene ni pantalla, ni ratón, ni teclado. Funciona de modo autónomo con NatAmbio, y jackd, ejecutándose como servicios bajo systemd.. Y los trabajos de gestión y actualización los hago conectado por sesión ssh. Para ello tengo conectado mi PC por ethernet a la red doméstica.
+Por supuesto, al menos mi equipo NatAmbio doméstico no tiene ni pantalla, ni ratón, ni teclado. Funciona de modo autónomo con NatAmbio, y jackd, ejecutándose como servicios bajo systemd. Y los trabajos de gestión y actualización los hago conectado por sesión ssh. Para ello tengo conectado mi PC por ethernet a la red doméstica.
 
 ## Un interfaz de sonido para NatAmbio
 
@@ -26,9 +26,9 @@ El interfaz de sonido de NatAmbio es la puerta de entrada y salida del sonido en
 
 Personalmente, mis interfaces de sonido son los FireWire. Aunque FireWire es hoy una tecnología obsoleta, precisamente esa obsolescencia ha creado un mercado de segunda mano extraordinariamente atractivo para NatAmbio. Muchas interfaces profesionales de muy alta calidad pueden encontrarse a precios reducidos y continúan funcionando perfectamente bajo GNU/Linux mediante FFADO. Por un coste muy razonable se puede equipar a NatAmbio de una excelente interfaz audio.
 
-He adquirido, y he probado, varias interfaces de sonido compatibles con la librería firewire audio para GNU/Linux, [FFADO](https://ffado.org/), y, correctamente configuradas, funcionan estables sin cortes (xrun) durante días. Ahora mismo dispongo de dos Echo Audiofire4, que he llegado a conectarlas en cadena sin problema, una Edirol FA66 y una Edirol F101. Las cuatro funcionan perfectamente. Las interfaces Echo tienen controles software gestionables por ffado-dbus-service. Las interfaces Edirol tienen los controles en la propia tarjeta.
+He adquirido, y he probado, varias interfaces de sonido compatibles con la librería firewire audio para GNU/Linux, [FFADO](https://ffado.org/), y, correctamente configuradas, funcionan estables sin cortes (xrun) durante días. Ahora mismo dispongo de dos Echo Audiofire4, que he llegado a conectarlas en cadena sin problema, una Edirol FA-66 y una Edirol FA-101. Las cuatro funcionan perfectamente. Las interfaces Echo tienen controles software gestionables por ffado-dbus-service. Las interfaces Edirol tienen los controles en la propia tarjeta.
 
-Para poder disponer de interfaz FireWire en el PC, he instalado en la placa base una tarjeta PCIe a Firewire, que actualmente es fácil de encontrar a bajo coste.
+Para poder disponer de interfaz FireWire en el PC, he instalado en la placa base una tarjeta PCIe a FireWire, que actualmente es fácil de encontrar a bajo coste.
 
 La opción actual más práctica es disponer de una interfaz de audio USB. Yo he probado el correcto funcionamiento de NatAmbio con una tarjeta muy sencilla, de calidad razonable, de Behringer, la UMC204HD, y con una tarjeta de calidad alta, la Focusrite Scarlett 6i6. En el caso de la tarjeta Scarlett es imprescindible instalar [alsa-scarlett-gui](https://github.com/geoffreybennett/alsa-scarlett-gui) para poder activarla y configurar todos sus controles de ruta y de nivel. La interfaz Focusrite Scarlett es muy estable durante días con jackd, al igual que la interfaz UMC204HD.
 
@@ -53,9 +53,9 @@ Cuando se emplea FFADO como librería JACK, los nombres de los puertos son espec
 
 ![Edirol FA101 NatAmbio](figs/edirol_fa_101_natambio.png)
 
-Aunque sus entradas y salidas están asociadas al clásico alias en JACK, system:capture_X para la entradas y system:playback_X.
+Aunque sus entradas y salidas están asociadas al clásico alias en JACK, system:capture_X para las entradas y system:playback_X.
 
-La interfaz Edirol FA-101 presenta sus controles en la propia tarjeta, no así Echo Audiofire4, la cual tiene muchos controles por DBUS. Una breve lista de algunos de ellos se encuentra en [Pequeña guia de comandos DBUS para dispositivos FFADO](dbus_for_ffado.txt)
+La interfaz Edirol FA-101 presenta sus controles en la propia tarjeta, no así Echo Audiofire4, la cual tiene muchos controles por DBUS. Una breve lista de algunos de ellos se encuentra en [Pequeña guía de comandos DBUS para dispositivos FFADO](dbus_for_ffado.txt)
 
 ### Interfaces USB: más modernos y sencillos
 
@@ -93,7 +93,7 @@ Para terminar de documentar esta sección, se muestra el caso del uso de la tarj
 
 En este caso, se dispone de cuatro salidas analógicas, dos para cada dipolo NatAmbio. En este caso no se podría añadir un subwoofer con gestión del propio NatAmbio, pero con gestión propia del subwoofer en paso desde las salidas playback_1 y playback_2 es perfectamente viable.
 
-En cuanto a rendimiento de proceso, todas las interfaces aquí comentadas operan con jackd sin xrun alguno durante días, y la carga de procesado de todas ellas es semejante. Las diferencias, inevitables, están en sus conectividades y en la calidad interna de sus electrónicas. Pero, en cualquier caso, hasta la más modesta UMC204 es de calidad adecuada para conformar un sistema doméstico  NatAmbio.
+En cuanto a rendimiento de proceso, todas las interfaces aquí comentadas operan con jackd sin xrun alguno durante días, y la carga de procesado de todas ellas es semejante. Las diferencias, inevitables, están en sus conectividades y en la calidad interna de sus electrónicas. Pero, en cualquier caso, hasta la más modesta UMC204 es de calidad adecuada para conformar un sistema doméstico NatAmbio.
 
 # Conectando el equipo al cerebro de NatAmbio
 
@@ -101,19 +101,19 @@ A partir del ejemplo de conexiones de jackd con la interfaz Focusrite Scarlett 6
 
 ![Focusrite Scarlett NatAmbio](figs/focusrite_scarlett_natambio.png)
 
-Siendo un equipo estéreo, la señal de entrada serán dos canales, izquierdo y derecho. Quien tenga más de una fuente, necesitara un previo para conmutarlas, o conectar y desconectar cables, o disponer de una tarjeta con varías entrada de línea. En mi instalación doméstica, la única fuente de sonido es la televisión, conectada por bluetooth a un receptor sencillo, pero con salida SPDIF (coaxial y óptica), por eso la entrada son los canales capture_5 y capture_6, que corresponden con la entrada SPDIF coaxial de la Scarlett 6i6.
+Siendo un equipo estéreo, la señal de entrada serán dos canales, izquierdo y derecho. Quien tenga más de una fuente, necesitará un previo para conmutarlas, o conectar y desconectar cables, o disponer de una tarjeta con varias entradas de línea. En mi instalación doméstica, la única fuente de sonido es la televisión, conectada por bluetooth a un receptor sencillo, pero con salida SPDIF (coaxial y óptica), por eso la entrada son los canales capture_5 y capture_6, que corresponden con la entrada SPDIF coaxial de la Scarlett 6i6.
 Estas dos entradas se desdoblan a su vez en cuatro entradas a NatAmbio, dos para NAE modo alpha, que procesará el sonido para el dipolo estéreo frontal, y otras dos para NAE en modo beta, que procesará el sonido para el dipolo estéreo ambiental.
 Las salidas de la Scarlett se conectan del siguiente modo:
 
-- Salidas playback_5 y playback_6 son las salidas SPDIF de la Scarlett, que conectan con un DAC SMSL M300, que tiene una excelente SNR. Y desde las salidas analógicas XLR del DAC conecto las entrada de mis monitores frontales, unos Genelec 8020A.
+- Salidas playback_5 y playback_6 son las salidas SPDIF de la Scarlett, que conectan con un DAC SMSL M300, que tiene una excelente SNR. Y desde las salidas analógicas XLR del DAC conecto las entradas de mis monitores frontales, unos Genelec 8020A.
 - Salidas analógicas playback_1 y playback_2 son las que se conectan con el subwoofer, un Edifier T5s. Se pueden encaminar ambas salidas de la señal filtrada para subwoofer a un solo canal playback sin ningún problema.
-- Salidas analógícas playback_3 y playback_4 son las que se conectan con el dipolo trasero ambiental, formado por un amplificador Fosi Audio V1.0G de 50W por canal y unos altavoces Roxel RBS 300, que tienen una calidad adecuada para unos simpleas altavoces de ambiente y un precio muy competitivo.
+- Salidas analógicas playback_3 y playback_4 son las que se conectan con el dipolo trasero ambiental, formado por un amplificador Fosi Audio V1.0G de 50W por canal y unos altavoces Roxel RBS 300, que tienen una calidad adecuada para unos simples altavoces de ambiente y un precio muy competitivo.
 
 De mi experiencia mi recomendación es:
 
-- Elegir una pareja de altavoces frontales de un calidad contrastada. Evidentemente cada cual tiene sus preferencias subjetivas, pero es mejor invertir más en los altavoces frontales que plantearse que ambos dipolos tengan calidad igualada.
+- Elegir una pareja de altavoces frontales de una calidad contrastada. Evidentemente cada cual tiene sus preferencias subjetivas, pero es mejor invertir más en los altavoces frontales que plantearse que ambos dipolos tengan calidad igualada.
 - Elegir un subwoofer si se considera que la respuesta en frecuencia de la pareja frontal se queda corta. Mi caso es el típico de monitores frontales de calidad contrastada, con muy buen foco y dispersión, pero pequeños, con lo que el apoyo de un subwoofer es interesante.
-- Elegir unos altavoces ambientales muy sencillos, pero cuyo sistema (sea el propio altavoz activo o el amplificador conectado) nos permita ajustar el volumen facilmente. De esta manera es muy sencillo controlar el nivel de ambiente trasero que se quiere recibir, incluso modificándolo según las grabaciones escuchadas.
+- Elegir unos altavoces ambientales muy sencillos, pero cuyo sistema (sea el propio altavoz activo o el amplificador conectado) nos permita ajustar el volumen fácilmente. De esta manera es muy fácil controlar el nivel de ambiente trasero que se quiere recibir, incluso modificándolo según las grabaciones escuchadas.
 
 ## Un último consejo
 

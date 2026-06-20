@@ -91,7 +91,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [Configuración de NatAmbio](README.CONFIG).
 - [Ejemplos de posibles configuraciones](config_samples/README.md).
 - [Uso de natambio como servicio automático en un NatAmbio DSP procesador autónomo](../natambio_as_a_service/natambio_systemd.md).
-- ¿Cómo construir un equipo de audio que sea un sistema NatAmbio?
+- [¿Cómo construir un equipo de audio que sea un sistema NatAmbio?](hw_setup_es.md)
 
 ### Otras herramientas disponibles
 

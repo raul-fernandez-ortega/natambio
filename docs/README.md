@@ -91,7 +91,7 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [NatAmbio configuration](README.CONFIG).
 - [Example configurations](config_samples/README.md).
 - [Running natambio as an automatic service on a standalone NatAmbio DSP processor](../natambio_as_a_service/natambio_systemd.md).
-- How to build an audio system that is a NatAmbio system.
+- [How to build an audio system that is a NatAmbio system](hw_setup_en.md).
 
 ### Other available tools
 
