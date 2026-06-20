@@ -202,7 +202,7 @@ A visualization of the impulse responses obtained and the frequency spectra of t
 <div align="center"><img src="images/grafica_espectral.png"/></div>
 <br>
 
-It can be seen that the Direct XTC filter closely approximates a $\delta$ and that its "comb" ripple is kept within the $\pm 24 dB band. As for the Cross XTC filter, its level is below that of the Direct XTC by an average of 10 dB. It is also visible that, starting from a minimum-phase impulse-response model, the resulting XTC filters introduce no additional latency to the processed signal (the Direct XTC peak is located at $t=0$).
+It can be seen that the Direct XTC filter closely approximates a $\delta$ and that its "comb" ripple is kept within the $\pm 2$ dB band. As for the Cross XTC filter, its level is below that of the Direct XTC by an average of 10 dB. It is also visible that, starting from a minimum-phase impulse-response model, the resulting XTC filters introduce no additional latency to the processed signal (the Direct XTC peak is located at $t=0$).
 
 As mentioned earlier, the cross XTC filter is bounded at 200 Hz, to prevent its effect from being perceived not as XTC but as an unwanted bass boost. For frequencies below 200 Hz the level is attenuated with a 6 dB/octave roll-off.
 
