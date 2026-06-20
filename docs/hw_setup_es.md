@@ -45,6 +45,126 @@ Cuando se conecta un interfaz firewire a un PC GNU/Linux, se puede identificar p
 /sys/bus/firewire/devices/fw1/vendor_name → EDIROL
 
 ```
+Los controles internos de cada interfaz se pueden averiguar consultando dbus:
+
+```
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager org.freedesktop.DBus.Introspectable.Introspect
+method return time=1781969853.455709 sender=:1.123 -> destination=:1.122 serial=16 reply_serial=2
+   string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/org/ffado/Control/DeviceManager">
+	<interface name="org.ffado.Control.Element.Container">
+		<method name="getNbElements">
+			<arg direction="out" type="i" name="count"/>
+		</method>
+		<method name="getElementName">
+			<arg direction="in" type="i" name="id"/>
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<signal name="Destroyed">
+		</signal>
+		<signal name="Updated">
+		</signal>
+		<signal name="PreUpdate">
+		</signal>
+		<signal name="PostUpdate">
+		</signal>
+	</interface>
+	<interface name="org.ffado.Control.Element.Element">
+		<method name="getId">
+			<arg direction="out" type="t" name="id"/>
+		</method>
+		<method name="getName">
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<method name="getLabel">
+			<arg direction="out" type="s" name="label"/>
+		</method>
+		<method name="getDescription">
+			<arg direction="out" type="s" name="description"/>
+		</method>
+		<method name="canChangeValue">
+			<arg direction="out" type="b" name="can_change"/>
+		</method>
+		<method name="getVerboseLevel">
+			<arg direction="out" type="i" name="level"/>
+		</method>
+		<method name="setVerboseLevel">
+			<arg direction="in" type="i" name="level"/>
+		</method>
+	</interface>
+	<interface name="org.freedesktop.DBus.Introspectable">
+		<method name="Introspect">
+			<arg direction="out" type="s" name="data"/>
+		</method>
+	</interface>
+	<node name="0040ab0000c22497"/>
+</node>"
+
+```
+
+```
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0040ab0000c22497 org.freedesktop.DBus.Introspectable.Introspect
+method return time=1781969955.724823 sender=:1.123 -> destination=:1.124 serial=17 reply_serial=2
+   string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/org/ffado/Control/DeviceManager/0040ab0000c22497">
+	<interface name="org.ffado.Control.Element.Container">
+		<method name="getNbElements">
+			<arg direction="out" type="i" name="count"/>
+		</method>
+		<method name="getElementName">
+			<arg direction="in" type="i" name="id"/>
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<signal name="Destroyed">
+		</signal>
+		<signal name="Updated">
+		</signal>
+		<signal name="PreUpdate">
+		</signal>
+		<signal name="PostUpdate">
+		</signal>
+	</interface>
+	<interface name="org.ffado.Control.Element.Element">
+		<method name="getId">
+			<arg direction="out" type="t" name="id"/>
+		</method>
+		<method name="getName">
+			<arg direction="out" type="s" name="name"/>
+		</method>
+		<method name="getLabel">
+			<arg direction="out" type="s" name="label"/>
+		</method>
+		<method name="getDescription">
+			<arg direction="out" type="s" name="description"/>
+		</method>
+		<method name="canChangeValue">
+			<arg direction="out" type="b" name="can_change"/>
+		</method>
+		<method name="getVerboseLevel">
+			<arg direction="out" type="i" name="level"/>
+		</method>
+		<method name="setVerboseLevel">
+			<arg direction="in" type="i" name="level"/>
+		</method>
+	</interface>
+	<interface name="org.freedesktop.DBus.Introspectable">
+		<method name="Introspect">
+			<arg direction="out" type="s" name="data"/>
+		</method>
+	</interface>
+	<node name="ConfigRom"/>
+	<node name="Generic"/>
+	<node name="Mixer"/>
+</node>"
+```
+
+Cuando se emplea FFADO como librería JACK, los nombres de los puertos son específicos del interfaz:
+
+![Edirol FA101 NatAmbio](figs/edirol_fa_101_natambio.png)
+
+Aunque sus entradas y salidas están asociadas al clásico alias en JACK, system:capture_X para la entradas y system:playback_X.
 
 # Conectando el equipo al cerebro de NatAmbio
 
