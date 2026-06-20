@@ -146,7 +146,7 @@ Con objeto de parametrizar XTC (su función G), se han estudiado varias librerí
 
 Todas ellas se pueden encontrar en este enlace: https://www.sofaconventions.org/mediawiki/index.php/Files
 
-Analizando los cinco conjuntos citados de base de datos HRTF (tomando valores promediados de las diferentes medidas disponibles) se puede tener una razonable aproximación general a $\text{ITD}$ e $\text{ILD}_{avg}$ en función del ángulo azimut.
+Analizando los cinco conjuntos citados de base de datos HRTF (tomando valores promediados de las diferentes medidas disponibles) se puede tener una razonable aproximación general a $ITD$ e $ILD_{avg}$ en función del ángulo azimut.
 <br>
 <div align="center"><img src="images/ITD_vs_azimuth.png"/></div>
 <br>
@@ -172,15 +172,15 @@ Azimut a 30°:
 <div align="center"><img src="images/ILD_normalized_az30.png"/></div>
 <br>
 
-Buscando la menor coloración, hay que evitar cualquier pico o valle en la forma de $\text{ILD}_{spectrum}(f)$, puesto que la disposición de estos picos en el espectro es muy variable con la anatomía del oyente. Por lo tanto, se evitan los desarrollos individuales y se opta por aproximaciones de carácter general.
+Buscando la menor coloración, hay que evitar cualquier pico o valle en la forma de $ILD_{spectrum}(f)$, puesto que la disposición de estos picos en el espectro es muy variable con la anatomía del oyente. Por lo tanto, se evitan los desarrollos individuales y se opta por aproximaciones de carácter general.
 
-Se evaluó como punto de partida un modelo paramétrico de $\text{ILD}(\Theta,f)$ (Akeroyd et al., 2021, ajustado a los datos de Shaw y Vaillancourt, 1985), pero su repunte en altas frecuencias no se ajusta bien al promedio de los modelos HRTF públicos estudiados. Por ello se ha optado por desarrollar una ecuación de ajuste empírico, más sencilla y monótona, de la siguiente forma:
+Se evaluó como punto de partida un modelo paramétrico de $ILD(\Theta,f)$ (Akeroyd et al., 2021, ajustado a los datos de Shaw y Vaillancourt, 1985), pero su repunte en altas frecuencias no se ajusta bien al promedio de los modelos HRTF públicos estudiados. Por ello se ha optado por desarrollar una ecuación de ajuste empírico, más sencilla y monótona, de la siguiente forma:
 
- $$\text{ILD}_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1)  \cdot \sin(\Theta)  $$
+ $$ILD_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1)  \cdot \sin(\Theta)  $$
 
-Esta forma se ajustó a la media de las $\text{ILD}$ normalizadas en azimut de los conjuntos HRTF públicos estudiados (HUTUBS, RIEC, BiLi, CIPIC y ARI; véase Referencias). Como puede apreciarse en las gráficas de $\text{ILD}_{spectrum}(f)$, el ajuste emplea un parámetro $\alpha$ que tendrá un valor de entre 1.5 y 2.0.
+Esta forma se ajustó a la media de las $ILD$ normalizadas en azimut de los conjuntos HRTF públicos estudiados (HUTUBS, RIEC, BiLi, CIPIC y ARI; véase Referencias). Como puede apreciarse en las gráficas de $ILD_{spectrum}(f)$, el ajuste emplea un parámetro $\alpha$ que tendrá un valor de entre 1.5 y 2.0.
 
-Finalmente, queda una decisión de diseño por tomar: la fase de $G(f)$, que corresponde con la fase de $\text{ILD}_{spectrum}(f)$. A la hora de implementar este algoritmo en NatAmbio se ha optado por un modelo de $\text{ILD}_{spectrum}(\Theta,f)$ de fase mínima. De esta forma, el filtro no añade retardo de transporte (la energía se concentra al inicio de la respuesta impulsiva), por lo que el procesado XTC no introduce latencia apreciable más allá de la propia del motor de convolución, lo que lo hace apto para su utilización con audio simultáneo al vídeo.
+Finalmente, queda una decisión de diseño por tomar: la fase de $G(f)$, que corresponde con la fase de $ILD_{spectrum}(f)$. A la hora de implementar este algoritmo en NatAmbio se ha optado por un modelo de $ILD_{spectrum}(\Theta,f)$ de fase mínima. De esta forma, el filtro no añade retardo de transporte (la energía se concentra al inicio de la respuesta impulsiva), por lo que el procesado XTC no introduce latencia apreciable más allá de la propia del motor de convolución, lo que lo hace apto para su utilización con audio simultáneo al vídeo.
 
 ## Ejemplo de filtros obtenidos por este nuevo algoritmo
 
@@ -191,7 +191,7 @@ Con la experiencia de este uso particular se ha ido ajustando la parametrizació
 - ITD se ha aproximado a valores típicos de los modelos HRTF promedio.
 - ILD se ha fijado en valores por encima (mayores que) los que indican los modelos HRTF (en torno a 4 dB más). En este sentido, la escucha subjetiva de los filtros XTC con valores de ILD próximos a los del HRTF natural provoca la percepción de cierta coloración, en especial en agudos. Estas conclusiones, válidas para un caso particular, requieren pruebas adicionales y sistematizadas en diferentes sistemas de audio para poder generalizarse.
 
-En este caso particular, los filtros aplicados finalmente al sistema han sido generados con unos parámetros $\text{ITD}$ = 180 µs, $\text{ILD}_{dB}$ = 10 dB, $\alpha$ = 1.8 y $\Theta$ = 20°. Conviene señalar que, mientras ITD se corresponde con el valor HRTF natural a 20°, ILD, como ya se ha mencionado, ha quedado con un valor por encima del valor HRTF natural a ese azimut: un ILD mayor que el natural produce un filtro cruzado más suave, intercambiando algo de espacialidad por una menor coloración. Interpretado desde el punto de vista matemático, aumentar ILD reduce la magnitud de G y acelera la convergencia de la serie, reduciendo simultáneamente la energía de los términos correctores de orden superior, lo cual, a su vez, disminuye la magnitud del efecto "filtro peine" (como se mostrará a continuación), que es el responsable principal de la mencionada coloración tonal.
+En este caso particular, los filtros aplicados finalmente al sistema han sido generados con unos parámetros ITD = 180 µs, $ILD_{dB}$ = 10 dB, $\alpha$ = 1.8 y $\Theta$ = 20°. Conviene señalar que, mientras ITD se corresponde con el valor HRTF natural a 20°, ILD, como ya se ha mencionado, ha quedado con un valor por encima del valor HRTF natural a ese azimut: un ILD mayor que el natural produce un filtro cruzado más suave, intercambiando algo de espacialidad por una menor coloración. Interpretado desde el punto de vista matemático, aumentar ILD reduce la magnitud de G y acelera la convergencia de la serie, reduciendo simultáneamente la energía de los términos correctores de orden superior, lo cual, a su vez, disminuye la magnitud del efecto "filtro peine" (como se mostrará a continuación), que es el responsable principal de la mencionada coloración tonal.
 
 Una visualización de las impulsivas obtenidas y los espectros en frecuencia de los filtros XTC aplicados, obtenidos a una frecuencia de muestreo de 48 kHz y una longitud de los filtros de 4096 muestras, es la siguiente:
 
@@ -201,7 +201,7 @@ Una visualización de las impulsivas obtenidas y los espectros en frecuencia de 
 <div align="center"><img src="images/grafica_espectral.png"/></div>
 <br>
 
-Se puede comprobar que el filtro Direct XTC se aproxima mucho a una $\delta$ y que su rizado como filtro "peine" está controlado en la banda de $\pm 2 \space \text{dB}$. En cuanto al filtro Cross XTC, su nivel está por debajo del de Direct XTC en un valor promedio de 10 dB. Asimismo, es visible que, al partir de un modelado de impulsivas en fase mínima, los filtros XTC obtenidos no introducen retardo de transporte apreciable a la señal procesada (el pico de Direct XTC se sitúa en $t=0$).
+Se puede comprobar que el filtro Direct XTC se aproxima mucho a una $\delta$ y que su rizado como filtro "peine" está controlado en la banda de $\pm 2 \space dB$. En cuanto al filtro Cross XTC, su nivel está por debajo del de Direct XTC en un valor promedio de 10 dB. Asimismo, es visible que, al partir de un modelado de impulsivas en fase mínima, los filtros XTC obtenidos no introducen retardo de transporte apreciable a la señal procesada (el pico de Direct XTC se sitúa en $t=0$).
 
 Como se ha comentado anteriormente, el filtro XTC cross está acotado a 200 Hz, para evitar que su efecto sea percibido no como XTC sino como un realce indeseado en graves. Para frecuencias por debajo de 200 Hz se atenúa el nivel con una rampa de bajada de 6 dB/octava.
 
