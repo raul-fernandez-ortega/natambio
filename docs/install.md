@@ -121,6 +121,16 @@ Python tool dependencies:
 
 ## Build and install
 
+### Download
+
+Clone the repository with git (install it first with `sudo apt install git` on
+Debian/Ubuntu if needed):
+
+```sh
+git clone https://github.com/raul-fernandez-ortega/natambio.git
+cd natambio
+```
+
 ### Autotools build
 
 ```sh
