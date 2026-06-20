@@ -1,7 +1,8 @@
 # NatAmbio Ambient Extractor (NAE): Algoritmo de extracción de las trazas ambientales de una grabación estéreo
 
 **Autor:** Raúl Fernández Ortega  
-**Fecha:** junio de 2026
+**Fecha:** junio de 2026  
+**Email** natambio.audio@gmail.com
 
 > **Resumen —** *NatAmbio es un sistema de reproducción espacial de tipo PanAmbio, basado en dos dipolos estéreo —uno frontal y otro ambiental—, cuyo funcionamiento requiere cuatro canales: el sonido principal estéreo y dos pistas adicionales de sonido ambiente. Dado que la práctica totalidad de la música se ha grabado en formato estéreo de dos canales, NatAmbio incorpora su propio procesamiento DSP para extraer dichas componentes a partir de la propia grabación. En este artículo se presenta NatAmbio Ambient Extractor (NAE), un algoritmo de extracción ambiental desarrollado de forma empírica —mediante escucha crítica, análisis de correlaciones estéreo y representación mid/side (M/S)— y orientado a operar en tiempo real con un coste computacional muy reducido. Se define operativamente la componente ambiental como aquella de menor nivel relativo y con sus canales fuertemente anticorrelados, frente a una componente principal de canales correlacionados. El algoritmo transforma la señal L/R al dominio M/S y aplica PCA sobre una matriz de covarianza 2×2, obteniendo dos pares estéreo decorrelados entre sí: uno principal, con correlación +1, y otro ambiental, con correlación −1, sin recurrir a decorrelación artificial. Para grabaciones de baja correlación (muy lateralizadas), donde la orientación de los ejes PCA se vuelve inestable, se introduce una segunda aproximación que adapta el peso de la componente side mediante un parámetro β gobernado por la propia correlación L/R. Se describen los detalles de implementación en NatAmbio —ventana PCA deslizante sobre JACK, suavizado temporal y los modos α y β— y su integración con la cancelación de diafonía (XTC) en configuraciones de uno y dos dipolos. El resultado es una reproducción compatible con la escena musical original, con mayor apertura frontal y un campo ambiental envolvente de nivel ajustable, obtenida a partir de grabaciones estéreo convencionales y mediante procesamiento en tiempo real.*
 
@@ -17,6 +18,31 @@ Existe abundante literatura técnica dedicada a la extracción de información e
 - Poder realizar esta extracción en tiempo real, con un algoritmo que sea sencillo en coste de procesamiento, pero que consiga el objetivo del punto anterior sin limitaciones significativas.
 
 NatAmbio Ambient Extraction (NAE) es un algoritmo desarrollado sobre y para un entorno doméstico, empleando como señales de prueba grabaciones comerciales estándar fácilmente disponibles. NAE no surge de una búsqueda teórica de nuevas transformaciones espaciales, sino del uso específico de técnicas DSP muy conocidas, y del posterior análisis de los resultados al aplicarse sobre las citadas grabaciones de referencia utilizadas habitualmente en entornos aficionados. El desarrollo del algoritmo se realizó mediante un proceso iterativo de escucha crítica, análisis visual de correlaciones estéreo, representación mid/side (M/S) y evolución temporal de componentes PCA. Varias decisiones de diseño surgieron inicialmente de observaciones empíricas repetidas y del estudio de patrones recurrentes, y fueron posteriormente formalizadas en términos estadísticos. Al ser un trabajo empírico, no se origina en un desarrollo matemático formal, por lo que la explicación del algoritmo que aquí se recoge también presenta esta misma naturaleza empírica.
+
+## Notación
+
+| Símbolo | Significado |
+|---|---|
+| $l,\ r$ | Señales de los canales izquierdo y derecho (L/R) |
+| $m,\ s$ | Señales mid y side: $m = l + r$, $s = l - r$ (también escritas $mid$, $side$) |
+| $corr(l,r)$ | Correlación entre dos canales |
+| $\rho_{lr}$ | Coeficiente de correlación L/R, $\rho_{lr} = corr(l,r)$ |
+| $S$ | Señal estéreo completa, $S = C_{main} + C_{amb}$ |
+| $C_{main}$ ($C_1$) | Componente principal (main) |
+| $C_{amb}$ ($C_2$) | Componente ambiental |
+| $C_x$ | Una componente genérica ($x = 1, 2$) |
+| $level(C_x)$ | Energía / nivel de la componente $C_x$ |
+| $l_{cx},\ r_{cx}$ | Presentación izquierda / derecha de la componente $C_x$ |
+| $mC_x,\ sC_x$ | Mid y side de la componente $C_x$ |
+| $v_{x1},\ v_{x2}$ | Partes mid y side del autovector de $C_x$ |
+| $k_x$ | Relación side/mid de $C_x$: $k_x = sC_x/mC_x = v_{x2}/v_{x1}$ |
+| $\lambda$ | Factor de proporcionalidad en $l_{cx} = \lambda\, r_{cx}$ |
+| $l',\ r'$ | Señales L/R tras la premezcla que aumenta la correlación |
+| $\mu$ | Coeficiente de la premezcla, $\mu \in [0,\ 0.5]$ |
+| $\beta$ | Peso de la componente side, $\beta = 1 - 2\mu \in [0,\ 1]$; en modo $\beta$, $\beta = 0.55 + 0.45\,\lvert\rho_{lr}\rvert$ |
+| modos $\alpha,\ \beta$ | Las dos implementaciones de NAE: $\alpha$ (sin premezcla, $\mu = 0$, $\beta = 1$) y $\beta$ (peso side adaptativo). Los nombres de modo no deben confundirse con los parámetros $\mu$ y $\beta$ de las ecuaciones. |
+| M/S, L/R | Representaciones mid/side e izquierda/derecha |
+| PCA | Análisis de Componentes Principales (*Principal Component Analysis*) |
 
 ## Definición de señal ambiental
 

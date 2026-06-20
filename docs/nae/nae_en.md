@@ -1,7 +1,8 @@
 # NatAmbio Ambient Extractor (NAE): An algorithm for extracting the ambient traces of a stereo recording
 
 **Author:** Raúl Fernández Ortega  
-**Date:** June 2026
+**Date:** June 2026  
+**Email** natambio.audio@gmail.com
 
 > **Abstract —** *NatAmbio is a PanAmbio-type spatial reproduction system, based on two stereo dipoles —one frontal and one ambient—, whose operation requires four channels: the main stereo sound and two additional ambience-sound tracks. Since practically all music has been recorded in two-channel stereo format, NatAmbio incorporates its own DSP processing to extract those components from the recording itself. This article presents NatAmbio Ambient Extractor (NAE), an ambience-extraction algorithm developed empirically —through critical listening, analysis of stereo correlations and the mid/side (M/S) representation— and intended to operate in real time at very low computational cost. The spatial component is operationally defined as the one of lower relative level and with its channels strongly anti-correlated, as opposed to a principal component with correlated channels. The algorithm transforms the L/R signal into the M/S domain and applies PCA to a 2×2 covariance matrix, obtaining two mutually decorrelated stereo pairs: a principal one, with correlation +1, and an ambient one, with correlation −1, without resorting to artificial decorrelation. For low-correlation recordings (heavily panned), where the orientation of the PCA axes becomes unstable, a second approach is introduced that adapts the weight of the side component through a parameter β governed by the L/R correlation itself. The implementation details in NatAmbio are described —a sliding PCA window over JACK, temporal smoothing and the α and β modes— as well as its integration with crosstalk cancellation (XTC) in single- and dual-dipole configurations. The result is reproduction compatible with the original musical scene, with greater frontal openness and an enveloping ambience field of adjustable level, obtained from conventional stereo recordings and through real-time processing.*
 
@@ -17,6 +18,31 @@ There is abundant technical literature devoted to extracting spatial information
 - Be able to perform this extraction in real time, with an algorithm that is simple in processing cost but that achieves the objective of the previous point without significant limitations.
 
 NatAmbio Ambient Extraction (NAE) is an algorithm developed on and for a domestic environment, using as test signals standard, readily available commercial recordings. NAE does not arise from a theoretical search for new spatial transformations, but from the specific use of very well-known DSP techniques and the subsequent analysis of the results when applied to the aforementioned reference recordings commonly used in amateur settings. The algorithm was developed through an iterative process of critical listening, visual analysis of stereo correlations, mid/side (M/S) representation and temporal evolution of PCA components. Several design decisions arose initially from repeated empirical observations and from the study of recurring patterns, and were later formalized in statistical terms. Being an empirical work, it does not originate in a formal mathematical development, so the explanation of the algorithm given here also has this same empirical nature.
+
+## Notation
+
+| Symbol | Meaning |
+|---|---|
+| $l,\ r$ | Left and right channel signals (L/R) |
+| $m,\ s$ | Mid and side signals: $m = l + r$, $s = l - r$ (also written $mid$, $side$) |
+| $corr(l,r)$ | Correlation between two channels |
+| $\rho_{lr}$ | L/R correlation coefficient, $\rho_{lr} = corr(l,r)$ |
+| $S$ | Full stereo signal, $S = C_{main} + C_{amb}$ |
+| $C_{main}$ ($C_1$) | Principal (main) component |
+| $C_{amb}$ ($C_2$) | Ambient component |
+| $C_x$ | A generic component ($x = 1, 2$) |
+| $level(C_x)$ | Energy / level of component $C_x$ |
+| $l_{cx},\ r_{cx}$ | Left / right presentation of component $C_x$ |
+| $mC_x,\ sC_x$ | Mid and side of component $C_x$ |
+| $v_{x1},\ v_{x2}$ | Mid and side parts of the eigenvector of $C_x$ |
+| $k_x$ | Side/mid ratio of $C_x$: $k_x = sC_x/mC_x = v_{x2}/v_{x1}$ |
+| $\lambda$ | Proportionality factor in $l_{cx} = \lambda\, r_{cx}$ |
+| $l',\ r'$ | L/R signals after the correlation-increasing pre-mix |
+| $\mu$ | Pre-mix coefficient, $\mu \in [0,\ 0.5]$ |
+| $\beta$ | Side-component weight, $\beta = 1 - 2\mu \in [0,\ 1]$; in $\beta$ mode, $\beta = 0.55 + 0.45\,\lvert\rho_{lr}\rvert$ |
+| $\alpha,\ \beta$ modes | The two NAE implementations: $\alpha$ (no pre-mix, $\mu = 0$, $\beta = 1$) and $\beta$ (adaptive side weight). The mode names are distinct from the equation parameters $\mu$ and $\beta$. |
+| M/S, L/R | Mid/side and left/right representations |
+| PCA | Principal Component Analysis |
 
 ## Definition of ambient signal
 
