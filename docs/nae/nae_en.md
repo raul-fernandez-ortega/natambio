@@ -225,9 +225,11 @@ $$ l_{c1} = \frac {mC_{1} + sC_{1}}{2}  = \frac {1 + k_1}{2} mC_1 $$
 $$ r_{c1} = \frac {mC_{1} - sC_{1}}{2}  = \frac {1 - k_1}{2} mC_1 $$
 
 The L/R balance of $C_1$ and $C_2$ depend on:
+
 $$ \frac {l_{c1}}{r_{c1}} = \frac {{1 + k_1}}{1 - k_1}$$
 
 $$ \frac {l_{c2}}{r_{c2}} = \frac {{1 + k_2}}{1 - k_2}$$
+
 Since the components $C_1$ and $C_2$ are orthogonal to each other (see [figure 1](#figure_01)), it holds that:
 
 $$ {k_1} \cdot {k_2} = -1 \rightarrow k_2 = \frac {-1}{k_1}$$
