@@ -1,7 +1,8 @@
 # Design of a Convolution-Based Stereo Crosstalk Canceller (XTC) for NatAmbio
 
 **Author:** Raúl Fernández Ortega  
-**Date:** June 2026
+**Date:** June 2026  
+**Email** natambio.audio@gmail.com
 
 > **Abstract —** *NatAmbio implements stereo crosstalk cancellation (XTC) through the convolution of internally generated FIR filters. Acoustic crosstalk —each loudspeaker is heard by both ears— collapses and blurs the spatial image of stereo, and since physical isolation between channels is unfeasible in practice, mitigation is addressed by digital processing. A recurring criticism of existing XTC cancellers (of the recursive RACE family and of the FIR matrix-inversion family) is that they markedly improve sense of spaciousness at the cost of introducing some tonal coloration. This article presents the XTC filter design algorithm used by NatAmbio, conceived to balance maximum stereo image and minimum coloration, and formulated as an FIR generalization of the classic recursive schemes. Starting from an iterative analysis of the successive cancellations that keeps the direct acoustic paths intact, a direct filter and a cross filter are obtained, expressible as power series of the function $G = H_{cross}/H_{direct}$. These series converge whenever $|G|<1$ —a condition guaranteed by the acoustic shadow of the head— and are truncated to just $N = 3$–$4$ terms; although the design process is recursive, the realized filter is FIR and, being modeled in minimum phase, introduces no appreciable processing latency, which makes it suitable for audio synchronized to video. The function $G$ is parametrized from HRTF models (ITD, average ILD and ILD spectrum), obtained by averaging five public databases (HUTUBS, RIEC, BiLi, CIPIC and ARI), with a monotonic empirical fit of the ILD spectrum governed by a parameter $\alpha$. The result is a parametrizable solution —empirically validated over years of continuous domestic use— that, by adjusting ITD, ILD, $\alpha$ and the azimuth $\Theta$, makes it possible to reach the optimal balance between spatial effect and tonal neutrality in each system.*
 
@@ -48,7 +49,7 @@ Starting from the sound scheme of the basic stereo system and its crosstalk:
 
 ![Stereo sound scene](images/esquema_XTC_01.svg)
 
-In this analysis an iterative path will be developed. It is important to bear in mind that the first signal to be generated is each channel's own signal ( $\delta \ast X_l = X_l$ ), keeping the paths $H_{ll}$ and $H_{rr}$ without any filter so as to keep the real acoustic system intact along the direct paths. XTC filtering will be an addition to this natural acoustic response of the system.
+In this analysis an iterative path will be developed. It is important to note that the first signal to be generated is each channel's own signal ( $\delta \ast X_l = X_l$ ), keeping the paths $H_{ll}$ and $H_{rr}$ without any filter so as to keep the real acoustic system intact along the direct paths. XTC filtering will be an addition to this natural acoustic response of the system.
 
 Likewise, in developing the model, the real impulse response of the loudspeakers will not be considered, idealizing it as $\delta = 1$, and the environment will be assumed anechoic, with no contribution of any kind from the surroundings.
 
