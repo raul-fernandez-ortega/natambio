@@ -49,6 +49,9 @@ Los controles internos de cada interfaz se pueden averiguar consultando dbus:
 
 ```
 dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager org.freedesktop.DBus.Introspectable.Introspect
+
+
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager org.freedesktop.DBus.Introspectable.Introspect
 method return time=1781969853.455709 sender=:1.123 -> destination=:1.122 serial=16 reply_serial=2
    string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
 "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
@@ -104,6 +107,9 @@ method return time=1781969853.455709 sender=:1.123 -> destination=:1.122 serial=
 ```
 
 ```
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0040ab0000c22497 org.freedesktop.DBus.Introspectable.Introspect
+
+
 dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0040ab0000c22497 org.freedesktop.DBus.Introspectable.Introspect
 method return time=1781969955.724823 sender=:1.123 -> destination=:1.124 serial=17 reply_serial=2
    string "<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
@@ -165,6 +171,51 @@ Cuando se emplea FFADO como librería JACK, los nombres de los puertos son espec
 ![Edirol FA101 NatAmbio](figs/edirol_fa_101_natambio.png)
 
 Aunque sus entradas y salidas están asociadas al clásico alias en JACK, system:capture_X para la entradas y system:playback_X.
+
+La interfaz Edirol FA-101 presenta sus controles en la propia tarjeta, no así Echo Audiofire4 que tiene muchos controles por DBUS. Una breve lista de algunos de ellos:
+
+```
+# Encendido del phantom
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0014860f9628513b/PhantomPower org.ffado.Control.Element.Discrete.setValue int32:1
+method return time=1761060157.624424 sender=:1.20 -> destination=:1.40 serial=2278 reply_serial=2
+   int32 1
+
+#Apagado del phantom
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/0014860f9628513b/PhantomPower org.ffado.Control.Element.Discrete.setValue int32:0
+method return time=1761060230.738809 sender=:1.20 -> destination=:1.41 serial=2279 reply_serial=2
+   int32 0
+
+# Guarda el juego de parametros actual para que se recuperen tras reinicio de tarjeta. Explora, obtiene el valor y modifica el valor a 1 (save)
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.freedesktop.DBus.Introspectable.Introspect
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.ffado.Control.Element.Discrete.getValue
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/SaveSettings org.ffado.Control.Element.Discrete.setValue int32:1
+
+#Sample rate a 48000 Hz
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/SamplerateSelect org.ffado.Control.Element.Enum.select int32:2
+
+# Sincroniza la tarjeta al reloj de la entrada SPDIF
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/ClockSelect org.ffado.Control.Element.AttributeEnum.select int32:1
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Generic/ClockSelect org.ffado.Control.Element.AttributeEnum.getEnumLabel int32:0
+
+OUTPUT ----> method return time=1709405142.695693 sender=:1.121 -> destination=:1.220 serial=262130 reply_serial=2
+   string "Internal sync"
+
+ Modifica el nominal de la salida correspondiente de la tarjeta a +4 dBu
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Nominal org.ffado.Control.Element.Discrete.setValue int32:0
+
+# Modifica el nominal de la salida correspondiente de la tarjeta a -10 dBV
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Nominal org.ffado.Control.Element.Discrete.setValue int32:1
+
+# Obtener el valor de la ganancia de salida de un canal
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT0Gain org.ffado.Control.Element.Continuous.getValue
+
+OUTPUT ---> method return time=1709405535.850025 sender=:1.121 -> destination=:1.227 serial=294181 reply_serial=2
+   double 2.8557e+06
+
+#Modificar el valor de la ganancia de salida de un canal
+dbus-send --session --dest=org.ffado.Control --type=method_call --print-reply /org/ffado/Control/DeviceManager/001486069aba050d/Mixer/OUT1Gain org.ffado.Control.Element.Continuous.setValue double:2.8557e+06
+
+```
 
 # Conectando el equipo al cerebro de NatAmbio
 
