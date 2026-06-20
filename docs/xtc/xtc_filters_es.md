@@ -106,7 +106,7 @@ $$ F^{direct} = \delta + \sum_{i=1}^{N} G ^{2i}  $$
 
 Las series convergen siempre y cuando $|G| < 1$, condición que se cumple de forma natural en el modelo matemático: la señal cruzada presenta menor nivel que la señal directa debido a la sombra acústica generada por la cabeza del oyente. Definido en términos acústicos esto equivale a que la energía del camino cruzado sea inferior a la del camino directo.
 
-Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae como $|G|^{2i-1}$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con $|G|\approx 0.32$ (el valor medio del ejemplo de la última sección, $\text{ILD}_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que $N=3$–$4$ resulta suficiente en la práctica.
+Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae como $|G|^{2i-1}$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con $|G|\approx 0.32$ (el valor medio del ejemplo de la última sección, $ILD_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que $N=3$–$4$ resulta suficiente en la práctica.
 
 Conviene subrayar que, aunque el *proceso de diseño* es recursivo, el filtro finalmente realizado es **FIR** (no recursivo en ejecución): la recurrencia se resuelve y se trunca en tiempo de diseño, generando una respuesta impulsiva de longitud finita. Nótese también que $F^{direct}\neq\delta$: lo que permanece inalterado es el *camino acústico* directo $H_{direct}$, pero la señal entregada al altavoz del lado directo sí incorpora los términos de corrección $\sum G^{2i}$, necesarios para cancelar la diafonía que las propias emisiones cruzadas reintroducen en el oído directo.
 
@@ -124,15 +124,15 @@ Una primera aproximación, la más sencilla, es asumir que la función $G$ es in
 
 $$ G = \delta \left ( \text{ITD}, a\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), ILD \left ( \Theta \right )\right ) $$
 
-Básicamente, es una función delta retardada un tiempo igual al ITD y multiplicada por un factor de atenuación lineal $a$. Este factor se relaciona con la diferencia de nivel interaural expresada en dB mediante $a = 10^{-\text{ILD}_{dB}/20}$. El ángulo azimut $\Theta$ es el ángulo de incidencia desde los altavoces hasta el oyente (en un sistema estéreo, los altavoces forman entre sí un ángulo $2\times\Theta$).
+Básicamente, es una función delta retardada un tiempo igual al ITD y multiplicada por un factor de atenuación lineal $a$. Este factor se relaciona con la diferencia de nivel interaural expresada en dB mediante $a = 10^{-ILD_{dB}/20}$. El ángulo azimut $\Theta$ es el ángulo de incidencia desde los altavoces hasta el oyente (en un sistema estéreo, los altavoces forman entre sí un ángulo $2\times\Theta$).
 
-Con esta notación, la condición de convergencia del algoritmo $|G| < 1$ equivale a que el camino cruzado esté siempre por debajo del directo, es decir, $a < 1$ o, de forma equivalente, $\text{ILD}_{dB} > 0$.
+Con esta notación, la condición de convergencia del algoritmo $|G| < 1$ equivale a que el camino cruzado esté siempre por debajo del directo, es decir, $a < 1$ o, de forma equivalente, $ILD_{dB} > 0$.
 
 La siguiente aproximación es incluir el efecto de la frecuencia sobre el ILD. Para ello se puede descomponer el ILD en un factor de atenuación promedio y otro que es su espectro en frecuencia para el ángulo azimut $\Theta$ dado:
 
 $$ G = \delta \left ( \text{ITD}, \text{ILD}\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta, f \right ) $$
 
-La función G se obtendría por convolución de la impulsiva dependiente de $\text{ITD}$, e $\text{ILD}_{avg}$ y la impulsiva del espectro $\text{ILD}_{spectrum}(f)$
+La función G se obtendría por convolución de la impulsiva dependiente de $\text{ITD}$, e $ILD_{avg}$ y la impulsiva del espectro $ILD_{spectrum}(f)$
 
 ## Parametrización de XTC a partir de HRTF
 

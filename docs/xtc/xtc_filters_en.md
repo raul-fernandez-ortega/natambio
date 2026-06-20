@@ -107,7 +107,7 @@ $$ F^{direct} = \delta + \sum_{i=1}^{N} G ^{2i}  $$
 
 The series converge as long as $|G| < 1$, a condition that holds naturally in the mathematical model: the cross signal has a lower level than the direct signal due to the acoustic shadow created by the listener's head. In acoustic terms this is equivalent to the energy of the cross path being lower than that of the direct path.
 
-Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays as $|G|^{2i-1}$, its contribution drops to negligible levels within a few steps. As a reference, with $|G|\approx 0.32$ (the average value of the example in the final section, $\text{ILD}_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so $N=3–4$ is sufficient in practice.
+Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays as $|G|^{2i-1}$, its contribution drops to negligible levels within a few steps. As a reference, with $|G|\approx 0.32$ (the average value of the example in the final section, $ILD_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so $N=3–4$ is sufficient in practice.
 
 It is worth emphasizing that, although the *design process* is recursive, the filter finally realized is **FIR** (not recursive at run time): the recurrence is resolved and truncated at design time, generating a finite-length impulse response. Note also that $F^{direct}\neq\delta$: what remains unchanged is the direct *acoustic path* $H_{direct}$, but the signal delivered to the direct-side loudspeaker does incorporate the correction terms $\sum G^{2i}$, needed to cancel the crosstalk that the cross emissions themselves reintroduce into the direct ear.
 
@@ -125,15 +125,15 @@ A first, simplest approximation is to assume that the function $G$ is frequency-
 
 $$ G = \delta \left ( \text{ITD}, a\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), ILD \left ( \Theta \right )\right ) $$
 
-Essentially, it is a delta function delayed by a time equal to the ITD and multiplied by a linear attenuation factor $a$. This factor relates to the interaural level difference expressed in dB through $a = 10^{-\text{ILD}_{dB}/20}$. The azimuth angle $\Theta$ is the angle of incidence from the loudspeakers to the listener (in a stereo system, the loudspeakers form an angle $2\times\Theta$ between them).
+Essentially, it is a delta function delayed by a time equal to the ITD and multiplied by a linear attenuation factor $a$. This factor relates to the interaural level difference expressed in dB through $a = 10^{-ILD_{dB}/20}$. The azimuth angle $\Theta$ is the angle of incidence from the loudspeakers to the listener (in a stereo system, the loudspeakers form an angle $2\times\Theta$ between them).
 
-With this notation, the algorithm's convergence condition $|G| < 1$ is equivalent to the cross path always being below the direct one, that is, $a < 1$ or, equivalently, $\text{ILD}_{dB} > 0$.
+With this notation, the algorithm's convergence condition $|G| < 1$ is equivalent to the cross path always being below the direct one, that is, $a < 1$ or, equivalently, $ILD_{dB} > 0$.
 
 The next approximation is to include the effect of frequency on the ILD. To do this, the ILD can be decomposed into an average attenuation factor and another that is its frequency spectrum for a given azimuth angle $\Theta$:
 
 $$ G = \delta \left ( \text{ITD}, \text{ILD}\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta, f \right ) $$
 
-The function G would be obtained by convolving the impulse response dependent on $\text{ITD}$ and $\text{ILD}_{avg}$ with the impulse response of the spectrum $\text{ILD}_{spectrum}(f)$.
+The function G would be obtained by convolving the impulse response dependent on $\text{ITD}$ and $ILD_{avg}$ with the impulse response of the spectrum $ILD_{spectrum}(f)$.
 
 ## Parametrization of XTC from HRTF
 
@@ -147,14 +147,14 @@ In order to parametrize XTC (its function G), several public HRTF measurement li
 
 All of them can be found at this link: https://www.sofaconventions.org/mediawiki/index.php/Files
 
-By analyzing the five cited HRTF database sets (taking averaged values from the different available measurements), a reasonable general approximation to $\text{ITD}$ and $\text{ILD}_{avg}$ as a function of azimuth angle can be obtained.
+By analyzing the five cited HRTF database sets (taking averaged values from the different available measurements), a reasonable general approximation to $\text{ITD}$ and $ILD_{avg}$ as a function of azimuth angle can be obtained.
 <br>
 <div align="center"><img src="images/ITD_vs_azimuth.png"/></div>
 <br>
 <div align="center"><img src="images/ILD_vs_azimuth.png"/></div>
 <br>
 
-On the other hand, for $\text{ILD}_{spectrum}(f)$ the averages of the different HRTF models were studied for different angles:
+On the other hand, for $ILD_{spectrum}(f)$ the averages of the different HRTF models were studied for different angles:
 
 Azimuth at 10°:
 <br>
@@ -175,13 +175,13 @@ Azimuth at 30°:
 
 Seeking the least coloration, any peak or notch in the shape of $\text{ILD}_{spectrum}(f)$ must be avoided, since the placement of these peaks in the spectrum varies greatly with the listener's anatomy. Therefore, individual developments are avoided and general approximations are chosen.
 
-A parametric model of $\text{ILD}(\Theta,f)$ (Akeroyd et al., 2021, fitted to the data of Shaw and Vaillancourt, 1985) was evaluated as a starting point, but its high-frequency upturn does not fit well the average of the public HRTF models studied. For this reason, a simpler and monotonic empirical fitting equation has been developed, of the following form:
+A parametric model of $ILD(\Theta,f)$ (Akeroyd et al., 2021, fitted to the data of Shaw and Vaillancourt, 1985) was evaluated as a starting point, but its high-frequency upturn does not fit well the average of the public HRTF models studied. For this reason, a simpler and monotonic empirical fitting equation has been developed, of the following form:
 
  $$\text{ILD}_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1)  \cdot \sin(\Theta)  $$
 
-This form was fitted to the mean of the azimuth-normalized $\text{ILD}$ values of the public HRTF sets studied (HUTUBS, RIEC, BiLi, CIPIC and ARI; see References). As can be seen in the $\text{ILD}_{spectrum}(f)$ plots, the fit uses a parameter $\alpha$ with a value between 1.5 and 2.0.
+This form was fitted to the mean of the azimuth-normalized $\text{ILD}$ values of the public HRTF sets studied (HUTUBS, RIEC, BiLi, CIPIC and ARI; see References). As can be seen in the $ILD_{spectrum}(f)$ plots, the fit uses a parameter $\alpha$ with a value between 1.5 and 2.0.
 
-Finally, one design decision remains: the phase of $G(f)$, which corresponds to the phase of $\text{ILD}_{spectrum}(f)$. When implementing this algorithm in NatAmbio, a minimum-phase model of $\text{ILD}_{spectrum}(\Theta,f)$ was chosen. In this way the filter adds no group delay (the energy is concentrated at the start of the impulse response), so XTC processing introduces no appreciable latency beyond that of the convolution engine itself, which makes it suitable for use with audio synchronized to video.
+Finally, one design decision remains: the phase of $G(f)$, which corresponds to the phase of $ILD_{spectrum}(f)$. When implementing this algorithm in NatAmbio, a minimum-phase model of $ILD_{spectrum}(\Theta,f)$ was chosen. In this way the filter adds no group delay (the energy is concentrated at the start of the impulse response), so XTC processing introduces no appreciable latency beyond that of the convolution engine itself, which makes it suitable for use with audio synchronized to video.
 
 ## Example of filters obtained with this new algorithm
 
@@ -192,7 +192,7 @@ With the experience of this particular use, the final parametrization has been a
 - ITD was kept close to typical values of the average HRTF models.
 - ILD was set to values above (greater than) those indicated by the HRTF models (around 4 dB more). In this respect, subjective listening to the XTC filters with ILD values close to those of the natural HRTF produces the perception of some coloration, especially in the treble. These conclusions, valid for a particular case, require additional and systematic testing in different audio systems before they can be generalized.
 
-In this particular case, the filters finally applied to the system were generated with parameters $\text{ITD}$ = 180 µs, $\text{ILD}_{dB}$ = 10 dB, $\alpha$ = 1.8 and $\Theta$ = 20°. It should be noted that, while ITD corresponds to the natural HRTF value at 20°, ILD, as already mentioned, was left at a value above the natural HRTF value at that azimuth: an ILD greater than the natural one produces a gentler cross filter, trading some spatial image for less coloration. Interpreted from a mathematical standpoint, increasing ILD reduces the magnitude of G and accelerates the convergence of the series, simultaneously reducing the energy of the higher-order correction terms, which in turn diminishes the magnitude of the "comb filter" effect (as shown below), which is the main cause of the aforementioned tonal coloration.
+In this particular case, the filters finally applied to the system were generated with parameters ITD = 180 µs, $ILD_{dB}$ = 10 dB, $\alpha$ = 1.8 and $\Theta$ = 20°. It should be noted that, while ITD corresponds to the natural HRTF value at 20°, ILD, as already mentioned, was left at a value above the natural HRTF value at that azimuth: an ILD greater than the natural one produces a gentler cross filter, trading some spatial image for less coloration. Interpreted from a mathematical standpoint, increasing ILD reduces the magnitude of G and accelerates the convergence of the series, simultaneously reducing the energy of the higher-order correction terms, which in turn diminishes the magnitude of the "comb filter" effect (as shown below), which is the main cause of the aforementioned tonal coloration.
 
 A visualization of the impulse responses obtained and the frequency spectra of the applied XTC filters, obtained at a sampling rate of 48 kHz and a filter length of 4096 samples, is as follows:
 
@@ -202,7 +202,7 @@ A visualization of the impulse responses obtained and the frequency spectra of t
 <div align="center"><img src="images/grafica_espectral.png"/></div>
 <br>
 
-It can be seen that the Direct XTC filter closely approximates a $\delta$ and that its "comb" ripple is kept within the $\pm 2 \space \text{dB}$ band. As for the Cross XTC filter, its level is below that of the Direct XTC by an average of 10 dB. It is also visible that, starting from a minimum-phase impulse-response model, the resulting XTC filters introduce no additional latency to the processed signal (the Direct XTC peak is located at $t=0$).
+It can be seen that the Direct XTC filter closely approximates a $\delta$ and that its "comb" ripple is kept within the $\pm 2 \space dB$ band. As for the Cross XTC filter, its level is below that of the Direct XTC by an average of 10 dB. It is also visible that, starting from a minimum-phase impulse-response model, the resulting XTC filters introduce no additional latency to the processed signal (the Direct XTC peak is located at $t=0$).
 
 As mentioned earlier, the cross XTC filter is bounded at 200 Hz, to prevent its effect from being perceived not as XTC but as an unwanted bass boost. For frequencies below 200 Hz the level is attenuated with a 6 dB/octave roll-off.
 
