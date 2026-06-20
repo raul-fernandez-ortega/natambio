@@ -444,7 +444,8 @@ With the surround dipole, whose objective is to widen the enveloping sensation, 
 
 It must be taken into account that the ambient dipole's own XTC also acts on it, so the ambient component of the $\beta$ mode, sounding through it exclusively, without any principal component, generates a perception that is not rear, but delocalized. The surround dipole can be arranged with its loudspeakers at a closed angle (around $40^{\circ}$) and the XTC effect will do its job of moving the decorrelated signal of NAE $\beta$ mode to the delocalized space.
 
-![NatAmbio Two dipole](images/ambio_two_dipole.svg)
+<p align="center">
+<img src="images/ambio_two_dipole.svg", alt="NatAmbio Two dipole">
 <div align="center"> <strong>Figure 34.</strong> Scheme of the application of NAE to a dual-dipole NatAmbio system</div><br>
 
 In this way, one of the fundamental objectives of NatAmbio is achieved: to generate an additional ambient component extracted from the recording itself, without external artifices, to feed a PanAmbio-type double-dipole system and reproduce it in a way perceptually coherent with the rest of the sound scene.

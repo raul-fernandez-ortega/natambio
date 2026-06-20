@@ -436,8 +436,10 @@ Con el dipolo ambiental, cuyo objetivo es ampliar la sensación envolvente, la a
 
 Hay que tener en cuenta que sobre el dipolo ambiental también actúa su propio XTC, con lo que la componente ambiental del modo $\beta$, sonando a su través de modo exclusivo, sin componente principal alguna, genera una percepción que no es trasera, sino deslocalizada. El dipolo ambiental se puede disponer con sus altavoces en ángulo cerrado (en torno a $40^{\circ}$) y el efecto XTC hará su trabajo de trasladar la señal decorrelada de NAE modo $\beta$ al espacio deslocalizado.
 
-![NatAmbio Two dipole](images/ambio_two_dipole.svg)
-<div align="center"> <strong>Figura 34.</strong> Esquema de la aplicación de NAE a un sistema NatAmbio de dos dipolos</div><br>
+<p align="center">
+<img src="images/ambio_two_dipole.svg", alt="NatAmbio Two dipole">
+
+</p><div align="center"> <strong>Figura 34.</strong> Esquema de la aplicación de NAE a un sistema NatAmbio de dos dipolos</div><br>
 
 De esta forma se alcanza uno de los objetivos fundamentales de NatAmbio: generar una componente ambiental adicional extraída de la propia grabación, sin artificios externos, para alimentar un sistema de doble dipolo tipo PanAmbio y reproducirla de forma perceptualmente coherente con el resto de la escena sonora.
 

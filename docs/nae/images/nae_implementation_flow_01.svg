@@ -7,7 +7,7 @@
    viewBox="0 0 231 511"
    version="1.1"
    id="svg1"
-   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   inkscape:version="1.4 (e7c3feb100, 2024-10-09)"
    sodipodi:docname="nae_implementation_flow_01.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
@@ -23,13 +23,13 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
-     inkscape:zoom="0.53606888"
-     inkscape:cx="565.22587"
-     inkscape:cy="1349.64"
+     inkscape:zoom="1.5162318"
+     inkscape:cx="458.70296"
+     inkscape:cy="1598.7002"
      inkscape:window-width="1920"
-     inkscape:window-height="1111"
-     inkscape:window-x="-9"
-     inkscape:window-y="-9"
+     inkscape:window-height="1011"
+     inkscape:window-x="0"
+     inkscape:window-y="0"
      inkscape:window-maximized="1"
      inkscape:current-layer="layer1" />
   <defs
@@ -182,53 +182,49 @@
          id="text4"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">L[n], R[n]</text>
     </g>
-    <g
-       id="g5"
-       transform="translate(0.49356252,8.3905573)">
-      <rect
-         x="130.7977"
-         y="83.987404"
-         width="84.845718"
-         height="31.75"
-         class="box box-ambient"
-         id="rect12"
-         style="fill:#fff3e7;stroke:#b45f06;stroke-width:0.529167" />
-      <text
-         x="175.33723"
-         y="92.454071"
-         text-anchor="middle"
-         class="label"
-         id="text13"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583"><tspan
-           sodipodi:role="line"
-           id="tspan1"
-           x="175.33723"
-           y="92.454071">NAE mode β</tspan></text>
-      <text
-         x="173.22057"
-         y="99.068649"
-         text-anchor="middle"
-         class="small"
-         id="text14"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583"><tspan
-           sodipodi:role="line"
-           id="tspan6"
-           x="173.22057"
-           y="99.068649"
-           style="stroke-width:0.264583">Correlation estimator</tspan><tspan
-           sodipodi:role="line"
-           x="173.22057"
-           y="105.24227"
-           style="stroke-width:0.264583"
-           id="tspan3">current + 19 previous windows</tspan></text>
-      <text
-         x="176.39557"
-         y="112.03321"
-         text-anchor="middle"
-         class="mono"
-         id="text16"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">ρ = corr(L,R)</text>
-    </g>
+    <rect
+       x="129.03175"
+       y="92.386948"
+       width="90.760757"
+       height="31.732021"
+       class="box box-ambient"
+       id="rect12"
+       style="fill:#fff3e7;stroke:#b45f06;stroke-width:0.547146" />
+    <text
+       x="175.8308"
+       y="100.84463"
+       text-anchor="middle"
+       class="label"
+       id="text13"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583"><tspan
+         sodipodi:role="line"
+         id="tspan1"
+         x="175.8308"
+         y="100.84463">NAE mode β</tspan></text>
+    <text
+       x="173.71413"
+       y="107.45921"
+       text-anchor="middle"
+       class="small"
+       id="text14"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583"><tspan
+         sodipodi:role="line"
+         id="tspan6"
+         x="173.71413"
+         y="107.45921"
+         style="stroke-width:0.264583">Correlation estimator</tspan><tspan
+         sodipodi:role="line"
+         x="173.71413"
+         y="113.63283"
+         style="stroke-width:0.264583"
+         id="tspan3">current + 19 previous windows</tspan></text>
+    <text
+       x="176.88913"
+       y="120.42377"
+       text-anchor="middle"
+       class="mono"
+       id="text16"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.9389px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">ρ = corr(L,R)</text>
     <g
        id="g30"
        transform="translate(123.8483,-1.4764309)">
@@ -513,7 +509,11 @@
        text-anchor="middle"
        class="small"
        id="text37"
-       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">C₁: ρLR≈+1 · C₂: ρLR≈−1</text>
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">C₁: ρ<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan2">LR</tspan>≈+1 · C₂: ρ<tspan
+   style="font-size:65%;baseline-shift:sub"
+   id="tspan9">LR</tspan>≈−1</text>
     <path
        style="fill:none;fill-rule:evenodd;stroke:#b45f08;stroke-width:0.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:0.776471;marker-end:url(#marker18)"
        d="m 122.60251,205.21705 -19.03568,30.12393"
@@ -662,46 +662,42 @@
        inkscape:connection-start="#rect33"
        inkscape:connection-end="#rect45"
        d="m 111.01958,401.95536 17.8714,18.4029" />
-    <g
-       id="g34"
-       transform="translate(-9.772033,-16.583221)">
-      <rect
-         x="162.58572"
-         y="381.19843"
-         width="74.960388"
-         height="37.041668"
-         class="note"
-         id="rect37"
-         style="fill:#f7f6f0;fill-opacity:1;stroke:#625d44;stroke-width:0.396875;stroke-opacity:1" />
-      <text
-         x="200.41492"
-         y="389.23169"
-         text-anchor="middle"
-         class="label"
-         id="text38"
-         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#1f1f1f;stroke-width:0.264583">Overlap-add</text>
-      <text
-         x="200.35945"
-         y="396.64001"
-         text-anchor="middle"
-         class="small"
-         id="text39"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">every sample receives</text>
-      <text
-         x="200.39201"
-         y="402.72543"
-         text-anchor="middle"
-         class="small"
-         id="text40"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">multiple PCA contributions</text>
-      <text
-         x="200.2027"
-         y="409.07544"
-         text-anchor="middle"
-         class="small"
-         id="text41"
-         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">Perceptual smoothing</text>
-    </g>
+    <rect
+       x="150.89915"
+       y="364.62018"
+       width="78.789444"
+       height="37.031712"
+       class="note"
+       id="rect37"
+       style="fill:#f7f6f0;fill-opacity:1;stroke:#625d44;stroke-width:0.40683;stroke-opacity:1" />
+    <text
+       x="190.64288"
+       y="372.64847"
+       text-anchor="middle"
+       class="label"
+       id="text38"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-anchor:middle;fill:#1f1f1f;stroke-width:0.264583">Overlap-add</text>
+    <text
+       x="190.58742"
+       y="380.05679"
+       text-anchor="middle"
+       class="small"
+       id="text39"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">every sample receives</text>
+    <text
+       x="190.61998"
+       y="386.14221"
+       text-anchor="middle"
+       class="small"
+       id="text40"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">multiple PCA contributions</text>
+    <text
+       x="190.43066"
+       y="392.49222"
+       text-anchor="middle"
+       class="small"
+       id="text41"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:4.93889px;font-family:Consolas, Menlo, monospace;-inkscape-font-specification:'Consolas, Menlo, monospace, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#1f1f1f;stroke-width:0.264583">Perceptual smoothing</text>
     <rect
        x="4.858974"
        y="470.50006"
@@ -745,20 +741,17 @@
        inkscape:connection-start="#g30"
        inkscape:connection-end="#g31" />
     <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker24-4)"
-       d="m 152.81369,383.25107 -11.49359,0.0353"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.716442;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker24-4)"
+       d="m 150.7832,383.25028 -9.52262,0.0373"
        id="path40"
        inkscape:connector-type="polyline"
-       inkscape:connector-curvature="0"
-       inkscape:connection-start="#g34"
-       inkscape:connection-end="#rect33" />
+       inkscape:connector-curvature="0" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#b45f08;stroke-width:0.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker24-4)"
        d="m 173.77043,124.12796 0.0578,16.30592"
        id="path6"
        inkscape:connector-type="polyline"
        inkscape:connector-curvature="0"
-       inkscape:connection-start="#g5"
        inkscape:connection-end="#g30" />
     <path
        style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.765;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#marker24-4)"
