@@ -96,7 +96,7 @@ $$ F^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{cross}^{2i}} {H_{direct}^{2i}}
 
 We now define a function $G$ as the convolution of the cross acoustic impulse response with the inverse of the direct acoustic impulse response:
 
-$$ G = \frac {H_{cross}} {H_{direct}}$$
+$$G = \frac {H_{cross}} {H_{direct}}$$
 
 This relation can be interpreted as the cross acoustic response normalized with respect to the direct path, that is, the amount of crossed signal that appears at the opposite ear for each unit of signal received at the corresponding ear. This interpretation, as will be developed later, opens the possibility of linking G with the main parameters of the HRTF model.
 
