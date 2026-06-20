@@ -136,7 +136,7 @@ La función G se obtendría por convolución de la impulsiva dependiente de $\te
 
 ## Parametrización de XTC a partir de HRTF
 
-Con objeto de parametrizar XTC (su función G), se han estudiado varias librerías públicas de medidas HRTF, obteniendo valores promediados para $\text{ITD}$, $\text{ILD}_{avg}$ e $\text{ILD}_{spectrum}(f)$. La lista de librerías es la siguiente:
+Con objeto de parametrizar XTC (su función G), se han estudiado varias librerías públicas de medidas HRTF, obteniendo valores promediados para $ITD$, $ILD_{avg}$ e $ILD_{spectrum}(f)$. La lista de librerías es la siguiente:
 
 1. The HUTUBS head-related transfer function (HRTF) database.
 2. The RIEC HRTF Dataset.

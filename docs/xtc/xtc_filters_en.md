@@ -137,7 +137,7 @@ The function G would be obtained by convolving the impulse response dependent on
 
 ## Parametrization of XTC from HRTF
 
-In order to parametrize XTC (its function G), several public HRTF measurement libraries have been studied, obtaining averaged values for $\text{ITD}$, $\text{ILD}_{avg}$ and $\text{ILD}_{spectrum}(f)$. The list of libraries is as follows:
+In order to parametrize XTC (its function G), several public HRTF measurement libraries have been studied, obtaining averaged values for $ITD$, $ILD_{avg}$ and $ILD_{spectrum}(f)$. The list of libraries is as follows:
 
 1. The HUTUBS head-related transfer function (HRTF) database.
 2. The RIEC HRTF Dataset.
