@@ -17,10 +17,12 @@
 #      bucle, en vez de cuatro bloques casi idénticos copiados a mano.
 #    - Extracción de impulsos con fft_convolve.py (scipy, sin pyDRC) en lugar de
 #      lsconv.py / pyDRC.LsConv.
-#    - Un paso de PCA con pca4drc.py: por cada vía genera un subdirectorio
-#      i_<via>/pca4drc/ con los WAV de las componentes PCA y sus .raw para DRC.
+#    - Un paso de PCA con pca4drc.py (cuando hay 2 o más medidas): por cada vía
+#      genera i_<via>/pca4drc/ con los WAV de las componentes PCA y sus .raw. Con
+#      una sola medida (NUM_POS=1) NO se aplica PCA: se usa el impulso medido.
 #    - Un paso final de corrección con drc (Sbragion) por vía, usando config.drc
-#      y la componente principal PCA_0.raw; convierte las salidas a WAV.
+#      y, como entrada, la componente principal PCA_0.raw (>=2 medidas) o el
+#      impulso medido directamente (1 medida); convierte las salidas a WAV.
 #    - Fases activables por separado (DO_SWEEP / DO_MEASURE / DO_IMPULSES /
 #      DO_PCA / DO_DRC) para poder re-procesar sin volver a medir.
 #    - Modo no interactivo (AUTO=1) y parada segura ante errores (set -euo).
@@ -462,20 +464,35 @@ if [ "$DO_IMPULSES" = "1" ]; then
     done
 fi
 
-# --- Fase 3: PCA por vía + conversión a .raw para DRC -------------------------
+# --- Fase 3: impulso de referencia para DRC ----------------------------------
+# Con 2 o más medidas se obtiene por PCA (componente principal, PCA_0). Con una
+# sola medida (NUM_POS=1) no hay PCA posible ni necesaria: se usa el propio
+# impulso medido como entrada de DRC (sólo se convierte a .raw).
 if [ "$DO_PCA" = "1" ]; then
-    echo "### Fase 3: PCA de los impulsos (pca4drc.py) + conversión a .raw"
-    for w in $(seq 0 $((NUM_WAYS - 1))); do
-        echo "PCA de ${LABELS[$w]} -> ${IMP_DIRS[$w]}/pca4drc/"
-        python3 "$PCA4DRC" "${IMP_DIRS[$w]}" "$OUTPUT_LEN" --normalize "$PCA_NORMALIZE"
-        # Convierte las componentes WAV a .raw (float 32-bit LE) para DRC. Si la
-        # vía tuvo menos de 2 impulsos, pca4drc.py no crea el directorio: se omite.
-        pca_dir="${IMP_DIRS[$w]}/pca4drc"
-        if compgen -G "$pca_dir/*.wav" >/dev/null; then
-            echo "Conversión a .raw (formato DRC) en $pca_dir/"
-            python3 "$WAV2RAW" "$pca_dir"/*.wav
-        fi
-    done
+    if [ "$NUM_POS" -le 1 ]; then
+        echo "### Fase 3: 1 medida -> sin PCA; el impulso medido se usa directamente"
+        for w in $(seq 0 $((NUM_WAYS - 1))); do
+            imp="${IMP_DIRS[$w]}/${IMP_PRE[$w]}_1.wav"
+            if [ -f "$imp" ]; then
+                echo "Conversión a .raw (formato DRC) de $imp"
+                python3 "$WAV2RAW" "$imp"
+            else
+                echo "AVISO: no existe '$imp'; nada que preparar para ${LABELS[$w]}."
+            fi
+        done
+    else
+        echo "### Fase 3: PCA de los impulsos (pca4drc.py) + conversión a .raw"
+        for w in $(seq 0 $((NUM_WAYS - 1))); do
+            echo "PCA de ${LABELS[$w]} -> ${IMP_DIRS[$w]}/pca4drc/"
+            python3 "$PCA4DRC" "${IMP_DIRS[$w]}" "$OUTPUT_LEN" --normalize "$PCA_NORMALIZE"
+            # Convierte las componentes WAV a .raw (float 32-bit LE) para DRC.
+            pca_dir="${IMP_DIRS[$w]}/pca4drc"
+            if compgen -G "$pca_dir/*.wav" >/dev/null; then
+                echo "Conversión a .raw (formato DRC) en $pca_dir/"
+                python3 "$WAV2RAW" "$pca_dir"/*.wav
+            fi
+        done
+    fi
 fi
 
 # --- Fase 4: corrección con DRC (drc estándar) -------------------------------
@@ -483,17 +500,23 @@ if [ "$DO_DRC" = "1" ]; then
     echo "### Fase 4: corrección con DRC ($DRC_BIN + $(basename "$DRC_CONFIG"))"
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         base="${IMP_DIRS[$w]}"
-        pca0="$base/pca4drc/PCA_0.raw"
-        if [ ! -f "$pca0" ]; then
-            echo "AVISO: no existe '$pca0'; se omite DRC para ${LABELS[$w]}."
+        # Entrada de DRC: con 1 sola medida, el impulso medido directamente (sin
+        # PCA); con 2 o más, la componente principal PCA (PCA_0.raw).
+        if [ "$NUM_POS" -le 1 ]; then
+            in_rel="${IMP_PRE[$w]}_1.raw"
+        else
+            in_rel="pca4drc/PCA_0.raw"
+        fi
+        if [ ! -f "$base/$in_rel" ]; then
+            echo "AVISO: no existe '$base/$in_rel'; se omite DRC para ${LABELS[$w]}."
             continue
         fi
-        echo "DRC de ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=pca4drc/PCA_0.raw"
+        echo "DRC de ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel"
         # BaseDir = carpeta de impulsos de la vía (mismo nivel que el p_left/
         # original). Al ir --BCBaseDir en la línea de comandos, también afecta a
-        # --BCInFile (-> $base/pca4drc/PCA_0.raw) y a las salidas/rutas relativas
-        # del config (rps.raw/rms.raw -> $base/, ../target/... -> raíz de medida).
-        if "$DRC_BIN" --BCBaseDir="$base/" --BCInFile="pca4drc/PCA_0.raw" "$DRC_CONFIG"; then
+        # --BCInFile (-> $base/$in_rel) y a las salidas/rutas relativas del config
+        # (rps.raw/rms.raw -> $base/, ../target/... -> raíz de medida).
+        if "$DRC_BIN" --BCBaseDir="$base/" --BCInFile="$in_rel" "$DRC_CONFIG"; then
             # Convierte las salidas rps.raw / rms.raw de DRC a WAV.
             for out in "$DRC_PS_OUT" "$DRC_MS_OUT"; do
                 if [ -f "$base/$out" ]; then
