@@ -29,6 +29,7 @@
 #
 #  Uso:
 #      ./measure_pca4drc.sh                 # las cinco fases, interactivo
+#      CALIBRATE=1 ./measure_pca4drc.sh     # sólo ajustar ganancias GAIN_OUT/GAIN_IN
 #      AUTO=1 ./measure_pca4drc.sh          # sin pausas (read)
 #      SUBWOOFER=true ./measure_pca4drc.sh  # arrancar natambio con config subwoofer
 #      DO_SWEEP=0 ./measure_pca4drc.sh      # usar un sweep/inversa ya existentes
@@ -128,6 +129,16 @@ DO_IMPULSES=${DO_IMPULSES:-1}
 DO_PCA=${DO_PCA:-1}
 DO_DRC=${DO_DRC:-1}               # Fase 4: corrección con drc (Sbragion)
 AUTO=${AUTO:-0}                     # 1 = sin pausas interactivas
+CALIBRATE=${CALIBRATE:-0}           # 1 = sólo calibrar ganancias (GAIN_OUT/GAIN_IN)
+
+# En modo calibración sólo se reproduce/graba para ajustar niveles: se desactivan
+# las fases de impulsos/PCA/DRC para no exigir sus dependencias (drc, etc.).
+if [ "$CALIBRATE" = "1" ]; then
+    DO_MEASURE=1
+    DO_IMPULSES=0
+    DO_PCA=0
+    DO_DRC=0
+fi
 
 # --- Definición de las vías (arrays paralelos) --------------------------------
 # Se definen las cuatro vías; con FULL_NATAMBIO=false sólo se usan las dos
@@ -208,6 +219,16 @@ check_capture() {
     # repetir la medida. Se invoca dentro de un 'if', así que no rompe 'set -e'.
     python3 "$CHECK_CAPTURE" "$1" "$2" \
         --min-level "$MIN_LEVEL" --min-snr "$MIN_SNR"
+}
+
+# --- Reproduce el sweep por una vía y graba la respuesta del micrófono ---------
+run_ecasound_capture() {
+    # $1 puerto de salida (entrada de natambio), $2 ganancia de salida (dB),
+    # $3 ganancia de entrada (dB), $4 fichero WAV de salida.
+    ecasound -t:"$REC_SECONDS" \
+        -a:1 -i "$SWEEP" -a:1 -o:jack_auto,"$1" -a:1 -eadb:"$2" \
+        -a:2 -i:jack_auto,"$IN_MEAS" -a:2 -f:f32_le,1,48000 \
+        -o:"$4" -a:2 -eadb:"$3" -ev
 }
 
 # --- XML de parámetros para sweepgen.py ---------------------------------------
@@ -384,6 +405,59 @@ select_jack_ports() {
     echo
 }
 
+# --- Calibración de ganancias (CALIBRATE=1): un GAIN_OUT/GAIN_IN común --------
+calibrate_gains() {
+    # Reproduce el sweep por cada vía a las ganancias actuales, graba a un WAV
+    # temporal y analiza niveles con check_capture. El usuario va probando hasta
+    # dar con un GAIN_OUT/GAIN_IN comunes válidos para todas las vías. No guarda
+    # nada para DRC: sólo sirve para ajustar niveles antes de medir.
+    echo "### Calibración de ganancias (común a todas las vías)"
+    start_natambio
+    report_natambio_routing
+    local cal_dir gout gin ans ngout ngin okall w
+    cal_dir="$(mktemp -d)"
+    gout="$GAIN_OUT"; gin="$GAIN_IN"
+    while true; do
+        echo
+        echo "Probando GAIN_OUT=$gout dB / GAIN_IN=$gin dB sobre las $NUM_WAYS vías..."
+        okall=1
+        for w in $(seq 0 $((NUM_WAYS - 1))); do
+            echo "--- ${LABELS[$w]} ---"
+            run_ecasound_capture "${OUT_PORTS[$w]}" "$gout" "$gin" "$cal_dir/cal.wav"
+            if check_capture "$cal_dir/cal.wav" "${LABELS[$w]}"; then
+                echo "    -> niveles OK"
+            else
+                echo "    -> niveles NO válidos (clipping / nivel bajo / SNR baja)"
+                okall=0
+            fi
+        done
+        echo
+        if [ "$okall" = "1" ]; then
+            echo "Todas las vías con niveles correctos a GAIN_OUT=$gout / GAIN_IN=$gin."
+        else
+            echo "Alguna vía no cumple: ajusta las ganancias (y/o el previo del micrófono)."
+        fi
+        [ "$AUTO" = "1" ] && break
+        read -r -p "Enter para aceptar, o nuevos 'GAIN_OUT GAIN_IN' (p.ej. -3 12): " ans
+        [ -z "$ans" ] && break
+        read -r ngout ngin <<< "$ans"
+        if [[ "$ngout" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && [[ "$ngin" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+            gout="$ngout"; gin="$ngin"
+        else
+            echo "Formato no válido. Escribe DOS números: GAIN_OUT GAIN_IN (p.ej. -3 12)."
+        fi
+    done
+    rm -rf "$cal_dir"
+    stop_natambio
+    trap - EXIT
+    echo
+    echo "================= Ganancias recomendadas ================="
+    echo "  GAIN_OUT=$gout    GAIN_IN=$gin"
+    echo "  Úsalas en la medición, por ejemplo:"
+    echo "      GAIN_OUT=$gout GAIN_IN=$gin ./measure_pca4drc.sh"
+    echo "========================================================="
+}
+
 preflight
 
 # --- Fase 0: generación del sweep y su inversa --------------------------------
@@ -398,6 +472,12 @@ if [ "$DO_SWEEP" = "1" ]; then
     python3 "$SWEEPGEN" "$SWEEP_XML" -s "$SWEEP" -i "$INVERSE"
     rm -f "$SWEEP_XML"
     trap - EXIT
+fi
+
+# --- Modo calibración: ajusta GAIN_OUT/GAIN_IN comunes y termina --------------
+if [ "$CALIBRATE" = "1" ]; then
+    calibrate_gains
+    exit 0
 fi
 
 # --- Fase 1: medición ---------------------------------------------------------
@@ -424,10 +504,8 @@ if [ "$DO_MEASURE" = "1" ]; then
             # ganancia de su previo de micrófono antes de volver a medir.
             while true; do
                 pause "Pulsa Enter para medir ${LABELS[$w]}..."
-                ecasound -t:"$REC_SECONDS" \
-                    -a:1 -i "$SWEEP" -a:1 -o:jack_auto,"${OUT_PORTS[$w]}" -a:1 -eadb:"$GAIN_OUT" \
-                    -a:2 -i:jack_auto,"$IN_MEAS" -a:2 -f:f32_le,1,48000 \
-                    -o:"${MEAS_DIRS[$w]}/${SWEEP_PRE[$w]}_$i.wav" -a:2 -eadb:"$GAIN_IN" -ev
+                run_ecasound_capture "${OUT_PORTS[$w]}" "$GAIN_OUT" "$GAIN_IN" \
+                    "${MEAS_DIRS[$w]}/${SWEEP_PRE[$w]}_$i.wav"
                 if check_capture "${MEAS_DIRS[$w]}/${SWEEP_PRE[$w]}_$i.wav" "${LABELS[$w]}"; then
                     break
                 fi
