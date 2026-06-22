@@ -1,3 +1,7 @@
+# Author: Raul Fernandez Ortega <natambio.audio@gmail.com>, 2022-2026
+#
+# Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
+
 """
 check_capture.py — quick analysis of a measured sweep capture.
 

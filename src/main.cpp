@@ -1,7 +1,7 @@
 /*
- * (c) Copyright 2013/2024 -- Raul Fernandez Ortega
+ * Author: Raul Fernandez Ortega <natambio.audio@gmail.com>, 2022-2026
  *
- * This program is open source. For license terms, see the LICENSE file.
+ * Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
  *
  */
 extern "C" {

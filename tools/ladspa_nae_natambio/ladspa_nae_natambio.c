@@ -13,7 +13,7 @@
 //  -DDEBUG to print a per-block correlation table (see Makefile.simple
 //  DEBUG=1).
 //
-//  Author : Raul Fernandez Ortega
+//  Author : Raul Fernandez Ortega <natambio.audio@gmail.com>, 2022-2026
 //  License: GPLv3
 //
 // -----------------------------------------------------------------------------
