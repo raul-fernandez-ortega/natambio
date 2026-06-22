@@ -24,8 +24,7 @@ representatividad podria ser discutible—, se toman **varias medidas** repartid
 por la región de escucha (por defecto en la automatización se define **16 posiciones**) y se aplica un
 **Análisis de Componentes Principales (PCA)** al conjunto. La **componente
 principal** (`PCA_0`) condensa la información acústica común a toda la región y
-atenúa los fenómenos menos correlados (p. ej. las primeras reflexiones, que
-dependen de la geometría exacta de cada punto). Esa componente principal es la que
+atenúa los fenómenos menos correlados (p. ej. reflexiones cuya contribución cambia significativamente de una posición de medida a otra). Esa componente principal es la que
 se usa como impulso de referencia para generar el filtro DRC.
 
 ## Micrófonos de medida
@@ -38,6 +37,15 @@ Para medir correctamente las mencionadas impulsivas se requiere de un micrófono
 Si se quiere medir con alta precisión es imprescindible que con el micrófono se proporcione su curva individual de calibración, con la que se puede corregir la medida obtenida para obtener valores con menos error.
 
 Los micrófonos omnidireccionales clásicos requieren de un previo que suele formar parte de los interfaces audio profesional [como los que se recomiendan para NatAmbio](hw_setup_es.md). Por lo tanto, el propio interfaz audio ya presenta la capacidad de medir junto con el micrófono que se conecte. Estos interfaces tienen interruptor HW o SW para alimentación phamtom y controles físicos de ganancia en entrada, y su conexión siempre es XLR.
+
+## Qué es un logsweep
+
+Los logsweeps son señales de medida ampliamente utilizadas en este tipo de procesos de obtención de impulsivas. Permiten obtener impulsos característicos de entornos acústicos con una excelente SNR. 
+Un logsweep es un barrido de frecuencias entre dos valores límite, superior e inferior, de modo creciente en frecuencia con un perfil de energía propio de ruido rosa (el nivel cae proporcionalmente con el aumento de la frecuencia). Es una señal ciertamente no muy agradable de escuchar, pero más suave que el ruido blanco.
+
+Lo que los hace muy interesantes es que los logsweep tienen una "señal hermana" que recorre las frecuencias en modo inverso y con energía en proporción inversa. Y convolucionadas una con otra el resultado es una impulsiva perfecta de fase lineal acotada al rango de medida definido.
+
+Es la convolución de esta citada inversa con las medidas realizadas la que resulta en las impulsivas buscadas.
 
 ## Antes de medir
  
@@ -97,6 +105,10 @@ Identificada la interfaz, se puede arrancar jackd de la siguiente manera:
 
 Otra posibilidad es emplear la aplicación gráfica **[qjackctl](https://qjackctl.sourceforge.io/)**.
 
+## Medida realizada a mano desde un sistema GNU/Linux
+
+
+
 
 ## Caso de un solo dipolo, sin subwoofer, una única medida por canal
 
@@ -105,21 +117,39 @@ En el caso más simple, un sistema estéreo básico, que se quiere convertir en 
 - Ubicar el micrófono en el punto de escucha. Suele haber debate entre orientarlo al eje central hacía los altavoces y en vertical hacía el techo, es cuestión personal del medidor.
 - Iniciar el proceso de calibración. Durante este proceso se podrán ajustar los controles físicos de las ganancias del previo de micrófono.
 
-### Elegir los canales: salida del sweep y toma de micrófono
+### Preparar la configuración de NatAmbio en modo bypass
+
+Dentro de la carpeta de herramientas de medidas pca4drc, hay una serie de ficheros de configuración XML para tomar medidas con NatAmbio en bypass. De arrancar y detener NatAmbio se encarga el propio script measure_pca4drc.sh, pero hay que configurar las salidas de la interfaz audio que están conectadas a los altavoces derecho e izquierdo en el fichero half_natambio_measurements_normal.xml
+
+```
+    <jack_output> 
+      <port>
+	<name>front_output_left</name>
+	<destname>system:playback_1</destname>
+      </port>
+      <port>
+	<name>front_output_right</name>
+	<destname>system:playback_2</destname>
+      </port>   
+    </jack_output>
+
+```
+Se trata de asignar los <destname> de los canales <front_output_left> y <front_output_right> para que los barridos tonales se escuchen por el altavoz que corresponda.
+
+### Elegir la entrada de micrófono
 
 Cada medida la realiza `ecasound` con dos conexiones JACK simultáneas: una
-**reproduce** el sweep hacia natambio y otra **graba** la señal del micrófono.
+**reproduce** el sweep hacia NatAmbio y otra **graba** la señal del micrófono.
 
 - **Salida (sweep → natambio):** el script envía el sweep a los puertos de
   entrada de natambio (`natambio:front_input_left`, `natambio:front_input_right`,
-  ...), uno por vía. Estos nombres los fija natambio, así que normalmente **no
-  hay que tocar nada**.
+  ...), uno por vía. Estos nombres los fija natambio, así que en automatico no es necesario asignarlos.
 - **Entrada (micrófono → WAV):** es un único puerto, común a todas las vías,
   definido por la variable `IN_MEAS`. Por defecto es `system:capture_1`, la
   primera toma de captura de la tarjeta, que suele ser donde está conectado el
   previo de micrófono.
 
-Si tu micrófono está en otra toma de captura, tienes dos formas de indicarlo:
+Si el micrófono está en otra toma de captura, existen dos formas de indicarlo:
 
 ```sh
 # 1) Fijarla directamente por su nombre JACK:
@@ -129,13 +159,13 @@ IN_MEAS=system:capture_2 ./measure_pca4drc.sh
 SELECT_INPUT=1 ./measure_pca4drc.sh
 ```
 
-Con `SELECT_INPUT=1`, tras arrancar natambio el script lista los puertos JACK de
+Con `SELECT_INPUT=1`, tras arrancar natambio, el script lista los puertos JACK de
 captura disponibles (lo que devuelve `jack_lsp -o`, p. ej. `system:capture_1`,
-`system:capture_2`, ...) y te deja asignar uno como toma de micrófono por número
+`system:capture_2`, ...) y permite asignar uno como toma de micrófono por número
 (0 = mantener el actual). Funciona tanto en la medición como en el modo
 calibración, y se ignora en modo no interactivo (`AUTO=1`).
 
-> Para localizar tus tomas de captura puedes consultar antes los puertos con
+> Para localizar las correctas tomas de captura se puede consultar antes los puertos con
 > `jack_lsp -o` (orígenes JACK; las entradas físicas de la tarjeta aparecen como
 > `system:capture_*`), o usar **qjackctl**.
 
@@ -160,12 +190,11 @@ Para un sistema de **un solo dipolo, sin subwoofer**, el modo se selecciona con:
 cd <directorio_de_trabajo>
 FULL_NATAMBIO=false CALIBRATE=1 ./measure_pca4drc.sh
 ```
-
-Si quieres partir de unas ganancias iniciales distintas de las de por defecto
-(`GAIN_OUT=0` dB, `GAIN_IN=10` dB), las antepones igualmente a la llamada:
+En el momento de calibrar conviente partir con unas ganancias iniciales sustancialmente más bajas que las de por defecto
+(`GAIN_OUT=0` dB, `GAIN_IN=10` dB), lo cual se puede hacer anteponiendo sus variables igualmente a la llamada:
 
 ```sh
-FULL_NATAMBIO=false CALIBRATE=1 GAIN_OUT=-3 GAIN_IN=12 ./measure_pca4drc.sh
+FULL_NATAMBIO=false CALIBRATE=1 GAIN_OUT=-10 GAIN_IN=5 ./measure_pca4drc.sh
 ```
 
 Qué hace el modo calibración, paso a paso:
@@ -174,16 +203,15 @@ Qué hace el modo calibración, paso a paso:
    reutilizando un par ya existente.
 2. Arranca `natambio` con la configuración `half_natambio_measurements_normal.xml`
    (medio sistema = un dipolo, sin subwoofer) y muestra el **informe de enrutado**
-   (qué salida de natambio va a cada salida física de la tarjeta). Confirma con
+   (qué salida de natambio va a cada salida física de la tarjeta). Se debe confirmar con
    Enter que la asignación es correcta.
 3. Reproduce el sweep por **cada vía** (front L y front R) a las ganancias
-   actuales, graba la captura del micrófono y la analiza con `check_capture.py`,
+   definidas en ese momento, graba la captura del micrófono y la analiza con `check_capture.py`,
    avisando de **clipping**, **nivel bajo** (`MIN_LEVEL`, −40 dBFS por defecto) o
    **SNR baja** (`MIN_SNR`, 20 dB).
-4. Tras probar las dos vías, si alguna no cumple, puedes escribir **dos números
-   nuevos** `GAIN_OUT GAIN_IN` (p. ej. `-3 12`) y reintentar; y/o retocar la
+4. Tras probar las dos vías, si alguna no cumple los requisitos, se puede repetir el proceso con **dos valores nuevos de** `GAIN_OUT GAIN_IN` (p. ej. `-3 12`), además de retocar la
    ganancia física del previo de micrófono. Cuando ambas vías dan niveles
-   correctos, pulsa Enter para aceptar.
+   correctos, solo hay que pulsar Enter para aceptar.
 5. Al terminar, natambio se detiene y el script imprime las **ganancias
    recomendadas**, listas para usarlas en la medición real, por ejemplo:
 
@@ -191,15 +219,10 @@ Qué hace el modo calibración, paso a paso:
    GAIN_OUT=-3 GAIN_IN=12 FULL_NATAMBIO=false ./measure_pca4drc.sh
    ```
 
-> Durante la calibración ajusta primero la ganancia **física** del previo de
-> micrófono y deja el ajuste fino para `GAIN_OUT`/`GAIN_IN`. Y vigila en todo
+> Durante la calibración conviene ajustar primero la ganancia **física** del previo de
+> micrófono y dejar el ajuste fino para `GAIN_OUT`/`GAIN_IN`. Y vigilar en todo
 > momento el nivel de reproducción para evitar accidentes (ver el aviso de
 > [Antes de medir](#antes-de-medir)).
-
-### Calibración de niveles en el proceso de medida
-
-Antes de medir hay que asegurar que los niveles de salida y de entrada 
-
 
 
 ## pendiente de revisar
