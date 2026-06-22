@@ -162,11 +162,42 @@ DO_SWEEP=0 DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh  # sólo PCA + DRC
 DO_MEASURE=0 DO_IMPULSES=0 DO_PCA=0 ./measure_pca4drc.sh    # sólo DRC sobre PCA_0.raw ya generados
 FULL_NATAMBIO=false NUM_POS=8 ./measure_pca4drc.sh         # 2 altavoces, 8 posiciones
 OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh  # ajustar parámetros de PCA
+IN_MEAS=system:capture_2 ./measure_pca4drc.sh             # micrófono en otra toma de captura
+SELECT_INPUT=1 ./measure_pca4drc.sh                        # elegir la toma de micrófono por menú
 ```
 
 Los cinco interruptores de fase `DO_SWEEP` / `DO_MEASURE` / `DO_IMPULSES` /
 `DO_PCA` / `DO_DRC` valen `1` (activada) o `0` (saltada) y son independientes,
 así que pueden combinarse para ejecutar sólo las fases que interesen.
+
+### Puertos JACK de salida (sweep) y de entrada (micrófono)
+
+Cada medida la realiza `ecasound` con dos cadenas: una **reproduce** el sweep
+hacia la entrada de natambio y otra **graba** la captura del micrófono.
+
+- **Salida (sweep → natambio):** el destino lo fija el array `OUT_PORTS`, una
+  entrada por vía, apuntando a los puertos de entrada de natambio
+  (`natambio:front_input_left`, `natambio:front_input_right`, ...). No suele
+  hacer falta tocarlo: natambio fija esos nombres.
+- **Entrada (micrófono → WAV):** es un único puerto común a todas las vías, la
+  variable `IN_MEAS` (por defecto `system:capture_1`, la primera toma de captura
+  de la tarjeta, donde suele estar el previo de micrófono).
+
+ecasound se conecta a esos puertos con `jack_auto` (autoconexión): la salida a
+`OUT_PORTS[$w]` y la entrada a `IN_MEAS`.
+
+Hay dos formas de indicar la toma de micrófono:
+
+```sh
+IN_MEAS=system:capture_2 ./measure_pca4drc.sh   # fijarla directamente
+SELECT_INPUT=1 ./measure_pca4drc.sh             # elegirla por menú interactivo
+```
+
+Con `SELECT_INPUT=1`, tras arrancar natambio el script lista los puertos JACK de
+captura disponibles (`jack_lsp -o`, p.ej. `system:capture_*`) y permite asignar
+uno como `IN_MEAS` por número (0 = mantener el actual). Sólo actúa en modo
+interactivo (se ignora con `AUTO=1`) y si `jack_lsp` está disponible; funciona
+también en el modo calibración (`CALIBRATE=1`).
 
 Lista completa de variables configurables por entorno: `FULL_NATAMBIO`
 (true = 4 altavoces, false = 2) y `SUBWOOFER` (true = config con subwoofer,
@@ -174,8 +205,8 @@ false = normal); arranque de natambio `NATAMBIO_BIN`, `NATAMBIO_CONFIG`
 (por defecto el XML elegido según `FULL_NATAMBIO`/`SUBWOOFER`), `NATAMBIO_LOG`;
 generación del sweep (Fase 0) `SWEEP_RATE`, `SWEEP_AMPLITUDE`, `SWEEP_HZSTART`,
 `SWEEP_HZEND`, `SWEEP_LENGTH`, `SWEEP_SILENCE`, `SWEEP_LEADIN`, `SWEEP_LEADOUT`;
-medición `NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `GAIN_OUT`, `GAIN_IN`,
-`REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
+medición `NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `SELECT_INPUT`, `GAIN_OUT`,
+`GAIN_IN`, `REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
 `DRC_BIN`, `DRC_CONFIG` (por defecto `config.drc` junto al script), `DRC_PS_OUT`
 (rps.raw), `DRC_MS_OUT` (rms.raw); y los interruptores de fase `DO_SWEEP` /
 `DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` / `DO_DRC` / `AUTO`. Si los scripts `.py`

@@ -30,6 +30,7 @@
 #  Uso:
 #      ./measure_pca4drc.sh                 # las cinco fases, interactivo
 #      CALIBRATE=1 ./measure_pca4drc.sh     # sólo ajustar ganancias GAIN_OUT/GAIN_IN
+#      SELECT_INPUT=1 ./measure_pca4drc.sh  # elegir la toma de micrófono (IN_MEAS) por menú
 #      AUTO=1 ./measure_pca4drc.sh          # sin pausas (read)
 #      SUBWOOFER=true ./measure_pca4drc.sh  # arrancar natambio con config subwoofer
 #      DO_SWEEP=0 ./measure_pca4drc.sh      # usar un sweep/inversa ya existentes
@@ -130,6 +131,7 @@ DO_PCA=${DO_PCA:-1}
 DO_DRC=${DO_DRC:-1}               # Fase 4: corrección con drc (Sbragion)
 AUTO=${AUTO:-0}                     # 1 = sin pausas interactivas
 CALIBRATE=${CALIBRATE:-0}           # 1 = sólo calibrar ganancias (GAIN_OUT/GAIN_IN)
+SELECT_INPUT=${SELECT_INPUT:-0}     # 1 = elegir IN_MEAS (toma de micrófono) por menú antes de medir
 
 # En modo calibración sólo se reproduce/graba para ajustar niveles: se desactivan
 # las fases de impulsos/PCA/DRC para no exigir sus dependencias (drc, etc.).
@@ -405,6 +407,55 @@ select_jack_ports() {
     echo
 }
 
+# --- Selección interactiva de la toma de micrófono (IN_MEAS) -------------------
+select_input_port() {
+    # Lista los puertos JACK de origen (puertos de captura, p.ej.
+    # system:capture_*: de ahí sale el audio del micrófono) y permite asignar uno
+    # como IN_MEAS mediante un menú numérico. Sólo actúa si SELECT_INPUT=1, en
+    # modo interactivo (sin AUTO) y con jack_lsp disponible; si no, se conserva el
+    # IN_MEAS actual (por defecto system:capture_1).
+    if [ "$SELECT_INPUT" != "1" ] || [ "$AUTO" = "1" ]; then
+        return 0
+    fi
+    if ! command -v jack_lsp >/dev/null 2>&1; then
+        echo "AVISO: jack_lsp no disponible; se usa IN_MEAS=$IN_MEAS."
+        return 0
+    fi
+
+    # Puertos JACK de origen (capturas). Se excluyen los de ecasound por si ya
+    # estuviera corriendo, para no autoconectar a su propia salida.
+    local ports=()
+    mapfile -t ports < <(jack_lsp -o 2>/dev/null | grep -v -i '^ecasound:')
+    if [ "${#ports[@]}" -eq 0 ]; then
+        echo "AVISO: no hay puertos JACK de captura disponibles; se usa IN_MEAS=$IN_MEAS."
+        return 0
+    fi
+
+    echo
+    echo "Puertos JACK de captura disponibles (origen del micrófono):"
+    local idx
+    for idx in "${!ports[@]}"; do
+        printf "  %2d) %s\n" "$((idx + 1))" "${ports[$idx]}"
+    done
+    echo "   0) mantener el valor actual"
+
+    local sel
+    while true; do
+        read -r -p "Toma de micrófono [actual: $IN_MEAS] -> nº de puerto (0=mantener): " sel
+        if [ -z "$sel" ] || [ "$sel" = "0" ]; then
+            echo "    se mantiene: IN_MEAS=$IN_MEAS"
+            break
+        fi
+        if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#ports[@]}" ]; then
+            IN_MEAS="${ports[$((sel - 1))]}"
+            echo "    IN_MEAS=$IN_MEAS"
+            break
+        fi
+        echo "    Entrada no válida. Introduce un número entre 0 y ${#ports[@]}."
+    done
+    echo
+}
+
 # --- Calibración de ganancias (CALIBRATE=1): un GAIN_OUT/GAIN_IN común --------
 calibrate_gains() {
     # Reproduce el sweep por cada vía a las ganancias actuales, graba a un WAV
@@ -413,6 +464,7 @@ calibrate_gains() {
     # nada para DRC: sólo sirve para ajustar niveles antes de medir.
     echo "### Calibración de ganancias (común a todas las vías)"
     start_natambio
+    select_input_port
     report_natambio_routing
     local cal_dir gout gin ans ngout ngin okall w
     cal_dir="$(mktemp -d)"
@@ -486,6 +538,8 @@ if [ "$DO_MEASURE" = "1" ]; then
     # Arranca natambio con la configuración correspondiente; expone los puertos
     # de entrada (OUT_PORTS) a los que ecasound enviará el sweep.
     start_natambio
+    # Si SELECT_INPUT=1, permite elegir la toma de micrófono (IN_MEAS) por menú.
+    select_input_port
     # Informe de modo/subwoofer y enrutado real de salidas de natambio a la
     # tarjeta, con confirmación del usuario antes de medir.
     report_natambio_routing
