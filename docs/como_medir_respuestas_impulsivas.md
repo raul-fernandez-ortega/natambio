@@ -17,7 +17,7 @@ Como ya se ha comentado, el fundamento del método (medición multipunto + PCA) 
 Por otro lado, en la automatización propuesta, la generación de los filtros DRC propiamente dichos la realiza
 [DRC-FIR](https://drc-fir.sourceforge.net/) de Denis Sbragion (programa externo).
 
-## Idea general para el caso de medida multipunto
+## Concepto de medida multipunto
 
 En lugar de medir la respuesta impulsiva en un único punto de escucha —cuya
 representatividad podria ser discutible—, se toman **varias medidas** repartidas
@@ -40,6 +40,8 @@ Si se quiere medir con alta precisión es imprescindible que con el micrófono s
 Los micrófonos omnidireccionales clásicos requieren de un previo que suele formar parte de los interfaces audio profesional [como los que se recomiendan para NatAmbio](hw_setup_es.md). Por lo tanto, el propio interfaz audio ya presenta la capacidad de medir junto con el micrófono que se conecte. Estos interfaces tienen interruptor HW o SW para alimentación phamtom y controles físicos de ganancia en entrada, y su conexión siempre es XLR.
 
 ## Antes de medir
+ 
+> **Aviso importante**: en todo momento durante el proceso de medida hay que cuidar que los niveles de reproducción de las señales de barrido tonal estén controlados para evitar accidentes. Para ello es muy conveniente hacer una calibración previa: si el sistema tiene controles de volumen globales o por dipolo, comenzar con un nivel bajo e ir subiéndolo hasta el punto en que se alcanza un nivel correcto. Esto se consigue conjugando los niveles hardware de reproducción y grabación con los niveles software del programa de medida.
 
 Antes de medir hay que preparar todo el entorno físico y software:
 
@@ -47,6 +49,12 @@ Antes de medir hay que preparar todo el entorno físico y software:
 - Preparar el micrófono, colocado en su pie de micrófono y conectado por XLR a la toma del previo de microfónica de la interfaz audio de NatAmbio.
 - Arrancar jackd aplicada a la tarjeta de sonido.
 - Identificar en jackd los nombres de la entrada desde micrófono y las salidas a cada altavoz.
+
+A continuación se muestra un ejemplo para la interfaz audio Focusrite Scarlett 6i6:
+
+![Focusrite Scarlett 6i6](figs/focusrite_scarlett_v01.svg)
+
+Habitualmente, las entradas de micrófono de interfaces externos audio se corresponden con las primeras en la lista de elementos "capture" de jackd.
 
 ### Localizar la interfaz audio
 
@@ -96,6 +104,8 @@ En el caso más simple, un sistema estéreo básico, que se quiere convertir en 
 
 - Ubicar el micrófono en el punto de escucha. Suele haber debate entre orientarlo al eje central hacía los altavoces y en vertical hacía el techo, es cuestión personal del medidor.
 - Iniciar el proceso de calibración. Durante este proceso se podrán ajustar los controles físicos de las ganancias del previo de micrófono.
+
+
 
 ### Calibración de niveles en el proceso de medida
 
