@@ -21,7 +21,7 @@ Por otro lado, en la automatización propuesta, la generación de los filtros DR
 
 En lugar de medir la respuesta impulsiva en un único punto de escucha —cuya
 representatividad podria ser discutible—, se toman **varias medidas** repartidas
-por la región de escucha (por defecto en la automatización se define **16 posiciones**) y se aplica un
+por la región de escucha (por defecto en la automatización se definen **16 posiciones**) y se aplica un
 **Análisis de Componentes Principales (PCA)** al conjunto. La **componente
 principal** (`PCA_0`) condensa la información acústica común a toda la región y
 atenúa los fenómenos menos correlados (p. ej. las primeras reflexiones, que
@@ -32,16 +32,16 @@ se usa como impulso de referencia para generar el filtro DRC.
 
 Para medir correctamente las mencionadas impulsivas se requiere de un micrófono omnidireccional. Existen dos tipos de micrófono que se pueden usar:
 
-- Los clásicos que necesitan conectarse a un previo de micrófono que lo alimente a 48 V y ajuste correctamente la ganancia a los niveles habituales de este tipo de micrófonos. Por ejemplo, el mío es un muy básico [Behringer ECM 8000](https://www.behringer.com/en/products/0506-AAA). En este campo la gama es amplia y los precios y calidades son muy variados.
+- Los clásicos, que necesitan conectarse a un previo de micrófono que lo alimente a 48 V y ajuste correctamente la ganancia a los niveles habituales para este tipo de micrófonos. Por ejemplo, el mío es un muy básico [Behringer ECM 8000](https://www.behringer.com/en/products/0506-AAA). En este campo la gama es amplia y los precios y calidades son muy variados.
 - Micrófonos que ya llevan la funcionalidad de previo integrada y se conectan directamente por USB al ordenador de medición. Es muy popular el modelo [Umik-2 de MiniDSP](https://www.minidsp.com/products/acoustic-measurement/umik-2)
 
-Si se quiere medir con alta precisión es imprescindible que con el micrófono se proporcione su curva individual de calibración, con la que se puede corregir la medida obtenida para obtener valores con menos error.
+Si se quiere medir con alta precisión es imprescindible que se proporcione la curva individual de calibración junto con el micrófono. Con esta tabla o gráfica, se puede corregir la medida obtenida para obtener valores con menos error.
 
 Los micrófonos omnidireccionales clásicos requieren de un previo que suele formar parte de los interfaces audio profesional [como los que se recomiendan para NatAmbio](hw_setup_es.md). Por lo tanto, el propio interfaz audio ya presenta la capacidad de medir junto con el micrófono que se conecte. Estos interfaces tienen interruptor HW o SW para alimentación phamtom y controles físicos de ganancia en entrada, y su conexión siempre es XLR.
 
 ## Antes de medir
  
-> **Aviso importante**: en todo momento durante el proceso de medida hay que cuidar que los niveles de reproducción de las señales de barrido tonal estén controlados para evitar accidentes. Para ello es muy conveniente hacer una calibración previa: si el sistema tiene controles de volumen globales o por dipolo, comenzar con un nivel bajo e ir subiéndolo hasta el punto en que se alcanza un nivel correcto. Esto se consigue conjugando los niveles hardware de reproducción y grabación con los niveles software del programa de medida.
+> **Aviso importante**: en todo momento durante el proceso de medida hay que cuidar que los niveles de reproducción de las señales de barrido tonal estén controlados para evitar accidentes. Para ello es muy conveniente hacer una calibración previa: si el sistema tiene controles de volumen globales, o por dipolo, comenzar con un nivel bajo e ir subiéndolo hasta el punto en que se alcanza un nivel correcto. Esto se consigue conjugando los niveles hardware de reproducción y grabación con los niveles software del programa de medida.
 
 Antes de medir hay que preparar todo el entorno físico y software:
 
@@ -97,6 +97,120 @@ Identificada la interfaz, se puede arrancar jackd de la siguiente manera:
 
 Otra posibilidad es emplear la aplicación gráfica **[qjackctl](https://qjackctl.sourceforge.io/)**.
 
+Los puertos I/O del interfaz se presentan habitualmente en jackd con los siguientes nombres:
+
+![Jackd Focusrite Scarlett 6i6](./figs/focusrite_scarlett_natambio.png)
+
+En el ejemplo de Focusrite Scarlett 6i6, las entradas para micrófono corresponden con ``system:capture_1`` y ``system:capture_2``.
+
+### Generar el sweep de medida
+
+La señal de excitación es un **barrido senoidal logarítmico** (log-sweep). Para
+deconvolucionar luego la grabación y obtener la respuesta impulsiva se necesitan
+**dos ficheros**: el propio sweep y su **filtro inverso**. Ambos los genera de una
+vez la herramienta [`sweepgen.py`](../tools/python_pca4drc/sweepgen.py) (es la
+Fase 0 del flujo automatizado, y `measure_pca4drc.sh` la ejecuta sola salvo que se
+salte con `DO_SWEEP=0`).
+
+`sweepgen.py` toma los parámetros de un XML `<generate_sweep>`. Crea un fichero,
+por ejemplo `sweep.xml`, con el contenido:
+
+```xml
+<generate_sweep>
+  <params>
+    <sample_rate>48000</sample_rate>   <!-- DEBE coincidir con la captura JACK -->
+    <amplitude>0.5</amplitude>         <!-- amplitud de pico del sweep -->
+    <Hzstart>20</Hzstart>              <!-- frecuencia inicial -->
+    <Hzend>20000</Hzend>               <!-- frecuencia final -->
+    <length>6</length>                 <!-- duración del barrido, s -->
+    <silence>1</silence>               <!-- silencio al inicio y al final, s -->
+    <leadin>0.05</leadin>              <!-- fracción del barrido con ventana de entrada -->
+    <leadout>0.005</leadout>           <!-- fracción del barrido con ventana de salida -->
+  </params>
+  <sweep_filename>sweep_48k.wav</sweep_filename>
+  <inverse_filename>inverse_48k.wav</inverse_filename>
+</generate_sweep>
+```
+
+Y se ejecuta con:
+
+```sh
+python sweepgen.py sweep.xml
+```
+
+Esto genera `sweep_48k.wav` (el barrido de excitación, con sus silencios) e
+`inverse_48k.wav` (el filtro inverso, de la longitud exacta del barrido). Los
+nombres de fichero del XML se pueden sobrescribir desde la línea de comandos con
+`-s` (sweep) e `-i` (inversa):
+
+```sh
+python sweepgen.py sweep.xml -s sweep_48k.wav -i inverse_48k.wav
+```
+
+> **Importante**: `sample_rate` (48000 Hz en el ejemplo) tiene que coincidir con
+> la frecuencia de muestreo a la que se va a grabar por JACK. El sweep así
+> generado (`sweep_48k.wav`) es justo el que se reproduce en el ejemplo de
+> `ecasound` de la siguiente sección, y la inversa (`inverse_48k.wav`) la que se
+> usa después para deconvolucionar.
+
+### Tomando las medidas manualmente
+
+Para tomar las medidas manualmente en GNU/Linux un comando muy útil y flexible es
+`ecasound`. 
+
+
+
+La idea es lanzar a la vez dos cadenas de audio dentro de la misma ejecución
+de `ecasound`:
+
+- Una cadena de reproducción que envía el sweep (`sweep_48k.wav`) a la entrada
+  de natambio de la vía a medir.
+- Una cadena de grabación que captura el micrófono (`system:capture_1`) y lo
+  escribe en un WAV.
+
+Suponiendo que JACK y natambio ya están en marcha (natambio con la configuración
+de medición, exponiendo sus puertos `natambio:*_input_*`), una medida de la vía
+*front left* sería:
+
+```sh
+ecasound -t:10 \
+    -a:1 -i sweep_48k.wav -a:1 -o:jack_auto,natambio:front_input_left -a:1 -eadb:0 \
+    -a:2 -i:jack_auto,system:capture_1 -a:2 -f:f32_le,1,48000 \
+    -o:left_sweep_1.wav -a:2 -eadb:10 -ev
+```
+
+Desglose de los parámetros (idénticos a los del script):
+
+| Parámetro | Significado |
+|---|---|
+| `-t:10` | duración de la captura en segundos (`REC_SECONDS`) |
+| `-a:1` | cadena 1 = **reproducción** del sweep |
+| `-i sweep_48k.wav` | entrada de la cadena 1: el fichero del sweep (`SWEEP`) |
+| `-o:jack_auto,natambio:front_input_left` | salida de la cadena 1: autoconecta a la entrada de natambio de esa vía (`OUT_PORTS`) |
+| `-eadb:0` (cadena 1) | ganancia de **salida** en dB (`GAIN_OUT`) |
+| `-a:2` | cadena 2 = **grabación** del micrófono |
+| `-i:jack_auto,system:capture_1` | entrada de la cadena 2: autoconecta a la toma de micrófono (`IN_MEAS`) |
+| `-f:f32_le,1,48000` | formato del WAV grabado: float 32-bit, mono, 48 kHz |
+| `-o:left_sweep_1.wav` | salida de la cadena 2: el WAV con la respuesta grabada |
+| `-eadb:10` (cadena 2) | ganancia de **entrada** en dB (`GAIN_IN`) |
+| `-ev` | analiza picos al terminar (útil para ver si hubo clipping) |
+
+El `jack_auto` es lo que hace la **autoconexión**: `ecasound` crea su puerto JACK y
+lo conecta automáticamente al puerto indicado (la entrada de natambio en la
+reproducción, la captura del micrófono en la grabación).
+
+Para medir **otra vía** basta con cambiar el puerto de salida (p. ej.
+`natambio:front_input_right`) y el nombre del WAV. Y para medir **sin pasar por
+natambio** (directamente a un altavoz de la tarjeta), se sustituye la salida por
+el puerto físico correspondiente, p. ej. `-o:jack_auto,system:playback_1`.
+
+Esta captura es todavía el *sweep grabado*: para obtener la **respuesta impulsiva**
+hay que deconvolucionarla con el sweep inverso, que es justo lo que hace
+`fft_convolve.py` (Fase 2 del flujo automatizado):
+
+```sh
+python fft_convolve.py left_sweep_1.wav inverse_48k.wav front_left_impulse_1.wav
+```
 
 ## Caso de un solo dipolo, sin subwoofer, una única medida por canal
 
