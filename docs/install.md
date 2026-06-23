@@ -135,12 +135,26 @@ cd natambio
 
 ```sh
 ./autogen.sh
-./configure
+./configure                 # add --prefix=/usr to match the Debian layout
 make
 sudo make install
 ```
 
-This builds `natambio` along with selected tools from `tools/`.
+This builds `natambio` along with the tools from `tools/` and installs:
+
+- `natambio` and `natambio-xtc-filters` into `$(bindir)`.
+- the LADSPA plugin into `$(libdir)/ladspa/`.
+- the Python toolkits into `$(datadir)/natambio/python_pca4drc/` and
+  `$(datadir)/natambio/python_nae_natambio/`, plus thin `$(bindir)` launchers
+  (`natambio-pca4drc`, `natambio-sweepgen`, `natambio-fft-convolve`,
+  `natambio-check-capture`, `natambio-wav2raw`, `natambio-raw2wav`,
+  `natambio-nae`).
+
+With the default prefix (`/usr/local`) the toolkits land under
+`/usr/local/share/natambio/…`. Configure with `--prefix=/usr` to get the exact
+same paths as the Debian package (`/usr/share/natambio/…`, `/usr/bin/…`). The
+launchers track the configured prefix, so they always point at the matching
+toolkit location. Undo an install with `sudo make uninstall`.
 
 ### Standalone builds
 
@@ -153,6 +167,81 @@ cd tools/ladspa_nae_natambio && make -f Makefile.simple
 `tools/xtc_filters/` and `tools/ladspa_nae_natambio/` are included in the
 top-level autotools build. The Python utilities are built and used
 independently.
+
+## Debian packages
+
+On Debian/Ubuntu the recommended way to install is via the binary packages built
+from `debian/`. The source builds into **four** binary packages, so you only
+install what you need:
+
+| Package | Arch | Contents | Key depends |
+|---|---|---|---|
+| `natambio` | any | The real-time JACK client `/usr/bin/natambio` and example configs in `/usr/share/natambio/examples/`. | `jackd2 \| jackd` (recommended) |
+| `natambio-tools` | any | Offline C FIR generators: `/usr/bin/natambio-xtc-filters`. | — |
+| `natambio-ladspa` | any | LADSPA plugin `…/ladspa/ladspa_nae_natambio.so` (the NAE/Panambio engine for any LADSPA host). | — |
+| `natambio-drc` | all | Python measurement/DRC toolkit + offline NAE: the `natambio-*` Python launchers and their data under `/usr/share/natambio/`. | `python3`, `python3-numpy`, `python3-scipy`, `python3-soundfile` |
+
+`natambio` suggests `natambio-tools` and `natambio-drc`; install the latter if you
+are going to measure the room and generate DRC filters.
+
+### Building the packages from source
+
+Install the build dependencies and build the packages:
+
+```sh
+# Build dependencies (or: sudo apt build-dep .)
+sudo apt install build-essential debhelper dh-make devscripts \
+    autoconf automake libtool pkg-config \
+    libjack-jackd2-dev libzita-convolver-dev libsndfile1-dev \
+    libxml2-dev libfftw3-dev ladspa-sdk
+
+# From the repository root, build the binary packages (no signing):
+dpkg-buildpackage -us -uc -b
+# (equivalently: debuild -us -uc -b)
+```
+
+The resulting `.deb` files are written to the **parent** directory (`../`):
+`natambio_<version>_<arch>.deb`, `natambio-tools_…`, `natambio-ladspa_…` and
+`natambio-drc_<version>_all.deb`.
+
+### Installing the packages
+
+```sh
+cd ..
+# Install everything (apt resolves the dependencies automatically):
+sudo apt install ./natambio_*.deb ./natambio-tools_*.deb \
+    ./natambio-ladspa_*.deb ./natambio-drc_*.deb
+
+# Or only the client + measurement toolkit:
+sudo apt install ./natambio_*.deb ./natambio-drc_*.deb
+```
+
+> Using `apt install ./<file>.deb` (rather than `dpkg -i`) pulls in the runtime
+> dependencies (JACK, fftw, numpy/scipy/soundfile, …) automatically. With
+> `sudo dpkg -i *.deb` you must fix any missing dependencies afterwards with
+> `sudo apt -f install`.
+
+Remove with `sudo apt remove natambio natambio-tools natambio-ladspa natambio-drc`.
+
+### Installed layout
+
+The packages install under the system prefix `/usr`:
+
+| Path | Provided by |
+|---|---|
+| `/usr/bin/natambio` | `natambio` |
+| `/usr/share/natambio/examples/*.xml` | `natambio` |
+| `/usr/bin/natambio-xtc-filters` | `natambio-tools` |
+| `/usr/lib/<triplet>/ladspa/ladspa_nae_natambio.so` | `natambio-ladspa` |
+| `/usr/bin/natambio-pca4drc`, `-sweepgen`, `-fft-convolve`, `-check-capture`, `-wav2raw`, `-raw2wav`, `-nae` | `natambio-drc` |
+| `/usr/share/natambio/python_pca4drc/` (scripts, `config.drc`, measurement XMLs, `target/`, `config/`, `mic/`) | `natambio-drc` |
+| `/usr/share/natambio/python_nae_natambio/` | `natambio-drc` |
+
+When using the measurement toolkit installed this way, point `TOOLS_DIR` at
+`/usr/share/natambio/python_pca4drc` and run from a writable working directory;
+see the measurement guide
+[`como_medir_respuestas_impulsivas.md`](como_medir_respuestas_impulsivas.md)
+(section "Preparar el directorio de medida").
 
 ## Usage
 
@@ -244,5 +333,5 @@ subdirectory.
 
 ## License
 
-Distributed under the GNU General Public License, version 2.
+Distributed under the GNU General Public License, version 3.
 See the [`LICENSE`](../LICENSE) file for details.

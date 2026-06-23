@@ -105,6 +105,8 @@ AC_CONFIG_FILES([
   src/Makefile
   tools/xtc_filters/Makefile
   tools/ladspa_nae_natambio/Makefile
+  tools/python_pca4drc/Makefile
+  tools/python_nae_natambio/Makefile
 ])
 AC_OUTPUT
 

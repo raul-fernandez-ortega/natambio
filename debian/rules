@@ -23,18 +23,12 @@ override_dh_auto_install:
 	# --- LADSPA plugin -> multiarch ladspa dir (natambio-ladspa) ---
 	install -D -m0644 tools/ladspa_nae_natambio/ladspa_nae_natambio.so \
 	    $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/ladspa/ladspa_nae_natambio.so
-	# --- Python toolkits -> private dir under /usr/share (natambio-drc) ---
-	install -d $(SHAREDIR)/python_pca4drc
-	cp -a tools/python_pca4drc/*.py        $(SHAREDIR)/python_pca4drc/
-	cp -a tools/python_pca4drc/measure_pca4drc.sh $(SHAREDIR)/python_pca4drc/
-	cp -a tools/python_pca4drc/target      $(SHAREDIR)/python_pca4drc/
-	cp -a tools/python_pca4drc/config      $(SHAREDIR)/python_pca4drc/
-	cp -a tools/python_pca4drc/mic         $(SHAREDIR)/python_pca4drc/
-	install -d $(SHAREDIR)/python_nae_natambio
-	cp -a tools/python_nae_natambio/*.py   $(SHAREDIR)/python_nae_natambio/
-	find $(SHAREDIR) -name '*.py' -exec chmod 0644 {} +
-	# --- /usr/bin wrappers for the Python tools (natambio-drc) ---
-	debian/gen-wrappers.sh $(BINDIR)
+	# --- Python toolkits + /usr/bin wrappers (natambio-drc) ---
+	# Staged by dh_auto_install via tools/python_pca4drc/Makefile.am and
+	# tools/python_nae_natambio/Makefile.am, which install the toolkits to
+	# $(SHAREDIR)/python_* (scripts, config.drc, measurement XMLs, target/
+	# config/ mic/) and generate the /usr/bin/natambio-* launchers. No manual
+	# copy here keeps a single source of truth for the install layout.
 	# --- example XML configurations (natambio) ---
 	install -d $(SHAREDIR)/examples
 	install -m0644 docs/config_samples/*.xml    $(SHAREDIR)/examples/
