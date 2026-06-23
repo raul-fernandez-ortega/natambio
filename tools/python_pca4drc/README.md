@@ -1,74 +1,75 @@
 # python_pca4drc
 
-PCA de respuestas impulsivas para DRC, en Python y **sin la librería pyDRC**.
+*Also available in: [Español](README_es.md)*
 
-Es una reimplementación autónoma de `~/pyDRC-3.2.3/pca.py`: realiza la misma
-descomposición PCA del conjunto de respuestas impulsivas, pero **sin dependencias
-de pyDRC** y **sin ningún análisis gráfico**. Sólo se apoya en `numpy`, `scipy` y
-`soundfile`, por lo que es ejecutable tanto en GNU/Linux como en MS Windows.
+PCA of impulse responses for DRC, in Python.
 
-Contenido:
+It performs the PCA decomposition of a set of room impulse responses to obtain a
+reference impulse from which to generate the FIR correction (DRC) filters; the
+foundation of the method is developed in the technical note
+[Application of PCA to impulsive acoustic measurements of loudspeakers](../../docs/pca4drc/pca4drc_en.md).
+It relies only on `numpy`, `scipy` and `soundfile`, **with no graphical
+analysis**, so it runs on both GNU/Linux and MS Windows.
 
-- `pca4drc.py` — descomposición PCA de un directorio de impulsos (ver abajo).
-- `sweepgen.py` — genera un log-sweep y su inversa (par de excitación/
-  deconvolución), reimplementación pura en Python de la función `GlSweep` de
-  pyDRC: `python sweepgen.py sweep.xml [-s sweep.wav] [-i inverse.wav]` (ver abajo).
-- `fft_convolve.py` — convolución de dos WAV por FFT (`scipy.signal.fftconvolve`).
-  Útil para deconvolucionar sweeps medidos con su inversa y obtener impulsos:
-  `python fft_convolve.py <wav_1> <wav_2> <wav_salida>`.
-- `check_capture.py` — analiza una captura y avisa de clipping / nivel bajo / SNR
-  baja: `python check_capture.py <wav> [etiqueta] [--min-level -40] [--min-snr 20]`.
-- `wav2raw.py` — convierte WAV a raw (float 32-bit LE, sin cabecera), el formato
-  que lee DRC: `python wav2raw.py <wav> [<wav> ...]` (crea `<nombre>.raw` por cada
-  uno). Conversión exacta (no se usa ecasound porque recorta a [-1, 1]).
-- `raw2wav.py` — inversa de `wav2raw.py`: convierte raw (float 32-bit LE) a WAV.
-  Como el raw no lleva cabecera, la frecuencia se indica con `--rate`:
-  `python raw2wav.py <raw> [<raw> ...] [--rate 48000]` (crea `<nombre>.wav`).
-- `measure_pca4drc.sh` — plantilla de la cadena completa de medición (ver abajo).
+Contents:
 
-## Uso
+- `pca4drc.py` — PCA decomposition of a directory of impulses (see below).
+- `sweepgen.py` — generates a log-sweep and its inverse (excitation/
+  deconvolution pair): `python sweepgen.py sweep.xml [-s sweep.wav] [-i inverse.wav]` (see below).
+- `fft_convolve.py` — FFT convolution of two WAV files (`scipy.signal.fftconvolve`).
+  Useful to deconvolve measured sweeps with their inverse to obtain impulses:
+  `python fft_convolve.py <wav_1> <wav_2> <out_wav>`.
+- `check_capture.py` — analyses a capture and warns about clipping / low level /
+  low SNR: `python check_capture.py <wav> [label] [--min-level -40] [--min-snr 20]`.
+- `wav2raw.py` — converts WAV to raw (float 32-bit LE, headerless), the format
+  DRC reads: `python wav2raw.py <wav> [<wav> ...]` (creates `<name>.raw` for each).
+  Exact conversion (ecasound is not used because it clips to [-1, 1]).
+- `raw2wav.py` — inverse of `wav2raw.py`: converts raw (float 32-bit LE) to WAV.
+  Since raw has no header, the rate is given with `--rate`:
+  `python raw2wav.py <raw> [<raw> ...] [--rate 48000]` (creates `<name>.wav`).
+- `measure_pca4drc.sh` — template for the complete measurement chain (see below).
+
+## Usage
 
 ```sh
-python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false]
+python pca4drc.py <impulse_directory> <output_len> [--normalize true|false]
 ```
 
-- `directorio_impulsos`: carpeta con las respuestas impulsivas ya medidas, en
-  formato WAV.
-- `output_len`: longitud (en muestras) de los WAV generados.
-- `--normalize true|false` (por defecto `true`): si es `true`, las componentes se
-  dividen por el pico de la componente principal (la principal queda con pico
-  1.0); si es `false`, se guardan los valores PCA crudos (misma escala que el
-  `save_main_component` de pyDRC).
+- `impulse_directory`: folder with the already-measured impulse responses, in
+  WAV format.
+- `output_len`: length (in samples) of the generated WAVs.
+- `--normalize true|false` (default `true`): if `true`, the components are
+  divided by the peak of the principal component (the principal one ends with
+  peak 1.0); if `false`, the raw PCA values are kept (unnormalized).
 
-Las componentes PCA se guardan en un subdirectorio `pca4drc/` **dentro** del
-directorio de entrada (se crea si no existe), numeradas por su orden en el
-algoritmo empezando en 0: `PCA_0.wav` (componente principal), `PCA_1.wav`, ...
+The PCA components are saved in a `pca4drc/` subdirectory **inside** the input
+directory (created if missing), numbered by their order in the algorithm starting
+at 0: `PCA_0.wav` (principal component), `PCA_1.wav`, ...
 
-## Algoritmo
+## Algorithm
 
-1. Lee todos los `.wav` del directorio con `soundfile`.
-2. Localiza el pico (máximo absoluto) de cada impulso.
-3. Reescribe cada impulso en una señal de longitud `output_len` centrada en su
-   pico y le aplica una ventana de Blackman.
-4. Resta la media de cada impulso, calcula la matriz de covarianza entre
-   impulsos, sus autovalores/autovectores y proyecta los impulsos sobre los
-   autovectores (PCA).
-5. Corrige la polaridad, opcionalmente normaliza cada componente por el máximo de
-   la componente principal (ver `--normalize`) y las guarda como WAV de longitud
+1. Reads all the `.wav` files in the directory with `soundfile`.
+2. Locates the peak (absolute maximum) of each impulse.
+3. Rewrites each impulse into a signal of length `output_len` centered on its
+   peak and applies a Blackman window.
+4. Subtracts the mean of each impulse, computes the covariance matrix between
+   impulses, its eigenvalues/eigenvectors and projects the impulses onto the
+   eigenvectors (PCA).
+5. Corrects the polarity, optionally normalizes each component by the maximum of
+   the principal component (see `--normalize`) and saves them as WAVs of length
    `output_len`.
 
-## Generación del sweep: `sweepgen.py`
+## Sweep generation: `sweepgen.py`
 
-Genera el barrido logarítmico de excitación y su filtro inverso, el par que
-luego usa la cadena de medición (`SWEEP` / `INVERSE`). Es una reimplementación
-pura en Python (numpy + soundfile) de la función C++ `GlSweep` de pyDRC, con la
-**misma interfaz** que el `sweepgen.py` original:
+Generates the logarithmic excitation sweep and its inverse filter, the pair later
+used by the measurement chain (`SWEEP` / `INVERSE`). It is written in pure
+Python (numpy + soundfile):
 
 ```sh
 python sweepgen.py sweep.xml [-s sweep.wav] [-i inverse.wav]
 ```
 
-Los parámetros se leen de un XML `<generate_sweep>`:
+The parameters are read from a `<generate_sweep>` XML:
 
 ```xml
 <generate_sweep>
@@ -77,142 +78,142 @@ Los parámetros se leen de un XML `<generate_sweep>`:
     <amplitude>0.5</amplitude>
     <Hzstart>20</Hzstart>
     <Hzend>20000</Hzend>
-    <length>6</length>        <!-- duración del barrido, s -->
-    <silence>1</silence>      <!-- silencio al inicio y al final, s -->
-    <leadin>0.05</leadin>     <!-- fracción del barrido con ventana de entrada -->
-    <leadout>0.005</leadout>  <!-- fracción del barrido con ventana de salida -->
+    <length>6</length>        <!-- sweep duration, s -->
+    <silence>1</silence>      <!-- silence at start and end, s -->
+    <leadin>0.05</leadin>     <!-- fraction of the sweep with a fade-in window -->
+    <leadout>0.005</leadout>  <!-- fraction of the sweep with a fade-out window -->
   </params>
   <sweep_filename>sweep_48k.wav</sweep_filename>
   <inverse_filename>inverse_48k.wav</inverse_filename>
 </generate_sweep>
 ```
 
-`-s` / `-i` sobrescriben los nombres de fichero del XML. La salida es WAV en
-coma flotante de 32 bits, **idéntica muestra a muestra** a la del `GlSweep` de
-pyDRC. El barrido incluye los silencios; la inversa tiene exactamente la
-longitud del barrido (`length` segundos).
+`-s` / `-i` override the file names from the XML. The output is 32-bit
+floating-point WAV. The sweep includes the silences; the inverse has exactly the
+sweep length (`length`
+seconds).
 
-## Cadena completa de medición: `measure_pca4drc.sh`
+## Complete measurement chain: `measure_pca4drc.sh`
 
-Plantilla derivada de `ecasound_script.sh` para el sistema panambio de cuatro
-altavoces (JACK + Echo AudioFire 4). Encadena cinco fases:
+Template derived from `ecasound_script.sh` for the four-loudspeaker panambio
+system (JACK + Echo AudioFire 4). It chains five phases:
 
-0. **Sweep** (`sweepgen.py`): genera el log-sweep de excitación (`SWEEP`) y su
-   inversa (`INVERSE`) a partir del bloque de parámetros de generación
-   (`SWEEP_RATE`, `SWEEP_LENGTH`, ...). `SWEEP_RATE` debe coincidir con la
-   frecuencia de muestreo de captura (48000 Hz). Si ya tienes un par
-   sweep/inversa, desactívala con `DO_SWEEP=0`.
-1. **Medición** (`ecasound`): por cada posición de micrófono reproduce el sweep
-   por cada vía y graba la respuesta. El número de vías depende de
-   `FULL_NATAMBIO`: `true` (por defecto) mide las cuatro vías del NatAmbio
-   completo (front L/R + rear L/R); `false` mide sólo 2 altavoces (front L/R).
-   Antes de medir arranca **natambio** con la configuración correspondiente
-   según `FULL_NATAMBIO` (full/half) y `SUBWOOFER` (subwoofer/normal):
-   `{full,half}_natambio_measurements_{subwoofer,normal}.xml`. Su salida
-   (stdout/stderr) se deriva a `NATAMBIO_LOG` (`/tmp/natambio_measure.log` por
-   defecto) para no ensuciar la consola, y se comprueba que arranca y registra
-   sus puertos JACK (si no, aborta mostrando el final del log). ecasound envía el
-   sweep a los puertos de entrada de natambio (`natambio:front_input_left`, ...).
-   Una vez en marcha, imprime un **informe de configuración** (modo full/half,
-   modo subwoofer, vías a medir y el enrutado real de las salidas de natambio a
-   las salidas de la tarjeta `system:playback_*`, consultado por JACK) y pide
-   **confirmación** antes de medir. Al terminar la medición, natambio se detiene
-   automáticamente (SIGINT, con escalada a SIGTERM/SIGKILL si no responde).
-   Tras cada captura, `check_capture.py` analiza el WAV y avisa de clipping,
-   nivel bajo (`MIN_LEVEL`, def. -40 dBFS) o SNR baja (`MIN_SNR`, def. 20 dB);
-   si los niveles no son válidos, la medida no avanza: pide reajustar la
-   ganancia del previo de micrófono y la repite (salvo en `AUTO=1`).
-2. **Impulsos** (`fft_convolve.py`): deconvoluciona cada sweep grabado con el
-   sweep inverso para obtener la respuesta impulsiva (sustituye a la antigua
-   `lsconv.py` / `pyDRC.LsConv`).
-3. **PCA** (`pca4drc.py`): por cada vía genera `i_<via>/pca4drc/` con los WAV de
-   las componentes PCA y, a continuación, los convierte a `.raw` (float 32-bit
-   LE) con `wav2raw.py` en el mismo directorio, para alimentar a DRC.
-4. **DRC** (`drc` de Sbragion): por cada vía ejecuta `drc` con `config.drc`
-   (junto a este script), sobrescribiendo `--BCBaseDir=i_<via>/` (la carpeta de
-   impulsos, al mismo nivel que el `p_left/` original para que las rutas
-   relativas del config, p.ej. la curva objetivo `../target/...`, sigan
-   resolviendo) y `--BCInFile=pca4drc/PCA_0.raw` (la componente principal). Al
-   terminar, convierte las salidas `rps.raw` (`PSOutFile`) y `rms.raw`
-   (`MSOutFile`), generadas en `i_<via>/`, a WAV con `raw2wav.py`. Activable con
-   `DO_DRC` (1 por defecto). Si una vía falla, se avisa y se continúa.
+0. **Sweep** (`sweepgen.py`): generates the excitation log-sweep (`SWEEP`) and its
+   inverse (`INVERSE`) from the generation-parameter block (`SWEEP_RATE`,
+   `SWEEP_LENGTH`, ...). `SWEEP_RATE` must match the capture sample rate
+   (48000 Hz). If you already have a sweep/inverse pair, disable it with
+   `DO_SWEEP=0`.
+1. **Measurement** (`ecasound`): for each microphone position it plays the sweep
+   through each way and records the response. The number of ways depends on
+   `FULL_NATAMBIO`: `true` (default) measures the four ways of the full NatAmbio
+   (front L/R + rear L/R); `false` measures only 2 loudspeakers (front L/R).
+   Before measuring it starts **natambio** with the configuration corresponding
+   to `FULL_NATAMBIO` (full/half) and `SUBWOOFER` (subwoofer/normal):
+   `{full,half}_natambio_measurements_{subwoofer,normal}.xml`. Its output
+   (stdout/stderr) is redirected to `NATAMBIO_LOG` (`/tmp/natambio_measure.log`
+   by default) to keep the console clean, and it is checked that it starts and
+   registers its JACK ports (otherwise it aborts, showing the end of the log).
+   ecasound sends the sweep to natambio's input ports
+   (`natambio:front_input_left`, ...). Once running, it prints a **configuration
+   report** (full/half mode, subwoofer mode, ways to measure and the actual
+   routing of natambio's outputs to the card outputs `system:playback_*`, queried
+   from JACK) and asks for **confirmation** before measuring. When the
+   measurement finishes, natambio is stopped automatically (SIGINT, escalating to
+   SIGTERM/SIGKILL if it does not respond). After each capture, `check_capture.py`
+   analyses the WAV and warns about clipping, low level (`MIN_LEVEL`, default
+   -40 dBFS) or low SNR (`MIN_SNR`, default 20 dB); if the levels are not valid,
+   the measurement does not advance: it asks to readjust the microphone preamp
+   gain and repeats it (except under `AUTO=1`).
+2. **Impulses** (`fft_convolve.py`): deconvolves each recorded sweep with the
+   inverse sweep to obtain the impulse response.
+3. **PCA** (`pca4drc.py`): for each way it generates `i_<way>/pca4drc/` with the
+   PCA component WAVs and then converts them to `.raw` (float 32-bit LE) with
+   `wav2raw.py` in the same directory, to feed DRC.
+4. **DRC** (Sbragion's `drc`): for each way it runs `drc` with `config.drc`
+   (next to this script), overriding `--BCBaseDir=i_<way>/` (the impulse folder,
+   at the same level as the original `p_left/` so the config's relative paths,
+   e.g. the target curve `../target/...`, keep resolving) and
+   `--BCInFile=pca4drc/PCA_0.raw` (the principal component). When finished, it
+   converts the `rps.raw` (`PSOutFile`) and `rms.raw` (`MSOutFile`) outputs,
+   generated in `i_<way>/`, to WAV with `raw2wav.py`. Enabled with `DO_DRC`
+   (1 by default). If a way fails, it is reported and the rest continue.
 
-### Configuración por línea de comandos
+### Command-line configuration
 
-Todas las variables tienen un valor por defecto pero pueden **sobrescribirse al
-vuelo** anteponiéndolas a la llamada en la misma línea (sin editar el script):
-
-```sh
-VARIABLE=valor ./measure_pca4drc.sh
-VAR1=a VAR2=b ./measure_pca4drc.sh        # varias a la vez
-```
-
-Funcionan así porque el script las lee con `${VARIABLE:-valor_por_defecto}`. Las
-más habituales:
+All variables have a default value but can be **overridden on the fly** by
+prefixing them to the call on the same line (without editing the script):
 
 ```sh
-./measure_pca4drc.sh                       # las cinco fases, interactivo (4 altavoces, normal)
-FULL_NATAMBIO=false ./measure_pca4drc.sh   # sistema de 2 altavoces (sólo front L/R)
-SUBWOOFER=true ./measure_pca4drc.sh        # arranca natambio con la config de subwoofer
-AUTO=1 ./measure_pca4drc.sh                # sin pausas interactivas
-DO_SWEEP=0 ./measure_pca4drc.sh            # usar un sweep/inversa ya existentes
-DO_MEASURE=0 ./measure_pca4drc.sh          # saltar la medición (re-procesar lo ya medido)
-DO_DRC=0 ./measure_pca4drc.sh              # todo menos la corrección DRC
-DO_SWEEP=0 DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh  # sólo PCA + DRC
-DO_MEASURE=0 DO_IMPULSES=0 DO_PCA=0 ./measure_pca4drc.sh    # sólo DRC sobre PCA_0.raw ya generados
-FULL_NATAMBIO=false NUM_POS=8 ./measure_pca4drc.sh         # 2 altavoces, 8 posiciones
-OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh  # ajustar parámetros de PCA
-IN_MEAS=system:capture_2 ./measure_pca4drc.sh             # micrófono en otra toma de captura
-SELECT_INPUT=1 ./measure_pca4drc.sh                        # elegir la toma de micrófono por menú
+VARIABLE=value ./measure_pca4drc.sh
+VAR1=a VAR2=b ./measure_pca4drc.sh        # several at once
 ```
 
-Los cinco interruptores de fase `DO_SWEEP` / `DO_MEASURE` / `DO_IMPULSES` /
-`DO_PCA` / `DO_DRC` valen `1` (activada) o `0` (saltada) y son independientes,
-así que pueden combinarse para ejecutar sólo las fases que interesen.
-
-### Puertos JACK de salida (sweep) y de entrada (micrófono)
-
-Cada medida la realiza `ecasound` con dos cadenas: una **reproduce** el sweep
-hacia la entrada de natambio y otra **graba** la captura del micrófono.
-
-- **Salida (sweep → natambio):** el destino lo fija el array `OUT_PORTS`, una
-  entrada por vía, apuntando a los puertos de entrada de natambio
-  (`natambio:front_input_left`, `natambio:front_input_right`, ...). No suele
-  hacer falta tocarlo: natambio fija esos nombres.
-- **Entrada (micrófono → WAV):** es un único puerto común a todas las vías, la
-  variable `IN_MEAS` (por defecto `system:capture_1`, la primera toma de captura
-  de la tarjeta, donde suele estar el previo de micrófono).
-
-ecasound se conecta a esos puertos con `jack_auto` (autoconexión): la salida a
-`OUT_PORTS[$w]` y la entrada a `IN_MEAS`.
-
-Hay dos formas de indicar la toma de micrófono:
+They work this way because the script reads them with
+`${VARIABLE:-default_value}`. The most common ones:
 
 ```sh
-IN_MEAS=system:capture_2 ./measure_pca4drc.sh   # fijarla directamente
-SELECT_INPUT=1 ./measure_pca4drc.sh             # elegirla por menú interactivo
+./measure_pca4drc.sh                       # the five phases, interactive (4 loudspeakers, normal)
+FULL_NATAMBIO=false ./measure_pca4drc.sh   # 2-loudspeaker system (front L/R only)
+SUBWOOFER=true ./measure_pca4drc.sh        # start natambio with the subwoofer config
+AUTO=1 ./measure_pca4drc.sh                # no interactive pauses
+DO_SWEEP=0 ./measure_pca4drc.sh            # use an existing sweep/inverse
+DO_MEASURE=0 ./measure_pca4drc.sh          # skip the measurement (re-process what was measured)
+DO_DRC=0 ./measure_pca4drc.sh              # everything except the DRC correction
+DO_SWEEP=0 DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh  # PCA + DRC only
+DO_MEASURE=0 DO_IMPULSES=0 DO_PCA=0 ./measure_pca4drc.sh    # DRC only over already-generated PCA_0.raw
+FULL_NATAMBIO=false NUM_POS=8 ./measure_pca4drc.sh         # 2 loudspeakers, 8 positions
+OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh  # adjust PCA parameters
+IN_MEAS=system:capture_2 ./measure_pca4drc.sh             # microphone on another capture input
+SELECT_INPUT=1 ./measure_pca4drc.sh                        # choose the microphone input from a menu
 ```
 
-Con `SELECT_INPUT=1`, tras arrancar natambio el script lista los puertos JACK de
-captura disponibles (`jack_lsp -o`, p.ej. `system:capture_*`) y permite asignar
-uno como `IN_MEAS` por número (0 = mantener el actual). Sólo actúa en modo
-interactivo (se ignora con `AUTO=1`) y si `jack_lsp` está disponible; funciona
-también en el modo calibración (`CALIBRATE=1`).
+The five phase switches `DO_SWEEP` / `DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` /
+`DO_DRC` are `1` (enabled) or `0` (skipped) and are independent, so they can be
+combined to run only the phases of interest.
 
-Lista completa de variables configurables por entorno: `FULL_NATAMBIO`
-(true = 4 altavoces, false = 2) y `SUBWOOFER` (true = config con subwoofer,
-false = normal); arranque de natambio `NATAMBIO_BIN`, `NATAMBIO_CONFIG`
-(por defecto el XML elegido según `FULL_NATAMBIO`/`SUBWOOFER`), `NATAMBIO_LOG`;
-generación del sweep (Fase 0) `SWEEP_RATE`, `SWEEP_AMPLITUDE`, `SWEEP_HZSTART`,
-`SWEEP_HZEND`, `SWEEP_LENGTH`, `SWEEP_SILENCE`, `SWEEP_LEADIN`, `SWEEP_LEADOUT`;
-medición `NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `SELECT_INPUT`, `GAIN_OUT`,
-`GAIN_IN`, `REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
-`DRC_BIN`, `DRC_CONFIG` (por defecto `config.drc` junto al script), `DRC_PS_OUT`
-(rps.raw), `DRC_MS_OUT` (rms.raw); y los interruptores de fase `DO_SWEEP` /
-`DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` / `DO_DRC` / `AUTO`. Si los scripts `.py`
-no están junto al `.sh`, exporta `TOOLS_DIR` apuntando a ellos.
+### JACK output (sweep) and input (microphone) ports
 
-## Dependencias
+Each measurement is performed by `ecasound` with two chains: one **plays** the
+sweep into natambio's input and the other **records** the microphone capture.
+
+- **Output (sweep → natambio):** the destination is set by the `OUT_PORTS` array,
+  one entry per way, pointing to natambio's input ports
+  (`natambio:front_input_left`, `natambio:front_input_right`, ...). It rarely
+  needs changing: natambio fixes those names.
+- **Input (microphone → WAV):** a single port common to all ways, the variable
+  `IN_MEAS` (default `system:capture_1`, the card's first capture input, where
+  the microphone preamp usually is).
+
+ecasound connects to those ports with `jack_auto` (auto-connection): the output
+to `OUT_PORTS[$w]` and the input to `IN_MEAS`.
+
+There are two ways to indicate the microphone input:
+
+```sh
+IN_MEAS=system:capture_2 ./measure_pca4drc.sh   # set it directly
+SELECT_INPUT=1 ./measure_pca4drc.sh             # choose it from an interactive menu
+```
+
+With `SELECT_INPUT=1`, after starting natambio the script lists the available
+JACK capture ports (`jack_lsp -o`, e.g. `system:capture_*`) and lets you assign
+one as `IN_MEAS` by number (0 = keep the current one). It only acts in
+interactive mode (ignored with `AUTO=1`) and if `jack_lsp` is available; it also
+works in calibration mode (`CALIBRATE=1`).
+
+Full list of environment-configurable variables: `FULL_NATAMBIO` (true = 4
+loudspeakers, false = 2) and `SUBWOOFER` (true = config with subwoofer, false =
+normal); natambio startup `NATAMBIO_BIN`, `NATAMBIO_CONFIG` (by default the XML
+chosen according to `FULL_NATAMBIO`/`SUBWOOFER`), `NATAMBIO_LOG`; sweep generation
+(Phase 0) `SWEEP_RATE`, `SWEEP_AMPLITUDE`, `SWEEP_HZSTART`, `SWEEP_HZEND`,
+`SWEEP_LENGTH`, `SWEEP_SILENCE`, `SWEEP_LEADIN`, `SWEEP_LEADOUT`; measurement
+`NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `SELECT_INPUT`, `GAIN_OUT`, `GAIN_IN`,
+`REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
+`DRC_BIN`, `DRC_CONFIG` (by default `config.drc` next to the script), `DRC_PS_OUT`
+(rps.raw), `DRC_MS_OUT` (rms.raw); and the phase switches `DO_SWEEP` /
+`DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` / `DO_DRC` / `AUTO`. If the `.py` scripts
+are not next to the `.sh`, export `TOOLS_DIR` pointing to them.
+
+## Dependencies
 
 ```sh
 pip install -r requirements.txt

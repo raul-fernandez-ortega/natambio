@@ -1,16 +1,16 @@
 # Cómo medir respuestas impulsivas para DRC con NatAmbio
 
-Para aplicar ecualización por convolución de filtros FIR, lo que se conoce como Digital Room Correction (DRC), se requiere de unas medidas impulsivas de la respuesta de la sala y cada altavoz a ecualizar. Esto es independiente del convolver finalmente aplicado, sea NatAmbio o cualquier otro, y del proceso de obtención del filtro FIR DRC (en mi caso siempre uso [DRC-FIR](http://drc-fir.sourceforge.net)).
+Para aplicar ecualización por convolución de filtros FIR, lo que se conoce como Digital Room Correction (DRC), se requiere de unas medidas impulsivas de la respuesta de la sala a cada altavoz a ecualizar. Esto es independiente del convolver finalmente aplicado, sea NatAmbio o cualquier otro, y del proceso de obtención del filtro FIR DRC (en mi caso siempre uso [DRC-FIR](http://drc-fir.sourceforge.net)).
 
-Por otro lado, junto con NatAmbio, se presenta una [propuesta de medida de impulsivas de sala basada en tomar númerosas tomas en diferentes puntos de una zona de escucha y, mediante aplicación de PCA](pca4drc/pca4drc_es.md), caracterizar las medidas a una única impulsiva que será el objetivo a invertir.
+Por otro lado, junto con NatAmbio, se presenta una [propuesta de medida de impulsivas de sala basada en tomar numerosas tomas en diferentes puntos de una zona de escucha y, mediante aplicación de PCA](pca4drc/pca4drc_es.md), caracterizar las medidas a una única impulsiva que será el objetivo a invertir.
 
 Esta guía explica, de modo básico, cómo medir las respuestas impulsivas de un sistema NatAmbio en
 la sala de escucha y, a partir de ellas, obtener por PCA un impulso de referencia
-con el que generar los filtros FIR de corrección de sala (DRC). Esta guia es aplicable tanto al caso de las medidas simples tradicionales, como al caso más avanzado de medida multipunto y caracterización mediante PCA4DRC. Incluyendo medidas sobre sistemas de un solo dipolo y dos dipolos, así como la incorporación de un subwoofer.
+con el que generar los filtros FIR de corrección de sala (DRC). Esta guía es aplicable tanto al caso de las medidas simples tradicionales, como al caso más avanzado de medida multipunto y caracterización mediante PCA4DRC. Incluyendo medidas sobre sistemas de un solo dipolo y dos dipolos, así como la incorporación de un subwoofer.
 
 Además, para todas las citadas opciones, se presenta una automatización con el script [`measure_pca4drc.sh`](../tools/python_pca4drc/measure_pca4drc.sh),
 que encadena las herramientas del toolkit
-[`tools/python_pca4drc/`](../tools/python_pca4drc/README.md) y facilita el proceso ordenado de medidas.
+[`tools/python_pca4drc/`](../tools/python_pca4drc/README_es.md) y facilita el proceso ordenado de medidas.
 
 Como ya se ha comentado, el fundamento del método (medición multipunto + PCA) se desarrolla en el artículo
 [Aplicación del PCA a medidas acústicas impulsivas de altavoces](pca4drc/pca4drc_es.md).
@@ -20,7 +20,7 @@ Por otro lado, en la automatización propuesta, la generación de los filtros DR
 ## Concepto de medida multipunto
 
 En lugar de medir la respuesta impulsiva en un único punto de escucha —cuya
-representatividad podria ser discutible—, se toman **varias medidas** repartidas
+representatividad podría ser discutible—, se toman **varias medidas** repartidas
 por la región de escucha (por defecto en la automatización se definen **16 posiciones**) y se aplica un
 **Análisis de Componentes Principales (PCA)** al conjunto. La **componente
 principal** (`PCA_0`) condensa la información acústica común a toda la región y
@@ -36,7 +36,7 @@ Para medir correctamente las mencionadas impulsivas se requiere de un micrófono
 
 Si se quiere medir con alta precisión es imprescindible que se proporcione la curva individual de calibración junto con el micrófono. Con esta tabla o gráfica, se puede corregir la medida obtenida para obtener valores con menos error.
 
-Los micrófonos omnidireccionales clásicos requieren de un previo que suele formar parte de los interfaces audio profesional [como los que se recomiendan para NatAmbio](hw_setup_es.md). Por lo tanto, el propio interfaz audio ya presenta la capacidad de medir junto con el micrófono que se conecte. Estos interfaces tienen interruptor HW o SW para alimentación phantom y controles físicos de ganancia en entrada, además, su conexión siempre es XLR.
+Los micrófonos omnidireccionales clásicos requieren de un previo que suele formar parte de los interfaces de audio profesionales [como los que se recomiendan para NatAmbio](hw_setup_es.md). Por lo tanto, el propio interfaz audio ya presenta la capacidad de medir junto con el micrófono que se conecte. Estos interfaces tienen interruptor HW o SW para alimentación phantom y controles físicos de ganancia en entrada; además, su conexión siempre es XLR.
 
 ## Qué es un logsweep
 
@@ -53,9 +53,8 @@ Es la convolución de esta citada inversa con las medidas realizadas la que resu
 
 Antes de medir hay que preparar todo el entorno físico y software:
 
-- Localizar en GNU/Linux el interfaz audio a emplear y arrancar con el jackd.
-- Preparar el micrófono, colocado en su pie de micrófono y conectado por XLR a la toma del previo de microfonía de la interfaz audio de NatAmbio.
-- Arrancar jackd aplicada a la tarjeta de sonido.
+- Localizar en GNU/Linux el interfaz audio a emplear y arrancar con él jackd.
+- Preparar el micrófono, colocado en su pie de micrófono y conectado por XLR a la toma del previo de micrófono de la interfaz audio de NatAmbio.
 - Identificar en jackd los nombres de la entrada desde micrófono y las salidas a cada altavoz.
 
 A continuación se muestra un ejemplo para la interfaz audio Focusrite Scarlett 6i6:
@@ -153,14 +152,14 @@ para `half_natambio_measurements_normal.xml` (un dipolo):
     </jack_output>
 
 ```
-Se trata de asignar los <destname> de los canales <front_output_left> y <front_output_right> para que los barridos tonales se escuchen por el altavoz que corresponda.
+Se trata de asignar los `<destname>` de los canales `<front_output_left>` y `<front_output_right>` para que los barridos tonales se escuchen por el altavoz que corresponda.
 
 La ejecución de natambio es directa, con jackd ya activo:
 
 ```
-natambio [--quiet] <config.xml>
+natambio [-quiet] <config.xml>
 ```
-El parametro --quiet desactiva los mensajes de salida.
+El parámetro -quiet desactiva los mensajes de salida.
 
 ### Generar el sweep de medida
 
@@ -256,7 +255,7 @@ El `jack_auto` es lo que hace la **autoconexión**: `ecasound` crea su puerto JA
 lo conecta automáticamente al puerto indicado (la entrada de natambio en la
 reproducción, la captura del micrófono en la grabación).
 
-El parámetro ``-ev`` se incluye para que ecasound genere una tabla de niveles medidos de forma que se pueda analizar y si el pico y el promedio de la señal están muy bajo o muy cerca de saturación.
+El parámetro ``-ev`` se incluye para que ecasound genere una tabla de niveles medidos de forma que se pueda analizar si el pico y el promedio de la señal están muy bajos o muy cerca de la saturación.
 
 Para medir **otra vía** basta con cambiar el puerto de salida (p. ej.
 `natambio:front_input_right`) y el nombre del WAV. Y para medir **sin pasar por
@@ -276,7 +275,7 @@ python fft_convolve.py left_sweep_1.wav inverse_48k.wav front_left_impulse_1.wav
 Existen una serie de comprobaciones básicas para asegurar que la medida tomada es correcta y garantiza la obtención de una impulsiva correcta:
 
 1. Por los altavoces debe sonar el log-sweep a un nivel razonablemente alto, quizás un poco por encima del habitual que tienen cuando se escucha música. Pero sin necesidad de llegar a resultar muy molesto.
-2. En los valores del análsis de ecasound de -ev,m conviene tener un headroom de 10 dB, con lo que **[Pendiente de obtener un ejemplo de output]**
+2. En los valores del análisis de ecasound de -ev,m conviene tener un headroom de 10 dB, con lo que **[Pendiente de obtener un ejemplo de output]**
 
 El script herramienta de pca4drc ``check_capture.py`` permite hacer la comprobación de los niveles correctos a partir del propio análisis del wav de la medida, antes de convertirlo a impulsiva. Este análisis incluye la comprobación de que no haya habido clipping de nivel y que la SNR sea suficiente (típicamente 20 dB).
 
@@ -284,7 +283,7 @@ El script herramienta de pca4drc ``check_capture.py`` permite hacer la comprobac
 
 Resumen de las herramientas que intervienen en una medida manual, en el orden en
 que se usan. Los scripts `sweepgen.py` y `fft_convolve.py` forman parte del
-toolkit [`tools/python_pca4drc/`](../tools/python_pca4drc/README.md); `ecasound`
+toolkit [`tools/python_pca4drc/`](../tools/python_pca4drc/README_es.md); `ecasound`
 es una herramienta externa del sistema.
 
 | Paso | Herramienta | Pertenece a | Qué hace | Ejemplo |
@@ -399,7 +398,7 @@ drc --BCBaseDir=Measurement_01/ --BCInFile=impulses/left.raw config.drc
 relativas del config, como `../target/...`, sigan resolviendo) y `--BCInFile` el
 impulso de entrada. 
 
-Los filtros resultantes del proceso DRC son dos: `rps.raw` (filtro estándar) y `rms.raw` (mismo filtro en fase mínima). Ambos se pueden localizar en ``BCBaseDir``
+Los filtros resultantes del proceso DRC son dos: `rps.raw` (filtro estándar) y `rms.raw` (mismo filtro en fase mínima). Ambos se pueden localizar en ``BCBaseDir``.
 
 Si se quiere modificar el target de config.drc se puede invocar con:
 
@@ -412,11 +411,11 @@ Y si se quiere incluir un fichero de calibración de micrófono se invoca median
 ```sh
 drc --BCBaseDir=Measurement_01/ --BCInFile=impulses/left.raw --MCFilterType=L --MCPointsFile=calibration.txt config.drc
 ```
-Ambas opciones se pueden combinan incluyendo todos los parámetros
+Ambas opciones se pueden combinar incluyendo todos los parámetros.
 
 ## Proceso manual vs proceso por script
 
-Una vez descrito el procedimiento para tomar una medida, el proceso continua repitiendo los pasos para cada uno de los diferentes altavoces y, si estamos midiendo en multipunto, para diferentes posiciones del micrófono. Esto requiere un orden mental con los nombres de los ficheros WAV para que puedan ser identificados y/o organizados por carpetas para cada altavoz.
+Una vez descrito el procedimiento para tomar una medida, el proceso continúa repitiendo los pasos para cada uno de los diferentes altavoces y, si estamos midiendo en multipunto, para diferentes posiciones del micrófono. Esto requiere un orden mental con los nombres de los ficheros WAV para que puedan ser identificados y/o organizados por carpetas para cada altavoz.
 
 Seguir este orden es más sencillo si se utiliza un script herramienta que se proporciona en tools/python_pca4drc llamado ``measure_pca4drc.sh``. 
 
@@ -428,7 +427,7 @@ El script measure_pca4drc.sh permite controlar la ejecución de:
 4. El propio proceso de medida.
 5. El control de calidad de las medidas.
 6. El proceso de obtención de impulsivas por convolución.
-7. La aplicación de PCA4DRC si hay más de una medida para cada altavoz
+7. La aplicación de PCA4DRC si hay más de una medida para cada altavoz.
 8. La generación de filtros mediante DRC.
 
 A continuación se explicará la aplicación del citado script en cada posible sistema NatAmbio:
@@ -438,7 +437,7 @@ A continuación se explicará la aplicación del citado script en cada posible s
 3. Dos dipolos sin subwoofer.
 4. Dos dipolos con subwoofer.
 
-Y además con la posibilidad de medir una única impulsiva por altavoz (sin emplear PCA4DRC) o más de una impulsiva por altavoz, medida cada una en un punto distinto dentro del area de escucha objetivo.
+Y además con la posibilidad de medir una única impulsiva por altavoz (sin emplear PCA4DRC) o más de una impulsiva por altavoz, medida cada una en un punto distinto dentro del área de escucha objetivo.
 
 ### Preparar el directorio de medida
 
@@ -584,7 +583,7 @@ FULL_NATAMBIO=false NUM_POS=1 \
 
 ### Caso de un solo dipolo, sin subwoofer, una única medida por canal
 
-En el caso más simple, un sistema estéreo básico, que se quiere convertir en un NatAmbio de un solo dipolo y se quiere aplicar filtros DRC a partir de una única medida por canal.
+El caso más simple es un sistema estéreo básico que se quiere convertir en un NatAmbio de un solo dipolo, aplicando filtros DRC a partir de una única medida por canal.
 
 Estas condiciones se trasladan a tres parámetros inline de
 [`measure_pca4drc.sh`](../tools/python_pca4drc/measure_pca4drc.sh), antepuestos a
@@ -630,7 +629,7 @@ El script ejecutará natambio con la configuración half_natambio_measurements_s
 
 ### Caso de un solo dipolo, varias medidas por canal
 
-En este caso solamente es necesario aumentar el valor de NUM_POS de 1 al número deseado. Para el caso sin suboowfer:
+En este caso solamente es necesario aumentar el valor de NUM_POS de 1 al número deseado. Para el caso sin subwoofer:
 
 ```sh
 FULL_NATAMBIO=false SUBWOOFER=false NUM_POS=16 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR/measure_pca4drc.sh"
@@ -644,7 +643,7 @@ FULL_NATAMBIO=false SUBWOOFER=true NUM_POS=16 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR
 
 ### Caso de dos dipolos, varias medidas por canal
 
-En este caso, el parámetros FULL_NATAMBIO pasa a ser ``true``, y además es necesario aumentar el valor de NUM_POS de 1 al número deseado. Para el caso sin suboowfer:
+En este caso, el parámetro FULL_NATAMBIO pasa a ser ``true``, y además es necesario aumentar el valor de NUM_POS de 1 al número deseado. Para el caso sin subwoofer:
 
 ```sh
 FULL_NATAMBIO=true SUBWOOFER=false NUM_POS=16 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR/measure_pca4drc.sh"
@@ -656,7 +655,7 @@ Para el caso con subwoofer:
 FULL_NATAMBIO=true SUBWOOFER=true NUM_POS=16 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR/measure_pca4drc.sh"
 ```
 
-### calibración
+### Calibración
 
 Antes de tomar ninguna medida buena conviene fijar unas ganancias de
 reproducción (`GAIN_OUT`) y de captura (`GAIN_IN`) que sirvan **a la vez** para
@@ -677,7 +676,7 @@ Para un sistema de **un solo dipolo, sin subwoofer**, el modo se selecciona con:
 cd <directorio_de_trabajo>
 FULL_NATAMBIO=false CALIBRATE=1 "$TOOLS_DIR/measure_pca4drc.sh"
 ```
-En el momento de calibrar conviente partir con unas ganancias iniciales sustancialmente más bajas que las de por defecto
+En el momento de calibrar conviene partir con unas ganancias iniciales sustancialmente más bajas que las de por defecto
 (`GAIN_OUT=0` dB, `GAIN_IN=10` dB), lo cual se puede hacer anteponiendo sus variables igualmente a la llamada:
 
 ```sh
@@ -718,82 +717,6 @@ El script repite todo el proceso para cada **vía** (altavoz) del sistema:
 - **Sistema de dos altavoces** (`FULL_NATAMBIO=false`): sólo `front_left` y
   `front_right`.
 
-## Requisitos previos a la medición
-
-- Un **servidor JACK** en marcha a la frecuencia de captura (48000 Hz).
-- **`ecasound`** (reproducción del sweep y grabación de la respuesta).
-- **`natambio`** compilado/instalado: durante la medición se arranca con una
-  configuración específica para enrutar el sweep a cada vía.
-- **`drc`** (DRC-FIR de Sbragion) en el `PATH`, para la fase de corrección.
-- Las dependencias Python del toolkit: `pip install -r tools/python_pca4drc/requirements.txt`
-  (`numpy`, `scipy`, `soundfile`).
-- Un **micrófono de medición** con su previo, conectado a la entrada de la tarjeta
-  (`IN_MEAS`, por defecto `system:capture_1`).
-
-## Las cinco fases de la medición automática
-
-El script ejecuta cinco fases encadenadas. Cada una puede activarse o saltarse de
-forma independiente con su interruptor `DO_*` (ver más abajo).
-
-### Fase 0 — Generación del sweep (`sweepgen.py`)
-
-Genera el barrido logarítmico de excitación (`SWEEP`, por defecto `sweep_48k.wav`)
-y su filtro inverso (`INVERSE`, `inverse_48k.wav`), que luego se usa para
-deconvolucionar. Los parámetros del barrido se controlan con `SWEEP_RATE`
-(48000 Hz, **debe** coincidir con la captura), `SWEEP_LENGTH` (6 s), `SWEEP_HZSTART`
-/ `SWEEP_HZEND` (20–20000 Hz), `SWEEP_AMPLITUDE` (0.5), etc.
-
-Si ya se dispone de un par sweep/inversa, no es mecesario ejecutar esta fase, por lo que se puede parametrizar con `DO_SWEEP=0`.
-
-### Fase 1 — Medición (`ecasound`)
-
-Por cada vía y por cada posición de micrófono reproduce el sweep y graba la
-respuesta:
-
-1. Arranca **natambio** con la configuración correspondiente según `FULL_NATAMBIO`
-   (full/half) y `SUBWOOFER` (subwoofer/normal):
-   `{full,half}_natambio_measurements_{subwoofer,normal}.xml`. Su salida se
-   redirige a `NATAMBIO_LOG` (`/tmp/natambio_measure.log`) y se comprueba que
-   registra sus puertos JACK; si no, aborta.
-2. Imprime un **informe de configuración** (modo, vías a medir, enrutado real de
-   las salidas de natambio a las salidas físicas `system:playback_*`) y pide
-   **confirmación** antes de empezar.
-3. `ecasound` envía el sweep a la entrada de natambio (`natambio:front_input_left`,
-   …) y graba la captura del micrófono, con `GAIN_OUT` dB a la salida y `GAIN_IN`
-   dB a la entrada, durante `REC_SECONDS` (10 s).
-4. Tras cada captura, `check_capture.py` valida el WAV y avisa de **clipping**,
-   **nivel bajo** (`MIN_LEVEL`, −40 dBFS) o **SNR baja** (`MIN_SNR`, 20 dB). Si los
-   niveles no son válidos, no avanza: pide reajustar la ganancia del previo de
-   micrófono y repetir la medida (salvo en modo `AUTO=1`).
-
-Al terminar, natambio se detiene automáticamente.
-
-> Las medidas no deben tomarse en puntos coincidentes entre campañas, sino en
-> posiciones distintas dentro de la misma región de escucha (un área de radio
-> reducido alrededor del punto de escucha), manteniendo la sala en las mismas
-> condiciones.
-
-### Fase 2 — Impulsos (`fft_convolve.py`)
-
-Deconvoluciona cada sweep grabado con el sweep inverso para obtener la respuesta
-impulsiva de cada posición.
-
-### Fase 3 — PCA (`pca4drc.py`)
-
-Por cada vía, calcula la descomposición PCA del conjunto de impulsos y guarda las
-componentes en `i_<via>/pca4drc/` (`PCA_0.wav` = componente principal, `PCA_1.wav`,
-…), de longitud `OUTPUT_LEN` (131072 muestras). A continuación las convierte a
-`.raw` (float 32-bit LE) con `wav2raw.py` para alimentar a DRC. El parámetro
-`PCA_NORMALIZE` (por defecto `true`) normaliza las componentes al pico de la
-principal.
-
-### Fase 4 — DRC (`drc`)
-
-Por cada vía ejecuta `drc` con `config.drc` (junto al script), usando la
-componente principal `pca4drc/PCA_0.raw` como impulso de entrada. Genera los
-filtros de corrección `rps.raw` / `rms.raw` y los convierte a WAV con
-`raw2wav.py`. Activable con `DO_DRC` (1 por defecto); si una vía falla, avisa y
-continúa con las demás.
 
 ## Estructura de directorios generada
 
@@ -807,9 +730,11 @@ i_front_left/   i_front_right/   i_rear_left/   i_rear_right/    # impulsos (Fas
     └── rps.raw, rms.raw  (+ sus .wav)                          # filtros DRC (Fase 4)
 ```
 
+Los ficheros rps.wav y rms.wav de cada altavoz son los aplicables a NatAmbio. En [ejemplos de configuraciones de NatAmbio](config_samples/README.md) se puede localizar cómo incorporarlos.
+
 ## Uso y configuración
 
-Todas las variables tienen un valor por defecto, pero pueden **sobrescribirse al
+Por si en algún momento se quiere modificar algún comportamiento o variable concreta del script ``measure_pca4drc.sh`` que no se haya comentado hasta ahora en el documento, aquí se incluye la lista de posibilidades. Todas las variables tienen un valor por defecto, pero pueden **sobrescribirse al
 vuelo** anteponiéndolas a la llamada (sin editar el script):
 
 ```sh
@@ -846,7 +771,7 @@ Variables más habituales:
 | `AUTO` | `0` | `1` = sin pausas interactivas |
 
 La lista completa de variables está documentada en
-[`tools/python_pca4drc/README.md`](../tools/python_pca4drc/README.md). En los
+[`tools/python_pca4drc/README_es.md`](../tools/python_pca4drc/README_es.md). En los
 ejemplos de arriba se invoca `"$TOOLS_DIR/measure_pca4drc.sh"` dando por hecho que
 `TOOLS_DIR` se ha exportado apuntando al toolkit (p. ej.
 `export TOOLS_DIR=~/natambio/tools/python_pca4drc`); el script lee esa misma
