@@ -1,3 +1,9 @@
+/*
+ * Author: Raul Fernandez Ortega <natambio.audio@gmail.com>, 2022-2026
+ *
+ * Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
+ */
+
 /* Equal-loudness contour models and loudness-difference curve generator.
  * Plain-C port of ~/curvas_isofonicas/generate_isophonic.py (model tables and
  * the curve pipeline). Each model returns a contour normalised to 0 dB at

@@ -1,3 +1,7 @@
+# Author: Raul Fernandez Ortega <natambio.audio@gmail.com>, 2022-2026
+#
+# Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
+
 """
 pca4drc.py — PCA of impulse responses for DRC, standalone Python version.
 
