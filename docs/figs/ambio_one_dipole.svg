@@ -194,7 +194,7 @@
        rx="72.766747"
        ry="14.83255" />
     <ellipse
-       style="fill:none;stroke:#062332;stroke-width:0.58208333;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1.74625003,1.74625003;stroke-dashoffset:0"
+       style="fill:none;stroke:#062332;stroke-width:0.26458333;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:0.7937501,0.7937501;stroke-dashoffset:0"
        id="path1"
        cx="105.99014"
        cy="151.35265"
@@ -301,7 +301,7 @@
          ry="19.020565" />
     </g>
     <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.582083;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:1.74625, 1.74625;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.79375, 0.79375;stroke-dashoffset:0;stroke-opacity:1"
        d="m 121.52444,106.6195 -26.201744,3e-5"
        id="path8"
        inkscape:connector-type="polyline"
@@ -466,7 +466,7 @@
          x="178.56084"
          y="10.19628">Front</tspan></text>
     <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.582083;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:1.74625, 1.74625;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.79375, 0.79375;stroke-dashoffset:0;stroke-opacity:1"
        d="m 93.215732,114.24131 10.762128,23.93988"
        id="path6"
        inkscape:connector-type="polyline"
@@ -474,7 +474,7 @@
        inkscape:connection-start="#g4"
        inkscape:connection-end="#g1" />
     <path
-       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.582083;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:1.74625, 1.74625;stroke-dashoffset:0;stroke-opacity:1"
+       style="fill:none;fill-rule:evenodd;stroke:#000000;stroke-width:0.264583;stroke-linecap:butt;stroke-linejoin:miter;stroke-dasharray:0.79375, 0.79375;stroke-dashoffset:0;stroke-opacity:1"
        d="m 107.59874,138.20684 13.9257,-31.58734"
        id="path7"
        inkscape:connector-type="polyline"
