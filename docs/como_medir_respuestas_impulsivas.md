@@ -41,11 +41,11 @@ Los micrófonos omnidireccionales clásicos requieren de un previo que suele for
 ## Qué es un logsweep
 
 Los logsweeps son señales de medida ampliamente utilizadas en este tipo de procesos de obtención de impulsivas. Permiten obtener impulsos característicos de entornos acústicos con una excelente SNR. 
-Un logsweep es un barrido de frecuencias entre dos valores límite, superior e inferior, de modo creciente en frecuencia con un perfil de energía propio de ruido rosa (el nivel cae proporcionalmente con el aumento de la frecuencia). Es una señal ciertamente no muy agradable de escuchar, pero más suave que el ruido blanco.
+Un logsweep es un barrido senoidal cuya frecuencia aumenta progresivamente de forma logarítmica entre dos límites definidos. Esta distribución temporal hace que la energía quede repartida de forma especialmente adecuada para medidas acústicas de gran rango dinámico. Es una señal ciertamente no muy agradable de escuchar, pero más suave que el ruido blanco.
 
 Lo que los hace muy interesantes es que los logsweep tienen una "señal hermana" que recorre las frecuencias en modo inverso y con energía en proporción inversa. Y convolucionadas una con otra el resultado es una impulsiva perfecta de fase lineal acotada al rango de medida definido.
 
-Es la convolución de esta citada inversa con las medidas realizadas la que resulta en las impulsivas buscadas.
+Es la convolución de esta citada inversa con las medidas realizadas la que resulta en las impulsivas buscadas. Por lo tanto, medir con el log-sweep es el primer paso imprescindible, pero para obtener finalmente la impulsiva además hay que hacer la convolución de la medida con el filtro inverso.
 
 ## Antes de medir
  
@@ -111,6 +111,57 @@ Los puertos I/O del interfaz se presentan habitualmente en jackd con los siguien
 
 En el ejemplo de Focusrite Scarlett 6i6, las entradas para micrófono corresponden con ``system:capture_1`` y ``system:capture_2``.
 
+### NatAmbio en bypass y en modo subwoofer
+
+Una forma de estandarizar las medidas es disponiendo siempre de una sesión NatAmbio en ejecución. De esta forma no se lanza el log-sweep directamente sobre una salida del interfaz audio, sino sobre una entrada de NatAmbio. Para el caso de gestión de subwoofer desde NatAmbio, este paso es imprescindible, dado que la medida debe hacerse con el filtrado paso bajo y paso alto activo y enviado hacia monitores y subwoofer respectivamente.
+
+Dentro de la carpeta de herramientas de medidas pca4drc, hay una serie de ficheros de configuración XML para tomar medidas con NatAmbio en bypass/gestión subwoofer. 
+
+Hay **cuatro** ficheros de configuración, uno por cada sistema a medir, todos en
+[`tools/python_pca4drc/`](../tools/python_pca4drc/). El nombre sigue el patrón
+`{half,full}_natambio_measurements_{normal,subwoofer}.xml`: `half` = un dipolo
+(sólo front), `full` = dos dipolos (front + rear); `normal` = sin subwoofer,
+`subwoofer` = con subwoofer. El script elige el XML automáticamente según las
+variables `FULL_NATAMBIO` y `SUBWOOFER`:
+
+| Sistema a medir | Fichero XML (en `tools/python_pca4drc/`) | Variables de `measure_pca4drc.sh` | Salidas de natambio a conectar a la tarjeta |
+|---|---|---|---|
+| Un dipolo | `half_natambio_measurements_normal.xml` | `FULL_NATAMBIO=false` `SUBWOOFER=false` | `front_output_left`, `front_output_right` |
+| Un dipolo con subwoofer | `half_natambio_measurements_subwoofer.xml` | `FULL_NATAMBIO=false` `SUBWOOFER=true` | `high_pass_front_output_{left,right}` (altavoces front) + `low_pass_front_output_{left,right}` (subwoofer) |
+| Dos dipolos | `full_natambio_measurements_normal.xml` | `FULL_NATAMBIO=true` `SUBWOOFER=false` | `front_output_{left,right}` + `rear_output_{left,right}` |
+| Dos dipolos con subwoofer | `full_natambio_measurements_subwoofer.xml` | `FULL_NATAMBIO=true` `SUBWOOFER=true` | `high_pass_front_output_{left,right}` + `low_pass_front_output_{left,right}` + `rear_output_{left,right}` |
+
+> En las variantes **con subwoofer**, el dipolo *front* se reparte en una salida
+> **paso-alto** (a los altavoces front) y otra **paso-bajo** (al subwoofer); el
+> dipolo *rear* (en `full`) no se divide. 
+
+En cualquiera de los cuatro ficheros, hay que hacer un ajuste para enviar las señales de salida de NatAmbio a las salidas correctas del interfaz audio:
+asignar el `<destname>` de cada salida (`<jack_output>`) al puerto físico
+`system:playback_*` de la tarjeta al que está conectado ese altavoz. Por ejemplo,
+para `half_natambio_measurements_normal.xml` (un dipolo):
+
+```
+    <jack_output> 
+      <port>
+	<name>front_output_left</name>
+	<destname>system:playback_1</destname>
+      </port>
+      <port>
+	<name>front_output_right</name>
+	<destname>system:playback_2</destname>
+      </port>   
+    </jack_output>
+
+```
+Se trata de asignar los <destname> de los canales <front_output_left> y <front_output_right> para que los barridos tonales se escuchen por el altavoz que corresponda.
+
+La ejecución de natambio es directa, con jackd ya activo:
+
+```
+natambio [--quiet] <config.xml>
+```
+El parametro --quiet desactiva los mensajes de salida.
+
 ### Generar el sweep de medida
 
 La señal de excitación es un **barrido senoidal logarítmico** (log-sweep). Para
@@ -166,8 +217,6 @@ python sweepgen.py sweep.xml -s sweep_48k.wav -i inverse_48k.wav
 Para tomar las medidas manualmente en GNU/Linux un comando muy útil y flexible es
 `ecasound`. 
 
-
-
 La idea es lanzar a la vez dos cadenas de audio dentro de la misma ejecución
 de `ecasound`:
 
@@ -207,18 +256,105 @@ El `jack_auto` es lo que hace la **autoconexión**: `ecasound` crea su puerto JA
 lo conecta automáticamente al puerto indicado (la entrada de natambio en la
 reproducción, la captura del micrófono en la grabación).
 
+El parámetro ``-ev`` se incluye para que ecasound genere una tabla de niveles medidos de forma que se pueda analizar y si el pico y el promedio de la señal están muy bajo o muy cerca de saturación.
+
 Para medir **otra vía** basta con cambiar el puerto de salida (p. ej.
 `natambio:front_input_right`) y el nombre del WAV. Y para medir **sin pasar por
 natambio** (directamente a un altavoz de la tarjeta), se sustituye la salida por
 el puerto físico correspondiente, p. ej. `-o:jack_auto,system:playback_1`.
 
 Esta captura es todavía el *sweep grabado*: para obtener la **respuesta impulsiva**
-hay que deconvolucionarla con el sweep inverso, que es justo lo que hace
+hay que deconvolucionarla con el sweep inverso, que es justo lo que hace el script
 `fft_convolve.py` (Fase 2 del flujo automatizado):
 
 ```sh
 python fft_convolve.py left_sweep_1.wav inverse_48k.wav front_left_impulse_1.wav
 ```
+
+### ¿Es correcta la medida?
+
+Existen una serie de comprobaciones básicas para asegurar que la medida tomada es correcta y garantiza la obtención de una impulsiva correcta:
+
+1. Por los altavoces debe sonar el log-sweep a un nivel razonablemente alto, quizás un poco por encima del habitual que tienen cuando se escucha música. Pero sin necesidad de llegar a resultar muy molesto.
+2. En los valores del análsis de ecasound de -ev,m conviene tener un headroom de 10 dB, con lo que **[Pendiente de obtener un ejemplo de output]**
+
+El script herramienta de pca4drc ``check_capture.py`` permite hacer la comprobación de los niveles correctos a partir del propio análisis del wav de la medida, antes de convertirlo a impulsiva. Este análisis incluye la comprobación de que no haya habido clipping de nivel y que la SNR sea suficiente (típicamente 20 dB).
+
+### Tabla de scripts y comandos básicos para medir manualmente
+
+Resumen de las herramientas que intervienen en una medida manual, en el orden en
+que se usan. Los scripts `sweepgen.py` y `fft_convolve.py` forman parte del
+toolkit [`tools/python_pca4drc/`](../tools/python_pca4drc/README.md); `ecasound`
+es una herramienta externa del sistema.
+
+| Paso | Herramienta | Pertenece a | Qué hace | Ejemplo |
+|---|---|---|---|---|
+| 1. Generar el sweep | `sweepgen.py` | `tools/python_pca4drc/` | Genera el log-sweep de excitación y su filtro inverso a partir del XML `<generate_sweep>` | `python sweepgen.py sweep.xml -s sweep_48k.wav -i inverse_48k.wav` |
+| 2. Medir (reproducir y grabar) | `ecasound` | externo (sistema) | Reproduce el sweep por una vía y graba la respuesta del micrófono en un WAV | `ecasound -t:10 -a:1 -i sweep_48k.wav -a:1 -o:jack_auto,natambio:front_input_left -a:1 -eadb:0 -a:2 -i:jack_auto,system:capture_1 -a:2 -f:f32_le,1,48000 -o:left_sweep_1.wav -a:2 -eadb:10 -ev` |
+| 2b. Validar la captura (opcional) | `check_capture.py` | `tools/python_pca4drc/` | Analiza el WAV grabado y avisa de clipping, nivel bajo o SNR baja antes de seguir | `python check_capture.py left_sweep_1.wav "front left"` |
+| 3. Obtener la impulsiva | `fft_convolve.py` | `tools/python_pca4drc/` | Deconvoluciona el sweep grabado con la inversa para obtener la respuesta impulsiva | `python fft_convolve.py left_sweep_1.wav inverse_48k.wav front_left_impulse_1.wav` |
+
+#### Uso de `check_capture.py`
+
+Tras cada grabación conviene comprobar que los niveles son correctos **antes** de
+procesarla para obtener la impulsiva, o de mover el micrófono si estamos en un proceso de medida multipunto. Eso es lo que hace `check_capture.py`: lee
+el WAV capturado y avisa de tres problemas habituales.
+
+```sh
+python check_capture.py <wav> [etiqueta] [--min-level -40] [--min-snr 20]
+```
+
+- `<wav>`: el fichero de la captura a analizar (p. ej. `left_sweep_1.wav`).
+- `[etiqueta]` (opcional): texto para identificar la captura en el mensaje (p. ej.
+  `"front left"`).
+- `--min-level` (por defecto `-40` dBFS): umbral por debajo del cual avisa de
+  **nivel bajo**.
+- `--min-snr` (por defecto `20` dB): umbral por debajo del cual avisa de **SNR
+  baja**.
+
+Qué comprueba:
+
+- **Clipping**: si el pico llega a ~0 dBFS (≥ 0.999). Hay que **bajar** la ganancia.
+- **Nivel bajo**: si el pico queda por debajo de `--min-level`. Hay que **subir** la
+  ganancia (del previo de micrófono y/o `GAIN_IN`).
+- **SNR baja**: relación señal/ruido por debajo de `--min-snr`. La estima
+  comparando el RMS de toda la captura con el del **silencio inicial** (los
+  primeros 50 ms, antes de que llegue el sweep); por eso es importante dejar el
+  `<silence>` inicial al generar el sweep. Una SNR baja suele indicar demasiado
+  ruido de fondo o nivel de sweep insuficiente.
+
+El resultado se imprime en una línea, por ejemplo:
+
+```
+    [front left] pico -6.2 dBFS, SNR~48 dB -> OK
+    [front left] pico -0.0 dBFS, SNR~45 dB -> *** AVISO: CLIPPING (pico -0.01 dBFS) ***
+```
+
+Además devuelve un **código de salida** útil para automatizar: `0` si la captura
+es válida y `1` si hay algún aviso (o el WAV no se puede leer / está vacío), de
+modo que `measure_pca4drc.sh` lo usa para no avanzar y pedir repetir la medida.
+Por ejemplo, en un script propio:
+
+```sh
+if python check_capture.py left_sweep_1.wav "front left"; then
+    echo "Captura válida; continúo con la deconvolución."
+else
+    echo "Niveles incorrectos: reajusta la ganancia y repite la medida."
+fi
+```
+
+## Proceso manual vs proceso por script
+
+Una vez descrito un paso de medida, el proceso consiste en medir para diferentes altavoces y, si estamos midiendo en multipunto, para diferentes posiciones del micrófono. Esto requiere un orden mental con los nombres de los ficheros WAV identificables y/o organizados por carpetas para cada altavoz.
+
+Seguir este orden es más sencillo si se utiliza un script herramienta que se proporciona en tools/pca4drc llamado ``measure_pca4drc.py``.
+
+A continuación se explica la aplicación del citado script en cada posible sistema NatAmbio:
+
+1. Un solo dipolo sin subwoofer.
+2. Un dipolo con subwoofer.
+3. Dos dipolos sin subwoofer.
+4. Dos dipolos con subwoofer.
 
 ## Caso de un solo dipolo, sin subwoofer, una única medida por canal
 
@@ -229,22 +365,7 @@ En el caso más simple, un sistema estéreo básico, que se quiere convertir en 
 
 ### Preparar la configuración de NatAmbio en modo bypass
 
-Dentro de la carpeta de herramientas de medidas pca4drc, hay una serie de ficheros de configuración XML para tomar medidas con NatAmbio en bypass. De arrancar y detener NatAmbio se encarga el propio script measure_pca4drc.sh, pero hay que configurar las salidas de la interfaz audio que están conectadas a los altavoces derecho e izquierdo en el fichero half_natambio_measurements_normal.xml
 
-```
-    <jack_output> 
-      <port>
-	<name>front_output_left</name>
-	<destname>system:playback_1</destname>
-      </port>
-      <port>
-	<name>front_output_right</name>
-	<destname>system:playback_2</destname>
-      </port>   
-    </jack_output>
-
-```
-Se trata de asignar los <destname> de los canales <front_output_left> y <front_output_right> para que los barridos tonales se escuchen por el altavoz que corresponda.
 
 ### Elegir la entrada de micrófono
 
