@@ -16,6 +16,7 @@
 /src/natambio
 /src/out
 /tools/xtc_filters/xtc_filters
+/tools/xtc_filters/natambio-xtc-filters
 /tools/ladspa_nae_natambio/ladspa_nae_natambio.so
 
 # ---- Editor backups / IDE / logs ----

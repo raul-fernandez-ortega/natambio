@@ -2,9 +2,10 @@
 # NatAmbio Debian packaging.
 #
 # The autotools build (SUBDIRS = lib src tools/xtc_filters
-# tools/ladspa_nae_natambio) builds the JACK client, the xtc_filters generator
-# (noinst) and the LADSPA plugin. Everything is staged into debian/tmp and split
-# into the binary packages via the *.install files.
+# tools/ladspa_nae_natambio ...) builds the JACK client, the natambio-xtc-filters
+# generator, the LADSPA plugin and installs the Python toolkits. Everything is
+# staged into debian/tmp and split into the binary packages via the *.install
+# files.
 
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
@@ -18,8 +19,9 @@ BINDIR := $(TMP)/usr/bin
 
 override_dh_auto_install:
 	dh_auto_install
-	# --- C tools -> namespaced commands in /usr/bin (natambio-tools) ---
-	install -D -m0755 tools/xtc_filters/xtc_filters    $(BINDIR)/natambio-xtc-filters
+	# natambio-xtc-filters (C tool) is now installed by dh_auto_install via
+	# tools/xtc_filters/Makefile.am (bin_PROGRAMS), staged into debian/tmp and
+	# split into natambio-tools by debian/natambio-tools.install.
 	# --- LADSPA plugin -> multiarch ladspa dir (natambio-ladspa) ---
 	install -D -m0644 tools/ladspa_nae_natambio/ladspa_nae_natambio.so \
 	    $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/ladspa/ladspa_nae_natambio.so
