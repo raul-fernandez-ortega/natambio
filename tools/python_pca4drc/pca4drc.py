@@ -5,8 +5,7 @@
 """
 pca4drc.py — PCA of impulse responses for DRC, standalone Python version.
 
-Reimplementation of `~/pyDRC-3.2.3/pca.py` that does NOT depend on the pyDRC
-library and generates NO graphical analysis. It only performs the processing
+NO graphical analysis. It only performs the processing
 and saves the resulting PCA components in WAV format.
 
 Algorithm:

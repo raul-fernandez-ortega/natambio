@@ -5,9 +5,8 @@
  */
 
 /* Equal-loudness contour models and loudness-difference curve generator.
- * Plain-C port of ~/curvas_isofonicas/generate_isophonic.py (model tables and
- * the curve pipeline). Each model returns a contour normalised to 0 dB at
- * 1 kHz; loudness_diff_curve() subtracts a reference contour from a target one,
+ * Each model returns a contour normalised to 0 dB at 1 kHz; 
+ * loudness_diff_curve() subtracts a reference contour from a target one,
  * which NaConf::build_loudness_coeffs() then turns into a minimum-phase FIR via
  * firwin2() + minimum_phase() (dsp.c). */
 

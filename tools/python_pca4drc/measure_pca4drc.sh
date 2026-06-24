@@ -5,7 +5,7 @@
 #  Measurement + impulse extraction + PCA template for the panambio system
 #  of four loudspeakers (JACK + Echo AudioFire 4 card).
 #
-#  Derived from ~/Measurements/panambio_subwoofer_02/ecasound_script.sh, with:
+#  Derived from an old private ecasound_script.sh, with:
 #    - Generation of the sweep and its inverse with sweepgen.py (GlSweep from
 #      pyDRC in pure Python) as the first step (Phase 0).
 #    - Automatic start of natambio before measuring, with the appropriate

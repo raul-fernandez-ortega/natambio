@@ -5,11 +5,6 @@
 """
 sweepgen.py — log-sweep and inverse generation, standalone Python version.
 
-Reimplementation of `~/pyDRC-3.2.3/tools/sweepgen.py`, which delegates the
-computation to the C++ function `GlSweep` in `~/pyDRC-3.2.3/baselib_stl.cpp`.
-Here the same algorithm is reproduced in pure Python (numpy + soundfile),
-WITHOUT depending on the pyDRC library.
-
 Generates a logarithmic frequency sweep (exponential) with Blackman lead-in /
 lead-out windows and silence at the start and end, and its inverse filter (the
 time-reversed sweep with an exponential decay, normalised) so that its
