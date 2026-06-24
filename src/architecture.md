@@ -223,8 +223,8 @@ for each block:
 - converts it to minimum phase with `minimum_phase()` (the applied filter), and
 - wraps it in a `coeff` via `make_mem_coeff()` and appends it to `coefslist`.
 
-`loudness.c` (ISO 226:2003/2023, Fletcher-Munson 1933, A/B/C weighting). 
-Like the others, it runs **before**
+`loudness.c` implements the equal-loudness models (ISO 226:2003/2023,
+Fletcher-Munson 1933, A/B/C weighting). Like the others, it runs **before**
 `build_convol_coeffs()`, so a derived coeff may convolve the loudness filter
 through `<convol_coeff>`.
 
