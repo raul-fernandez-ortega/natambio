@@ -48,26 +48,26 @@ def raw_to_wav(raw_path, samplerate):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convierte raw float 32-bit LE (formato DRC) a WAV. "
-                    "Inversa de wav2raw.py.")
+        description="Convert raw float 32-bit LE (DRC format) to WAV. "
+                    "Inverse of wav2raw.py.")
     parser.add_argument("inputs", nargs="+",
-                        help="raw(s) a convertir; por cada uno se crea <nombre>.wav.")
+                        help="raw(s) to convert; <name>.wav is created for each.")
     parser.add_argument("--rate", "-r", type=int, default=48000,
                         metavar="Hz",
-                        help="Frecuencia de muestreo de los WAV generados "
-                             "(el raw no la lleva). Por defecto: 48000")
+                        help="Sample rate of the generated WAVs "
+                             "(the raw does not carry it). Default: 48000")
     parsed = parser.parse_args()
 
     if parsed.rate <= 0:
-        raise SystemExit("--rate debe ser un entero positivo.")
+        raise SystemExit("--rate must be a positive integer.")
 
     for raw_path in parsed.inputs:
         if not os.path.isfile(raw_path):
-            print(f"AVISO: '{raw_path}' no existe; se omite.", file=sys.stderr)
+            print(f"WARNING: '{raw_path}' does not exist; skipping.", file=sys.stderr)
             continue
         wav_path, n = raw_to_wav(raw_path, parsed.rate)
         print(f"    {os.path.basename(raw_path)} -> {os.path.basename(wav_path)} "
-              f"({n} muestras, {parsed.rate} Hz, float)")
+              f"({n} samples, {parsed.rate} Hz, float)")
 
 
 if __name__ == "__main__":

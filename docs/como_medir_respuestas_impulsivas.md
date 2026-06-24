@@ -1,5 +1,7 @@
 # Cómo medir respuestas impulsivas para DRC con NatAmbio
 
+*También disponible en: [English](how_to_measure_impulse_responses.md)*
+
 Para aplicar ecualización por convolución de filtros FIR, lo que se conoce como Digital Room Correction (DRC), se requiere de unas medidas impulsivas de la respuesta de la sala a cada altavoz a ecualizar. Esto es independiente del convolver finalmente aplicado, sea NatAmbio o cualquier otro, y del proceso de obtención del filtro FIR DRC (en mi caso siempre uso [DRC-FIR](http://drc-fir.sourceforge.net)).
 
 Por otro lado, junto con NatAmbio, se presenta una [propuesta de medida de impulsivas de sala basada en tomar numerosas tomas en diferentes puntos de una zona de escucha y, mediante aplicación de PCA](pca4drc/pca4drc_es.md), caracterizar las medidas a una única impulsiva que será el objetivo a invertir.
@@ -325,8 +327,8 @@ Qué comprueba:
 El resultado se imprime en una línea, por ejemplo:
 
 ```
-    [front left] pico -6.2 dBFS, SNR~48 dB -> OK
-    [front left] pico -0.0 dBFS, SNR~45 dB -> *** AVISO: CLIPPING (pico -0.01 dBFS) ***
+    [front left] peak -6.2 dBFS, SNR~48 dB -> OK
+    [front left] peak -0.0 dBFS, SNR~45 dB -> *** WARNING: CLIPPING (peak -0.01 dBFS) ***
 ```
 
 Además devuelve un **código de salida** útil para automatizar: `0` si la captura

@@ -2,52 +2,55 @@
 # =============================================================================
 #  measure_pca4drc.sh
 #
-#  Plantilla de medición + extracción de impulsos + PCA para el sistema panambio
-#  de cuatro altavoces (JACK + tarjeta Echo AudioFire 4).
+#  Measurement + impulse extraction + PCA template for the panambio system
+#  of four loudspeakers (JACK + Echo AudioFire 4 card).
 #
-#  Derivado de ~/Measurements/panambio_subwoofer_02/ecasound_script.sh, con:
-#    - Generación del sweep e inversa con sweepgen.py (GlSweep de pyDRC en Python
-#      puro) como primer paso (Fase 0).
-#    - Arranque automático de natambio antes de medir, con la configuración
-#      adecuada según FULL_NATAMBIO (full/half) y SUBWOOFER (subwoofer/normal);
-#      su stdout/stderr se derivan a NATAMBIO_LOG (/tmp) y se comprueba que
-#      arranca y registra sus puertos JACK. ecasound envía el sweep a esos
-#      puertos de entrada (OUT_PORTS).
-#    - Las cuatro vías (front L/R, rear L/R) descritas en arrays y recorridas en
-#      bucle, en vez de cuatro bloques casi idénticos copiados a mano.
-#    - Extracción de impulsos con fft_convolve.py (scipy, sin pyDRC) en lugar de
+#  Derived from ~/Measurements/panambio_subwoofer_02/ecasound_script.sh, with:
+#    - Generation of the sweep and its inverse with sweepgen.py (GlSweep from
+#      pyDRC in pure Python) as the first step (Phase 0).
+#    - Automatic start of natambio before measuring, with the appropriate
+#      configuration according to FULL_NATAMBIO (full/half) and SUBWOOFER
+#      (subwoofer/normal); its stdout/stderr are redirected to NATAMBIO_LOG
+#      (/tmp) and it is checked that it starts and registers its JACK ports.
+#      ecasound sends the sweep to those input ports (OUT_PORTS).
+#    - The four ways (front L/R, rear L/R) described in arrays and traversed in
+#      a loop, instead of four nearly identical blocks copied by hand.
+#    - Impulse extraction with fft_convolve.py (scipy, no pyDRC) instead of
 #      lsconv.py / pyDRC.LsConv.
-#    - Un paso de PCA con pca4drc.py (cuando hay 2 o más medidas): por cada vía
-#      genera i_<via>/pca4drc/ con los WAV de las componentes PCA y sus .raw. Con
-#      una sola medida (NUM_POS=1) NO se aplica PCA: se usa el impulso medido.
-#    - Un paso final de corrección con drc (Sbragion) por vía, usando config.drc
-#      y, como entrada, la componente principal PCA_0.raw (>=2 medidas) o el
-#      impulso medido directamente (1 medida); convierte las salidas a WAV.
-#    - Fases activables por separado (DO_SWEEP / DO_MEASURE / DO_IMPULSES /
-#      DO_PCA / DO_DRC) para poder re-procesar sin volver a medir.
-#    - Modo no interactivo (AUTO=1) y parada segura ante errores (set -euo).
+#    - A PCA step with pca4drc.py (when there are 2 or more measurements): for
+#      each way it generates i_<way>/pca4drc/ with the WAVs of the PCA
+#      components and their .raw. With a single measurement (NUM_POS=1) PCA is
+#      NOT applied: the measured impulse is used.
+#    - A final correction step with drc (Sbragion) per way, using config.drc
+#      and, as input, the principal PCA component PCA_0.raw (>=2 measurements)
+#      or the directly measured impulse (1 measurement); it converts the
+#      outputs to WAV.
+#    - Separately enableable phases (DO_SWEEP / DO_MEASURE / DO_IMPULSES /
+#      DO_PCA / DO_DRC) to allow re-processing without measuring again.
+#    - Non-interactive mode (AUTO=1) and safe stop on errors (set -euo).
 #
-#  Uso:
-#      ./measure_pca4drc.sh                 # las cinco fases, interactivo
-#      CALIBRATE=1 ./measure_pca4drc.sh     # sólo ajustar ganancias GAIN_OUT/GAIN_IN
-#      SELECT_INPUT=1 ./measure_pca4drc.sh  # elegir la toma de micrófono (IN_MEAS) por menú
-#      AUTO=1 ./measure_pca4drc.sh          # sin pausas (read)
-#      SUBWOOFER=true ./measure_pca4drc.sh  # arrancar natambio con config subwoofer
-#      DO_SWEEP=0 ./measure_pca4drc.sh      # usar un sweep/inversa ya existentes
-#      DO_MEASURE=0 ./measure_pca4drc.sh    # saltar medición (re-procesar)
-#      DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh   # sólo PCA (+ DRC)
-#      DO_DRC=0 ./measure_pca4drc.sh        # todo menos la corrección DRC
+#  Usage:
+#      ./measure_pca4drc.sh                 # the five phases, interactive
+#      CALIBRATE=1 ./measure_pca4drc.sh     # only adjust GAIN_OUT/GAIN_IN gains
+#      SELECT_INPUT=1 ./measure_pca4drc.sh  # choose the microphone input (IN_MEAS) via menu
+#      AUTO=1 ./measure_pca4drc.sh          # no pauses (read)
+#      SUBWOOFER=true ./measure_pca4drc.sh  # start natambio with subwoofer config
+#      DO_SWEEP=0 ./measure_pca4drc.sh      # use an already existing sweep/inverse
+#      DO_MEASURE=0 ./measure_pca4drc.sh    # skip measurement (re-process)
+#      DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh   # only PCA (+ DRC)
+#      DO_DRC=0 ./measure_pca4drc.sh        # everything except the DRC correction
 #      OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh
 #
-#  Requiere: ecasound + servidor JACK en marcha, el ejecutable natambio, el
-#  binario drc (Sbragion) con su config.drc, python3 con numpy/scipy/soundfile, y
-#  los scripts sweepgen.py, fft_convolve.py, pca4drc.py, wav2raw.py y raw2wav.py
-#  (junto a este .sh por defecto; si no, exporta TOOLS_DIR apuntando a ellos).
+#  Requires: ecasound + a running JACK server, the natambio executable, the
+#  drc (Sbragion) binary with its config.drc, python3 with numpy/scipy/soundfile,
+#  and the scripts sweepgen.py, fft_convolve.py, pca4drc.py, wav2raw.py and
+#  raw2wav.py (next to this .sh by default; otherwise, export TOOLS_DIR pointing
+#  to them).
 # =============================================================================
 
 set -euo pipefail
 
-# --- Localización de los scripts python (por defecto, junto a este .sh) -------
+# --- Location of the python scripts (by default, next to this .sh) ------------
 TOOLS_DIR="${TOOLS_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 SWEEPGEN="$TOOLS_DIR/sweepgen.py"
 FFT_CONVOLVE="$TOOLS_DIR/fft_convolve.py"
@@ -57,84 +60,86 @@ WAV2RAW="$TOOLS_DIR/wav2raw.py"
 RAW2WAV="$TOOLS_DIR/raw2wav.py"
 
 # =============================================================================
-# --- Parámetros de generación del sweep (sweepgen.py / GlSweep) ---------------
-# Bloque independiente: define el log-sweep de excitación y su inversa que se
-# generan en la Fase 0. Deben ser coherentes con la medición (SWEEP_RATE debe
-# coincidir con la frecuencia de muestreo de captura, 48000 Hz).
+# --- Sweep generation parameters (sweepgen.py / GlSweep) ----------------------
+# Independent block: defines the excitation log-sweep and its inverse that are
+# generated in Phase 0. They must be consistent with the measurement (SWEEP_RATE
+# must match the capture sample rate, 48000 Hz).
 # =============================================================================
-SWEEP_RATE=${SWEEP_RATE:-48000}     # frecuencia de muestreo del sweep (Hz)
-SWEEP_AMPLITUDE=${SWEEP_AMPLITUDE:-0.5}   # amplitud (pico) del sweep
-SWEEP_HZSTART=${SWEEP_HZSTART:-20}        # frecuencia inicial (Hz)
-SWEEP_HZEND=${SWEEP_HZEND:-20000}         # frecuencia final (Hz)
-SWEEP_LENGTH=${SWEEP_LENGTH:-6}     # duración del barrido (s)
-SWEEP_SILENCE=${SWEEP_SILENCE:-1}   # silencio al inicio y al final (s)
-SWEEP_LEADIN=${SWEEP_LEADIN:-0.05}  # fracción del barrido con ventana de entrada
-SWEEP_LEADOUT=${SWEEP_LEADOUT:-0.005} # fracción del barrido con ventana de salida
+SWEEP_RATE=${SWEEP_RATE:-48000}     # sweep sample rate (Hz)
+SWEEP_AMPLITUDE=${SWEEP_AMPLITUDE:-0.5}   # sweep amplitude (peak)
+SWEEP_HZSTART=${SWEEP_HZSTART:-20}        # start frequency (Hz)
+SWEEP_HZEND=${SWEEP_HZEND:-20000}         # end frequency (Hz)
+SWEEP_LENGTH=${SWEEP_LENGTH:-6}     # sweep duration (s)
+SWEEP_SILENCE=${SWEEP_SILENCE:-1}   # silence at the start and end (s)
+SWEEP_LEADIN=${SWEEP_LEADIN:-0.05}  # fraction of the sweep with a fade-in window
+SWEEP_LEADOUT=${SWEEP_LEADOUT:-0.005} # fraction of the sweep with a fade-out window
 # =============================================================================
 
-# --- Parámetros de medición ---------------------------------------------------
-NUM_POS=${NUM_POS:-16}              # número de posiciones de micrófono
-SWEEP=${SWEEP:-sweep_48k.wav}       # sweep de excitación (se genera en la Fase 0)
-INVERSE=${INVERSE:-inverse_48k.wav} # sweep inverso, para deconvolución (Fase 0)
+# --- Measurement parameters ---------------------------------------------------
+NUM_POS=${NUM_POS:-16}              # number of microphone positions
+SWEEP=${SWEEP:-sweep_48k.wav}       # excitation sweep (generated in Phase 0)
+INVERSE=${INVERSE:-inverse_48k.wav} # inverse sweep, for deconvolution (Phase 0)
 IN_MEAS=${IN_MEAS:-system:capture_1}
-GAIN_OUT=${GAIN_OUT:-0.0}           # dB a la salida (reproducción)
-GAIN_IN=${GAIN_IN:-10.0}            # dB a la entrada (captura)
-REC_SECONDS=${REC_SECONDS:-10}      # duración de cada captura
+GAIN_OUT=${GAIN_OUT:-0.0}           # dB at the output (playback)
+GAIN_IN=${GAIN_IN:-10.0}            # dB at the input (capture)
+REC_SECONDS=${REC_SECONDS:-10}      # duration of each capture
 
-# --- Parámetros de análisis de captura (check_capture.py) ---------------------
-MIN_LEVEL=${MIN_LEVEL:--40}         # dBFS por debajo del cual se avisa "nivel bajo"
-MIN_SNR=${MIN_SNR:-20}              # dB por debajo del cual se avisa "SNR baja"
+# --- Capture analysis parameters (check_capture.py) ---------------------------
+MIN_LEVEL=${MIN_LEVEL:--40}         # dBFS below which "low level" is warned
+MIN_SNR=${MIN_SNR:-20}              # dB below which "low SNR" is warned
 
-# --- Parámetros de PCA --------------------------------------------------------
-OUTPUT_LEN=${OUTPUT_LEN:-131072}    # longitud de los WAV de las componentes PCA
+# --- PCA parameters -----------------------------------------------------------
+OUTPUT_LEN=${OUTPUT_LEN:-131072}    # length of the PCA component WAVs
 PCA_NORMALIZE=${PCA_NORMALIZE:-true}
 
 # =============================================================================
-# --- Parámetros de DRC (Fase 4: corrección con drc estándar de Sbragion) ------
-# Por cada vía se ejecuta drc con DRC_CONFIG (config.drc junto a este script).
-# Se sobrescribe --BCBaseDir con la carpeta de impulsos de la vía (igual nivel
-# que el p_left/ original, para que las rutas relativas del config, p.ej.
-# PSPointsobjetivo '../target/...', sigan resolviendo) y --BCInFile con la
-# componente principal pca4drc/PCA_0.raw. Al terminar, las salidas DRC_PS_OUT y
-# DRC_MS_OUT (definidas en el config como PSOutFile/MSOutFile) se convierten a
-# WAV con raw2wav.py.
+# --- DRC parameters (Phase 4: correction with the standard drc by Sbragion) ---
+# For each way drc is run with DRC_CONFIG (config.drc next to this script).
+# --BCBaseDir is overridden with the way's impulse folder (same level as the
+# original p_left/, so the relative paths of the config, e.g.
+# PSPointsobjetivo '../target/...', keep resolving) and --BCInFile with the
+# principal component pca4drc/PCA_0.raw. When finished, the outputs DRC_PS_OUT
+# and DRC_MS_OUT (defined in the config as PSOutFile/MSOutFile) are converted to
+# WAV with raw2wav.py.
 # =============================================================================
-DRC_BIN=${DRC_BIN:-drc}                       # binario DRC estándar
+DRC_BIN=${DRC_BIN:-drc}                       # standard DRC binary
 DRC_CONFIG=${DRC_CONFIG:-"$TOOLS_DIR/config.drc"}
-DRC_PS_OUT=${DRC_PS_OUT:-rps.raw}             # = PSOutFile del config
-DRC_MS_OUT=${DRC_MS_OUT:-rms.raw}             # = MSOutFile del config
+DRC_PS_OUT=${DRC_PS_OUT:-rps.raw}             # = PSOutFile from the config
+DRC_MS_OUT=${DRC_MS_OUT:-rms.raw}             # = MSOutFile from the config
 # =============================================================================
 
-# --- Configuración del sistema ------------------------------------------------
-# true  -> NatAmbio completo: 4 altavoces (front L/R + rear L/R).
-# false -> sólo 2 altavoces (front L/R).
+# --- System configuration -----------------------------------------------------
+# true  -> full NatAmbio: 4 loudspeakers (front L/R + rear L/R).
+# false -> only 2 loudspeakers (front L/R).
 FULL_NATAMBIO=${FULL_NATAMBIO:-true}
-# true  -> sistema con subwoofer; false -> sistema normal. Selecciona el XML de
-# configuración con el que se arranca natambio antes de medir.
+# true  -> system with subwoofer; false -> normal system. Selects the XML
+# configuration with which natambio is started before measuring.
 SUBWOOFER=${SUBWOOFER:-false}
 
-# --- Lanzamiento de natambio (cliente JACK a medir) ---------------------------
-# Antes de medir se arranca natambio con la configuración adecuada según
-# FULL_NATAMBIO (full/half) y SUBWOOFER (subwoofer/normal). natambio expone los
-# puertos de entrada a los que ecasound envía el sweep (ver OUT_PORTS).
+# --- Launching natambio (the JACK client to measure) --------------------------
+# Before measuring, natambio is started with the appropriate configuration
+# according to FULL_NATAMBIO (full/half) and SUBWOOFER (subwoofer/normal).
+# natambio exposes the input ports to which ecasound sends the sweep (see
+# OUT_PORTS).
 NATAMBIO_BIN=${NATAMBIO_BIN:-natambio}
-NATAMBIO_LOG=${NATAMBIO_LOG:-/tmp/natambio_measure.log}  # stdout/stderr de natambio
+NATAMBIO_LOG=${NATAMBIO_LOG:-/tmp/natambio_measure.log}  # stdout/stderr of natambio
 if [ "$FULL_NATAMBIO" = "true" ]; then NAT_PREFIX=full; else NAT_PREFIX=half; fi
 if [ "$SUBWOOFER" = "true" ]; then NAT_VARIANT=subwoofer; else NAT_VARIANT=normal; fi
 NATAMBIO_CONFIG=${NATAMBIO_CONFIG:-"$TOOLS_DIR/${NAT_PREFIX}_natambio_measurements_${NAT_VARIANT}.xml"}
 
-# --- Fases activables ---------------------------------------------------------
-DO_SWEEP=${DO_SWEEP:-1}            # Fase 0: generar sweep e inversa
+# --- Enableable phases --------------------------------------------------------
+DO_SWEEP=${DO_SWEEP:-1}            # Phase 0: generate sweep and inverse
 DO_MEASURE=${DO_MEASURE:-1}
 DO_IMPULSES=${DO_IMPULSES:-1}
 DO_PCA=${DO_PCA:-1}
-DO_DRC=${DO_DRC:-1}               # Fase 4: corrección con drc (Sbragion)
-AUTO=${AUTO:-0}                     # 1 = sin pausas interactivas
-CALIBRATE=${CALIBRATE:-0}           # 1 = sólo calibrar ganancias (GAIN_OUT/GAIN_IN)
-SELECT_INPUT=${SELECT_INPUT:-0}     # 1 = elegir IN_MEAS (toma de micrófono) por menú antes de medir
+DO_DRC=${DO_DRC:-1}               # Phase 4: correction with drc (Sbragion)
+AUTO=${AUTO:-0}                     # 1 = no interactive pauses
+CALIBRATE=${CALIBRATE:-0}           # 1 = only calibrate gains (GAIN_OUT/GAIN_IN)
+SELECT_INPUT=${SELECT_INPUT:-0}     # 1 = choose IN_MEAS (microphone input) via menu before measuring
 
-# En modo calibración sólo se reproduce/graba para ajustar niveles: se desactivan
-# las fases de impulsos/PCA/DRC para no exigir sus dependencias (drc, etc.).
+# In calibration mode only playback/recording is done to adjust levels: the
+# impulse/PCA/DRC phases are disabled so as not to require their dependencies
+# (drc, etc.).
 if [ "$CALIBRATE" = "1" ]; then
     DO_MEASURE=1
     DO_IMPULSES=0
@@ -142,10 +147,10 @@ if [ "$CALIBRATE" = "1" ]; then
     DO_DRC=0
 fi
 
-# --- Definición de las vías (arrays paralelos) --------------------------------
-# Se definen las cuatro vías; con FULL_NATAMBIO=false sólo se usan las dos
-# primeras (front L/R) recortando NUM_WAYS más abajo.
-#   etiqueta            puerto de entrada JACK de natambio   dir. medidas   dir. impulsos   sweep        prefijo impulso
+# --- Definition of the ways (parallel arrays) ---------------------------------
+# The four ways are defined; with FULL_NATAMBIO=false only the first two
+# (front L/R) are used by trimming NUM_WAYS below.
+#   label               natambio JACK input port             meas dir       impulse dir     sweep        impulse prefix
 LABELS=(    "front left"  "front right"  "rear left"   "rear right" )
 OUT_PORTS=( "natambio:front_input_left" "natambio:front_input_right" \
             "natambio:rear_input_left"  "natambio:rear_input_right" )
@@ -154,7 +159,7 @@ IMP_DIRS=(  "i_front_left"      "i_front_right"      "i_rear_left"  "i_rear_righ
 SWEEP_PRE=( "left_sweep"  "right_sweep"  "left_sweep"  "right_sweep" )
 IMP_PRE=(   "front_left_impulse" "front_right_impulse" "rear_left_impulse" "rear_right_impulse" )
 
-# 4 vías para el NatAmbio completo, 2 (sólo front L/R) en caso contrario.
+# 4 ways for the full NatAmbio, 2 (only front L/R) otherwise.
 if [ "$FULL_NATAMBIO" = "true" ]; then
     NUM_WAYS=4
 else
@@ -162,81 +167,82 @@ else
 fi
 
 pause() {
-    # Espera a que el usuario pulse Enter, salvo en modo AUTO.
+    # Wait for the user to press Enter, except in AUTO mode.
     if [ "$AUTO" != "1" ]; then
         read -r -p "$1"
     fi
 }
 
-# --- Comprobaciones previas (jackd, ecasound, ficheros, scripts) --------------
+# --- Preflight checks (jackd, ecasound, files, scripts) -----------------------
 preflight() {
     local err=0
     if [ "$DO_SWEEP" = "1" ]; then
-        [ -f "$SWEEPGEN" ] || { echo "ERROR: no encuentro '$SWEEPGEN' (exporta TOOLS_DIR)."; err=1; }
+        [ -f "$SWEEPGEN" ] || { echo "ERROR: cannot find '$SWEEPGEN' (export TOOLS_DIR)."; err=1; }
     fi
     if [ "$DO_MEASURE" = "1" ]; then
-        command -v ecasound >/dev/null 2>&1 || { echo "ERROR: ecasound no está instalado."; err=1; }
-        # Servidor JACK en marcha (ecasound graba/reproduce vía JACK).
+        command -v ecasound >/dev/null 2>&1 || { echo "ERROR: ecasound is not installed."; err=1; }
+        # Running JACK server (ecasound records/plays via JACK).
         if command -v jack_lsp >/dev/null 2>&1; then
-            jack_lsp >/dev/null 2>&1 || { echo "ERROR: el servidor JACK no responde; arráncalo (jackd / qjackctl)."; err=1; }
+            jack_lsp >/dev/null 2>&1 || { echo "ERROR: the JACK server is not responding; start it (jackd / qjackctl)."; err=1; }
         elif ! pgrep -x jackd >/dev/null 2>&1; then
-            echo "AVISO: no encuentro jack_lsp ni el proceso jackd; asegúrate de que JACK está en marcha."
+            echo "WARNING: cannot find jack_lsp or the jackd process; make sure JACK is running."
         fi
-        # El sweep se genera en la Fase 0; sólo se exige que exista si no se genera.
+        # The sweep is generated in Phase 0; it is only required to exist if not generated.
         if [ "$DO_SWEEP" != "1" ]; then
-            [ -f "$SWEEP" ] || { echo "ERROR: no existe el sweep de excitación '$SWEEP'."; err=1; }
+            [ -f "$SWEEP" ] || { echo "ERROR: the excitation sweep '$SWEEP' does not exist."; err=1; }
         fi
-        [ -f "$CHECK_CAPTURE" ] || { echo "ERROR: no encuentro '$CHECK_CAPTURE' (exporta TOOLS_DIR)."; err=1; }
-        # natambio se arranca antes de medir: comprueba binario y configuración.
-        command -v "$NATAMBIO_BIN" >/dev/null 2>&1 || { echo "ERROR: no encuentro el ejecutable natambio ('$NATAMBIO_BIN')."; err=1; }
-        [ -f "$NATAMBIO_CONFIG" ] || { echo "ERROR: no existe la configuración de natambio '$NATAMBIO_CONFIG'."; err=1; }
+        [ -f "$CHECK_CAPTURE" ] || { echo "ERROR: cannot find '$CHECK_CAPTURE' (export TOOLS_DIR)."; err=1; }
+        # natambio is started before measuring: check binary and configuration.
+        command -v "$NATAMBIO_BIN" >/dev/null 2>&1 || { echo "ERROR: cannot find the natambio executable ('$NATAMBIO_BIN')."; err=1; }
+        [ -f "$NATAMBIO_CONFIG" ] || { echo "ERROR: the natambio configuration '$NATAMBIO_CONFIG' does not exist."; err=1; }
     fi
     if [ "$DO_IMPULSES" = "1" ]; then
-        # La inversa también se genera en la Fase 0; igual criterio.
+        # The inverse is also generated in Phase 0; same criterion.
         if [ "$DO_SWEEP" != "1" ]; then
-            [ -f "$INVERSE" ] || { echo "ERROR: no existe el sweep inverso '$INVERSE'."; err=1; }
+            [ -f "$INVERSE" ] || { echo "ERROR: the inverse sweep '$INVERSE' does not exist."; err=1; }
         fi
-        [ -f "$FFT_CONVOLVE" ] || { echo "ERROR: no encuentro '$FFT_CONVOLVE' (exporta TOOLS_DIR)."; err=1; }
+        [ -f "$FFT_CONVOLVE" ] || { echo "ERROR: cannot find '$FFT_CONVOLVE' (export TOOLS_DIR)."; err=1; }
     fi
     if [ "$DO_PCA" = "1" ]; then
-        [ -f "$PCA4DRC" ] || { echo "ERROR: no encuentro '$PCA4DRC' (exporta TOOLS_DIR)."; err=1; }
-        [ -f "$WAV2RAW" ] || { echo "ERROR: no encuentro '$WAV2RAW' (exporta TOOLS_DIR)."; err=1; }
+        [ -f "$PCA4DRC" ] || { echo "ERROR: cannot find '$PCA4DRC' (export TOOLS_DIR)."; err=1; }
+        [ -f "$WAV2RAW" ] || { echo "ERROR: cannot find '$WAV2RAW' (export TOOLS_DIR)."; err=1; }
     fi
     if [ "$DO_DRC" = "1" ]; then
-        command -v "$DRC_BIN" >/dev/null 2>&1 || { echo "ERROR: no encuentro el binario DRC ('$DRC_BIN')."; err=1; }
-        [ -f "$DRC_CONFIG" ] || { echo "ERROR: no existe la configuración DRC '$DRC_CONFIG'."; err=1; }
-        [ -f "$RAW2WAV" ] || { echo "ERROR: no encuentro '$RAW2WAV' (exporta TOOLS_DIR)."; err=1; }
+        command -v "$DRC_BIN" >/dev/null 2>&1 || { echo "ERROR: cannot find the DRC binary ('$DRC_BIN')."; err=1; }
+        [ -f "$DRC_CONFIG" ] || { echo "ERROR: the DRC configuration '$DRC_CONFIG' does not exist."; err=1; }
+        [ -f "$RAW2WAV" ] || { echo "ERROR: cannot find '$RAW2WAV' (export TOOLS_DIR)."; err=1; }
     fi
     if [ "$DO_SWEEP" = "1" ] || [ "$DO_MEASURE" = "1" ] || [ "$DO_IMPULSES" = "1" ] || [ "$DO_PCA" = "1" ] || [ "$DO_DRC" = "1" ]; then
-        command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 no está instalado."; err=1; }
+        command -v python3 >/dev/null 2>&1 || { echo "ERROR: python3 is not installed."; err=1; }
     fi
-    [ "$err" = "0" ] || { echo "Abortando por comprobaciones previas fallidas."; exit 1; }
-    echo "Comprobaciones previas OK."
+    [ "$err" = "0" ] || { echo "Aborting due to failed preflight checks."; exit 1; }
+    echo "Preflight checks OK."
 }
 
-# --- Análisis de una captura: avisa de clipping / nivel bajo / SNR baja -------
+# --- Analysis of a capture: warns of clipping / low level / low SNR -----------
 check_capture() {
-    # Delega en check_capture.py. Devuelve 0 si la captura es válida y !=0 si los
-    # niveles no son correctos (clipping / nivel bajo / SNR baja) y hay que
-    # repetir la medida. Se invoca dentro de un 'if', así que no rompe 'set -e'.
+    # Delegates to check_capture.py. Returns 0 if the capture is valid and !=0 if
+    # the levels are not correct (clipping / low level / low SNR) and the
+    # measurement must be repeated. It is invoked inside an 'if', so it does not
+    # break 'set -e'.
     python3 "$CHECK_CAPTURE" "$1" "$2" \
         --min-level "$MIN_LEVEL" --min-snr "$MIN_SNR"
 }
 
-# --- Reproduce el sweep por una vía y graba la respuesta del micrófono ---------
+# --- Plays the sweep through a way and records the microphone response ---------
 run_ecasound_capture() {
-    # $1 puerto de salida (entrada de natambio), $2 ganancia de salida (dB),
-    # $3 ganancia de entrada (dB), $4 fichero WAV de salida.
+    # $1 output port (natambio input), $2 output gain (dB),
+    # $3 input gain (dB), $4 output WAV file.
     ecasound -t:"$REC_SECONDS" \
         -a:1 -i "$SWEEP" -a:1 -o:jack_auto,"$1" -a:1 -eadb:"$2" \
         -a:2 -i:jack_auto,"$IN_MEAS" -a:2 -f:f32_le,1,48000 \
         -o:"$4" -a:2 -eadb:"$3" -ev
 }
 
-# --- XML de parámetros para sweepgen.py ---------------------------------------
+# --- Parameter XML for sweepgen.py --------------------------------------------
 write_sweep_xml() {
-    # Escribe en "$1" el XML <generate_sweep> con los parámetros del bloque de
-    # generación del sweep (SWEEP_*) y los nombres de fichero SWEEP / INVERSE.
+    # Writes to "$1" the XML <generate_sweep> with the parameters of the sweep
+    # generation block (SWEEP_*) and the file names SWEEP / INVERSE.
     cat > "$1" <<XML
 <?xml version="1.0"?>
 <generate_sweep>
@@ -256,50 +262,51 @@ write_sweep_xml() {
 XML
 }
 
-# --- Arranque / parada de natambio (cliente JACK a medir) ---------------------
+# --- Start / stop of natambio (the JACK client to measure) --------------------
 NATAMBIO_PID=""
 start_natambio() {
-    # Arranca natambio en segundo plano con NATAMBIO_CONFIG, derivando su
-    # stdout/stderr a NATAMBIO_LOG para no ensuciar la salida del script. Espera
-    # a que registre sus puertos JACK; aborta si muere o no aparece a tiempo.
-    echo "Arrancando natambio con '$(basename "$NATAMBIO_CONFIG")' (log: $NATAMBIO_LOG)..."
+    # Starts natambio in the background with NATAMBIO_CONFIG, redirecting its
+    # stdout/stderr to NATAMBIO_LOG so as not to clutter the script output. It
+    # waits until it registers its JACK ports; aborts if it dies or does not
+    # appear in time.
+    echo "Starting natambio with '$(basename "$NATAMBIO_CONFIG")' (log: $NATAMBIO_LOG)..."
     "$NATAMBIO_BIN" -quiet "$NATAMBIO_CONFIG" >"$NATAMBIO_LOG" 2>&1 &
     NATAMBIO_PID=$!
-    # Asegura la parada de natambio pase lo que pase a partir de aquí.
+    # Ensures natambio is stopped no matter what happens from here on.
     trap stop_natambio EXIT
 
     local tries=0
-    while [ "$tries" -lt 50 ]; do          # hasta ~5 s (50 x 0.1 s)
+    while [ "$tries" -lt 50 ]; do          # up to ~5 s (50 x 0.1 s)
         if ! kill -0 "$NATAMBIO_PID" 2>/dev/null; then
-            echo "ERROR: natambio terminó inesperadamente. Últimas líneas del log:"
+            echo "ERROR: natambio terminated unexpectedly. Last lines of the log:"
             tail -n 20 "$NATAMBIO_LOG" | sed 's/^/    /'
             NATAMBIO_PID=""
             exit 1
         fi
         if jack_lsp 2>/dev/null | grep -q '^natambio:'; then
-            echo "natambio en marcha (PID $NATAMBIO_PID); puertos JACK registrados."
+            echo "natambio running (PID $NATAMBIO_PID); JACK ports registered."
             return 0
         fi
         sleep 0.1
         tries=$((tries + 1))
     done
-    echo "ERROR: natambio no registró sus puertos JACK a tiempo. Últimas líneas del log:"
+    echo "ERROR: natambio did not register its JACK ports in time. Last lines of the log:"
     tail -n 20 "$NATAMBIO_LOG" | sed 's/^/    /'
     stop_natambio
     exit 1
 }
 
 stop_natambio() {
-    # Detiene natambio con SIGINT (su forma normal de parada). Si no termina en
-    # un par de segundos, escala a SIGTERM y, en último extremo, SIGKILL, para no
-    # dejar el script colgado en la salida.
+    # Stops natambio with SIGINT (its normal way of stopping). If it does not
+    # finish within a couple of seconds, it escalates to SIGTERM and, as a last
+    # resort, SIGKILL, so as not to leave the script hanging on exit.
     if [ -n "$NATAMBIO_PID" ] && kill -0 "$NATAMBIO_PID" 2>/dev/null; then
-        echo "Deteniendo natambio (PID $NATAMBIO_PID)..."
+        echo "Stopping natambio (PID $NATAMBIO_PID)..."
         local sig
         for sig in INT TERM KILL; do
             kill "-$sig" "$NATAMBIO_PID" 2>/dev/null || true
             local tries=0
-            while [ "$tries" -lt 20 ]; do      # hasta ~2 s por señal
+            while [ "$tries" -lt 20 ]; do      # up to ~2 s per signal
                 kill -0 "$NATAMBIO_PID" 2>/dev/null || break 2
                 sleep 0.1
                 tries=$((tries + 1))
@@ -310,90 +317,90 @@ stop_natambio() {
     NATAMBIO_PID=""
 }
 
-# --- Informe de configuración de natambio + confirmación del usuario ----------
+# --- natambio configuration report + user confirmation ------------------------
 report_natambio_routing() {
-    # Tras arrancar natambio, muestra el modo (full/half), la variante
-    # (subwoofer) y a qué salidas de la tarjeta (system:) están conectadas
-    # realmente las salidas de natambio, consultando las conexiones JACK vivas.
-    # Pide confirmación al usuario antes de medir.
+    # After starting natambio, shows the mode (full/half), the variant
+    # (subwoofer) and to which card outputs (system:) the natambio outputs are
+    # actually connected, querying the live JACK connections. Asks the user for
+    # confirmation before measuring.
     echo
-    echo "================= Configuración de medición ================="
-    echo "  Modo natambio  : $NAT_PREFIX   (FULL_NATAMBIO=$FULL_NATAMBIO)"
-    echo "  Modo subwoofer : $SUBWOOFER"
+    echo "================= Measurement configuration ================="
+    echo "  natambio mode  : $NAT_PREFIX   (FULL_NATAMBIO=$FULL_NATAMBIO)"
+    echo "  subwoofer mode : $SUBWOOFER"
     echo
-    echo "  Vías a medir (ecasound -> entrada de natambio):"
+    echo "  Ways to measure (ecasound -> natambio input):"
     local w
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         printf "    %-12s -> %s\n" "${LABELS[$w]}" "${OUT_PORTS[$w]}"
     done
     echo
-    echo "  Salidas de natambio conectadas a la tarjeta (system:):"
+    echo "  natambio outputs connected to the card (system:):"
     if command -v jack_lsp >/dev/null 2>&1; then
         local nat_out=()
         mapfile -t nat_out < <(jack_lsp -o 2>/dev/null | grep '^natambio:')
         if [ "${#nat_out[@]}" -eq 0 ]; then
-            echo "    (no se encontraron puertos de salida de natambio)"
+            echo "    (no natambio output ports were found)"
         fi
         local port conn found
         for port in "${nat_out[@]}"; do
             found=0
-            # jack_lsp -c <puerto> lista el puerto y, indentadas, sus conexiones.
+            # jack_lsp -c <port> lists the port and, indented, its connections.
             while IFS= read -r conn; do
                 [ -z "$conn" ] && continue
                 printf "    %-28s -> %s\n" "$port" "$conn"
                 found=1
             done < <(jack_lsp -c "$port" 2>/dev/null | grep -E '^[[:space:]]' | sed 's/^[[:space:]]*//')
-            [ "$found" -eq 0 ] && printf "    %-28s -> (sin conexión)\n" "$port"
+            [ "$found" -eq 0 ] && printf "    %-28s -> (no connection)\n" "$port"
         done
     else
-        echo "    (jack_lsp no disponible; no se puede consultar el enrutado)"
+        echo "    (jack_lsp not available; cannot query the routing)"
     fi
     echo "============================================================="
-    echo "Por favor, confirme que la asignación es correcta."
-    pause "Pulsa Enter para confirmar y comenzar la medición..."
+    echo "Please confirm that the assignment is correct."
+    pause "Press Enter to confirm and start the measurement..."
 }
 
-# --- Selección interactiva del puerto JACK de destino por vía -----------------
-# NOTA: de momento no se usa (natambio fija OUT_PORTS con sus propias etiquetas),
-# pero se mantiene por si más adelante hace falta reasignar puertos a mano.
+# --- Interactive selection of the destination JACK port per way ---------------
+# NOTE: not used for now (natambio fixes OUT_PORTS with its own labels), but it
+# is kept in case ports need to be reassigned by hand later on.
 select_jack_ports() {
-    # Consulta los puertos de entrada JACK disponibles (destinos del sweep: las
-    # salidas de la tarjeta system:playback_* y las entradas de otras
-    # aplicaciones, p.ej. natambio:*_input_*) y permite asignar uno a cada vía
-    # mediante un menú numérico, sobrescribiendo OUT_PORTS[w]. Sólo en modo
-    # interactivo (sin AUTO) y si jack_lsp está disponible.
+    # Queries the available JACK input ports (sweep destinations: the card
+    # outputs system:playback_* and the inputs of other applications, e.g.
+    # natambio:*_input_*) and allows assigning one to each way via a numeric
+    # menu, overwriting OUT_PORTS[w]. Only in interactive mode (without AUTO) and
+    # if jack_lsp is available.
     if [ "$AUTO" = "1" ]; then
         return 0
     fi
     if ! command -v jack_lsp >/dev/null 2>&1; then
-        echo "AVISO: jack_lsp no disponible; se usan los puertos por defecto."
+        echo "WARNING: jack_lsp not available; the default ports are used."
         return 0
     fi
 
-    # Puertos de entrada JACK (destinos). Se excluyen los de ecasound por si ya
-    # estuviera corriendo, para no autoconectar.
+    # JACK input ports (destinations). The ecasound ones are excluded in case it
+    # is already running, so as not to autoconnect.
     local ports=()
     mapfile -t ports < <(jack_lsp -i 2>/dev/null | grep -v -i '^ecasound:')
     if [ "${#ports[@]}" -eq 0 ]; then
-        echo "AVISO: no hay puertos de entrada JACK disponibles; se usan los por defecto."
+        echo "WARNING: there are no JACK input ports available; the default ones are used."
         return 0
     fi
 
     echo
-    echo "Puertos JACK de entrada disponibles (destino del sweep):"
+    echo "Available JACK input ports (sweep destination):"
     local idx
     for idx in "${!ports[@]}"; do
         printf "  %2d) %s\n" "$((idx + 1))" "${ports[$idx]}"
     done
-    echo "   0) mantener el valor actual"
-    echo "Asigna el puerto de salida de ecasound para cada vía de medida:"
+    echo "   0) keep the current value"
+    echo "Assign the ecasound output port for each measurement way:"
 
     local w sel
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         while true; do
-            read -r -p "  Vía '${LABELS[$w]}' [actual: ${OUT_PORTS[$w]}] -> nº de puerto (0=mantener): " sel
+            read -r -p "  Way '${LABELS[$w]}' [current: ${OUT_PORTS[$w]}] -> port no. (0=keep): " sel
             if [ -z "$sel" ] || [ "$sel" = "0" ]; then
-                echo "    se mantiene: ${OUT_PORTS[$w]}"
+                echo "    kept: ${OUT_PORTS[$w]}"
                 break
             fi
             if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#ports[@]}" ]; then
@@ -401,49 +408,49 @@ select_jack_ports() {
                 echo "    ${LABELS[$w]} -> ${OUT_PORTS[$w]}"
                 break
             fi
-            echo "    Entrada no válida. Introduce un número entre 0 y ${#ports[@]}."
+            echo "    Invalid input. Enter a number between 0 and ${#ports[@]}."
         done
     done
     echo
 }
 
-# --- Selección interactiva de la toma de micrófono (IN_MEAS) -------------------
+# --- Interactive selection of the microphone input (IN_MEAS) ------------------
 select_input_port() {
-    # Lista los puertos JACK de origen (puertos de captura, p.ej.
-    # system:capture_*: de ahí sale el audio del micrófono) y permite asignar uno
-    # como IN_MEAS mediante un menú numérico. Sólo actúa si SELECT_INPUT=1, en
-    # modo interactivo (sin AUTO) y con jack_lsp disponible; si no, se conserva el
-    # IN_MEAS actual (por defecto system:capture_1).
+    # Lists the source JACK ports (capture ports, e.g. system:capture_*: that is
+    # where the microphone audio comes from) and allows assigning one as IN_MEAS
+    # via a numeric menu. Only acts if SELECT_INPUT=1, in interactive mode
+    # (without AUTO) and with jack_lsp available; otherwise, the current IN_MEAS
+    # is kept (by default system:capture_1).
     if [ "$SELECT_INPUT" != "1" ] || [ "$AUTO" = "1" ]; then
         return 0
     fi
     if ! command -v jack_lsp >/dev/null 2>&1; then
-        echo "AVISO: jack_lsp no disponible; se usa IN_MEAS=$IN_MEAS."
+        echo "WARNING: jack_lsp not available; IN_MEAS=$IN_MEAS is used."
         return 0
     fi
 
-    # Puertos JACK de origen (capturas). Se excluyen los de ecasound por si ya
-    # estuviera corriendo, para no autoconectar a su propia salida.
+    # Source JACK ports (captures). The ecasound ones are excluded in case it is
+    # already running, so as not to autoconnect to its own output.
     local ports=()
     mapfile -t ports < <(jack_lsp -o 2>/dev/null | grep -v -i '^ecasound:')
     if [ "${#ports[@]}" -eq 0 ]; then
-        echo "AVISO: no hay puertos JACK de captura disponibles; se usa IN_MEAS=$IN_MEAS."
+        echo "WARNING: there are no JACK capture ports available; IN_MEAS=$IN_MEAS is used."
         return 0
     fi
 
     echo
-    echo "Puertos JACK de captura disponibles (origen del micrófono):"
+    echo "Available JACK capture ports (microphone source):"
     local idx
     for idx in "${!ports[@]}"; do
         printf "  %2d) %s\n" "$((idx + 1))" "${ports[$idx]}"
     done
-    echo "   0) mantener el valor actual"
+    echo "   0) keep the current value"
 
     local sel
     while true; do
-        read -r -p "Toma de micrófono [actual: $IN_MEAS] -> nº de puerto (0=mantener): " sel
+        read -r -p "Microphone input [current: $IN_MEAS] -> port no. (0=keep): " sel
         if [ -z "$sel" ] || [ "$sel" = "0" ]; then
-            echo "    se mantiene: IN_MEAS=$IN_MEAS"
+            echo "    kept: IN_MEAS=$IN_MEAS"
             break
         fi
         if [[ "$sel" =~ ^[0-9]+$ ]] && [ "$sel" -ge 1 ] && [ "$sel" -le "${#ports[@]}" ]; then
@@ -451,18 +458,18 @@ select_input_port() {
             echo "    IN_MEAS=$IN_MEAS"
             break
         fi
-        echo "    Entrada no válida. Introduce un número entre 0 y ${#ports[@]}."
+        echo "    Invalid input. Enter a number between 0 and ${#ports[@]}."
     done
     echo
 }
 
-# --- Calibración de ganancias (CALIBRATE=1): un GAIN_OUT/GAIN_IN común --------
+# --- Gain calibration (CALIBRATE=1): a common GAIN_OUT/GAIN_IN -----------------
 calibrate_gains() {
-    # Reproduce el sweep por cada vía a las ganancias actuales, graba a un WAV
-    # temporal y analiza niveles con check_capture. El usuario va probando hasta
-    # dar con un GAIN_OUT/GAIN_IN comunes válidos para todas las vías. No guarda
-    # nada para DRC: sólo sirve para ajustar niveles antes de medir.
-    echo "### Calibración de ganancias (común a todas las vías)"
+    # Plays the sweep through each way at the current gains, records to a
+    # temporary WAV and analyzes levels with check_capture. The user keeps trying
+    # until finding a common GAIN_OUT/GAIN_IN valid for all ways. It saves nothing
+    # for DRC: it only serves to adjust levels before measuring.
+    echo "### Gain calibration (common to all ways)"
     start_natambio
     select_input_port
     report_natambio_routing
@@ -471,53 +478,53 @@ calibrate_gains() {
     gout="$GAIN_OUT"; gin="$GAIN_IN"
     while true; do
         echo
-        echo "Probando GAIN_OUT=$gout dB / GAIN_IN=$gin dB sobre las $NUM_WAYS vías..."
+        echo "Trying GAIN_OUT=$gout dB / GAIN_IN=$gin dB over the $NUM_WAYS ways..."
         okall=1
         for w in $(seq 0 $((NUM_WAYS - 1))); do
             echo "--- ${LABELS[$w]} ---"
             run_ecasound_capture "${OUT_PORTS[$w]}" "$gout" "$gin" "$cal_dir/cal.wav"
             if check_capture "$cal_dir/cal.wav" "${LABELS[$w]}"; then
-                echo "    -> niveles OK"
+                echo "    -> levels OK"
             else
-                echo "    -> niveles NO válidos (clipping / nivel bajo / SNR baja)"
+                echo "    -> levels NOT valid (clipping / low level / low SNR)"
                 okall=0
             fi
         done
         echo
         if [ "$okall" = "1" ]; then
-            echo "Todas las vías con niveles correctos a GAIN_OUT=$gout / GAIN_IN=$gin."
+            echo "All ways with correct levels at GAIN_OUT=$gout / GAIN_IN=$gin."
         else
-            echo "Alguna vía no cumple: ajusta las ganancias (y/o el previo del micrófono)."
+            echo "Some way does not pass: adjust the gains (and/or the microphone preamp)."
         fi
         [ "$AUTO" = "1" ] && break
-        read -r -p "Enter para aceptar, o nuevos 'GAIN_OUT GAIN_IN' (p.ej. -3 12): " ans
+        read -r -p "Enter to accept, or new 'GAIN_OUT GAIN_IN' (e.g. -3 12): " ans
         [ -z "$ans" ] && break
         read -r ngout ngin <<< "$ans"
         if [[ "$ngout" =~ ^-?[0-9]+(\.[0-9]+)?$ ]] && [[ "$ngin" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
             gout="$ngout"; gin="$ngin"
         else
-            echo "Formato no válido. Escribe DOS números: GAIN_OUT GAIN_IN (p.ej. -3 12)."
+            echo "Invalid format. Write TWO numbers: GAIN_OUT GAIN_IN (e.g. -3 12)."
         fi
     done
     rm -rf "$cal_dir"
     stop_natambio
     trap - EXIT
     echo
-    echo "================= Ganancias recomendadas ================="
+    echo "================= Recommended gains ================="
     echo "  GAIN_OUT=$gout    GAIN_IN=$gin"
-    echo "  Úsalas en la medición, por ejemplo:"
+    echo "  Use them in the measurement, for example:"
     echo "      GAIN_OUT=$gout GAIN_IN=$gin ./measure_pca4drc.sh"
     echo "========================================================="
 }
 
 preflight
 
-# --- Fase 0: generación del sweep y su inversa --------------------------------
+# --- Phase 0: generation of the sweep and its inverse -------------------------
 if [ "$DO_SWEEP" = "1" ]; then
-    echo "### Fase 0: generación del sweep e inversa (sweepgen.py)"
-    # sweepgen.py se alimenta de un XML <generate_sweep>; se construye al vuelo
-    # con write_sweep_xml y se sobrescriben los nombres de salida con -s / -i
-    # para que coincidan con SWEEP / INVERSE.
+    echo "### Phase 0: generation of the sweep and inverse (sweepgen.py)"
+    # sweepgen.py is fed an XML <generate_sweep>; it is built on the fly with
+    # write_sweep_xml and the output names are overridden with -s / -i so that
+    # they match SWEEP / INVERSE.
     SWEEP_XML="$(mktemp)"
     trap 'rm -f "$SWEEP_XML"' EXIT
     write_sweep_xml "$SWEEP_XML"
@@ -526,22 +533,22 @@ if [ "$DO_SWEEP" = "1" ]; then
     trap - EXIT
 fi
 
-# --- Modo calibración: ajusta GAIN_OUT/GAIN_IN comunes y termina --------------
+# --- Calibration mode: adjusts common GAIN_OUT/GAIN_IN and finishes -----------
 if [ "$CALIBRATE" = "1" ]; then
     calibrate_gains
     exit 0
 fi
 
-# --- Fase 1: medición ---------------------------------------------------------
+# --- Phase 1: measurement -----------------------------------------------------
 if [ "$DO_MEASURE" = "1" ]; then
-    echo "### Fase 1: medición de sweeps ($NUM_POS posiciones x $NUM_WAYS vías)"
-    # Arranca natambio con la configuración correspondiente; expone los puertos
-    # de entrada (OUT_PORTS) a los que ecasound enviará el sweep.
+    echo "### Phase 1: sweep measurement ($NUM_POS positions x $NUM_WAYS ways)"
+    # Starts natambio with the corresponding configuration; exposes the input
+    # ports (OUT_PORTS) to which ecasound will send the sweep.
     start_natambio
-    # Si SELECT_INPUT=1, permite elegir la toma de micrófono (IN_MEAS) por menú.
+    # If SELECT_INPUT=1, allows choosing the microphone input (IN_MEAS) via menu.
     select_input_port
-    # Informe de modo/subwoofer y enrutado real de salidas de natambio a la
-    # tarjeta, con confirmación del usuario antes de medir.
+    # Report of mode/subwoofer and actual routing of natambio outputs to the
+    # card, with user confirmation before measuring.
     report_natambio_routing
 
     for w in $(seq 0 $((NUM_WAYS - 1))); do
@@ -550,38 +557,38 @@ if [ "$DO_MEASURE" = "1" ]; then
 
     for i in $(seq 1 "$NUM_POS"); do
         printf -v n "%02d" "$i"
-        echo "--- Posición de micrófono $n/$NUM_POS ---"
+        echo "--- Microphone position $n/$NUM_POS ---"
         for w in $(seq 0 $((NUM_WAYS - 1))); do
-            echo "Medida ${LABELS[$w]} (posición $n)"
-            # Repite la medida hasta que los niveles sean correctos. Si los
-            # niveles no son válidos, avisa y espera a que el usuario reajuste la
-            # ganancia de su previo de micrófono antes de volver a medir.
+            echo "Measurement ${LABELS[$w]} (position $n)"
+            # Repeat the measurement until the levels are correct. If the levels
+            # are not valid, it warns and waits for the user to readjust their
+            # microphone preamp gain before measuring again.
             while true; do
-                pause "Pulsa Enter para medir ${LABELS[$w]}..."
+                pause "Press Enter to measure ${LABELS[$w]}..."
                 run_ecasound_capture "${OUT_PORTS[$w]}" "$GAIN_OUT" "$GAIN_IN" \
                     "${MEAS_DIRS[$w]}/${SWEEP_PRE[$w]}_$i.wav"
                 if check_capture "${MEAS_DIRS[$w]}/${SWEEP_PRE[$w]}_$i.wav" "${LABELS[$w]}"; then
                     break
                 fi
-                echo "*** La grabación de '${LABELS[$w]}' (posición $n) NO es correcta por niveles: hay que repetirla. ***"
-                echo "    Reajusta la ganancia en el previo de micrófono antes de continuar."
+                echo "*** The recording of '${LABELS[$w]}' (position $n) is NOT correct due to levels: it must be repeated. ***"
+                echo "    Readjust the gain on the microphone preamp before continuing."
                 if [ "$AUTO" = "1" ]; then
-                    echo "    (AUTO=1: no se puede repetir sin intervención; se continúa con esta captura.)"
+                    echo "    (AUTO=1: cannot repeat without intervention; continuing with this capture.)"
                     break
                 fi
-                pause "Pulsa Enter para repetir la medida de ${LABELS[$w]}..."
+                pause "Press Enter to repeat the measurement of ${LABELS[$w]}..."
             done
         done
-        echo "Mueve el micrófono de lugar."
+        echo "Move the microphone to a different place."
     done
-    # Medición terminada: ya no hace falta natambio.
+    # Measurement finished: natambio is no longer needed.
     stop_natambio
     trap - EXIT
 fi
 
-# --- Fase 2: extracción de impulsos (deconvolución por FFT) -------------------
+# --- Phase 2: impulse extraction (FFT deconvolution) --------------------------
 if [ "$DO_IMPULSES" = "1" ]; then
-    echo "### Fase 2: extracción de impulsos (fft_convolve.py)"
+    echo "### Phase 2: impulse extraction (fft_convolve.py)"
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         mkdir -p "${IMP_DIRS[$w]}"
     done
@@ -596,71 +603,71 @@ if [ "$DO_IMPULSES" = "1" ]; then
     done
 fi
 
-# --- Fase 3: impulso de referencia para DRC ----------------------------------
-# Con 2 o más medidas se obtiene por PCA (componente principal, PCA_0). Con una
-# sola medida (NUM_POS=1) no hay PCA posible ni necesaria: se usa el propio
-# impulso medido como entrada de DRC (sólo se convierte a .raw).
+# --- Phase 3: reference impulse for DRC ---------------------------------------
+# With 2 or more measurements it is obtained by PCA (principal component, PCA_0).
+# With a single measurement (NUM_POS=1) there is no PCA possible or necessary:
+# the measured impulse itself is used as DRC input (only converted to .raw).
 if [ "$DO_PCA" = "1" ]; then
     if [ "$NUM_POS" -le 1 ]; then
-        echo "### Fase 3: 1 medida -> sin PCA; el impulso medido se usa directamente"
+        echo "### Phase 3: 1 measurement -> no PCA; the measured impulse is used directly"
         for w in $(seq 0 $((NUM_WAYS - 1))); do
             imp="${IMP_DIRS[$w]}/${IMP_PRE[$w]}_1.wav"
             if [ -f "$imp" ]; then
-                echo "Conversión a .raw (formato DRC) de $imp"
+                echo "Conversion to .raw (DRC format) of $imp"
                 python3 "$WAV2RAW" "$imp"
             else
-                echo "AVISO: no existe '$imp'; nada que preparar para ${LABELS[$w]}."
+                echo "WARNING: '$imp' does not exist; nothing to prepare for ${LABELS[$w]}."
             fi
         done
     else
-        echo "### Fase 3: PCA de los impulsos (pca4drc.py) + conversión a .raw"
+        echo "### Phase 3: PCA of the impulses (pca4drc.py) + conversion to .raw"
         for w in $(seq 0 $((NUM_WAYS - 1))); do
-            echo "PCA de ${LABELS[$w]} -> ${IMP_DIRS[$w]}/pca4drc/"
+            echo "PCA of ${LABELS[$w]} -> ${IMP_DIRS[$w]}/pca4drc/"
             python3 "$PCA4DRC" "${IMP_DIRS[$w]}" "$OUTPUT_LEN" --normalize "$PCA_NORMALIZE"
-            # Convierte las componentes WAV a .raw (float 32-bit LE) para DRC.
+            # Converts the WAV components to .raw (float 32-bit LE) for DRC.
             pca_dir="${IMP_DIRS[$w]}/pca4drc"
             if compgen -G "$pca_dir/*.wav" >/dev/null; then
-                echo "Conversión a .raw (formato DRC) en $pca_dir/"
+                echo "Conversion to .raw (DRC format) in $pca_dir/"
                 python3 "$WAV2RAW" "$pca_dir"/*.wav
             fi
         done
     fi
 fi
 
-# --- Fase 4: corrección con DRC (drc estándar) -------------------------------
+# --- Phase 4: correction with DRC (standard drc) ------------------------------
 if [ "$DO_DRC" = "1" ]; then
-    echo "### Fase 4: corrección con DRC ($DRC_BIN + $(basename "$DRC_CONFIG"))"
+    echo "### Phase 4: correction with DRC ($DRC_BIN + $(basename "$DRC_CONFIG"))"
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         base="${IMP_DIRS[$w]}"
-        # Entrada de DRC: con 1 sola medida, el impulso medido directamente (sin
-        # PCA); con 2 o más, la componente principal PCA (PCA_0.raw).
+        # DRC input: with a single measurement, the directly measured impulse (no
+        # PCA); with 2 or more, the principal PCA component (PCA_0.raw).
         if [ "$NUM_POS" -le 1 ]; then
             in_rel="${IMP_PRE[$w]}_1.raw"
         else
             in_rel="pca4drc/PCA_0.raw"
         fi
         if [ ! -f "$base/$in_rel" ]; then
-            echo "AVISO: no existe '$base/$in_rel'; se omite DRC para ${LABELS[$w]}."
+            echo "WARNING: '$base/$in_rel' does not exist; DRC skipped for ${LABELS[$w]}."
             continue
         fi
-        echo "DRC de ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel"
-        # BaseDir = carpeta de impulsos de la vía (mismo nivel que el p_left/
-        # original). Al ir --BCBaseDir en la línea de comandos, también afecta a
-        # --BCInFile (-> $base/$in_rel) y a las salidas/rutas relativas del config
-        # (rps.raw/rms.raw -> $base/, ../target/... -> raíz de medida).
+        echo "DRC of ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel"
+        # BaseDir = the way's impulse folder (same level as the original
+        # p_left/). Since --BCBaseDir goes on the command line, it also affects
+        # --BCInFile (-> $base/$in_rel) and the config's outputs/relative paths
+        # (rps.raw/rms.raw -> $base/, ../target/... -> measurement root).
         if "$DRC_BIN" --BCBaseDir="$base/" --BCInFile="$in_rel" "$DRC_CONFIG"; then
-            # Convierte las salidas rps.raw / rms.raw de DRC a WAV.
+            # Converts the DRC outputs rps.raw / rms.raw to WAV.
             for out in "$DRC_PS_OUT" "$DRC_MS_OUT"; do
                 if [ -f "$base/$out" ]; then
                     python3 "$RAW2WAV" "$base/$out" --rate "$SWEEP_RATE"
                 else
-                    echo "AVISO: DRC no generó '$base/$out'."
+                    echo "WARNING: DRC did not generate '$base/$out'."
                 fi
             done
         else
-            echo "ERROR: DRC falló para ${LABELS[$w]} (se continúa con las demás vías)."
+            echo "ERROR: DRC failed for ${LABELS[$w]} (continuing with the other ways)."
         fi
     done
 fi
 
-echo "Hecho."
+echo "Done."

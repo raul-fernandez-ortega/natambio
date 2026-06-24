@@ -188,16 +188,16 @@ class PCA:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PCA de respuestas impulsivas para DRC (sin pyDRC, sin gráficas).")
+        description="PCA of impulse responses for DRC (no pyDRC, no plots).")
     parser.add_argument("impulse_dir",
-                        help="Directorio con las respuestas impulsivas medidas en formato WAV.")
+                        help="Directory with the measured impulse responses in WAV format.")
     parser.add_argument("output_len", type=int,
-                        help="Longitud (en muestras) de los WAV generados; cada impulso se "
-                             "centra en su pico a esta longitud.")
+                        help="Length (in samples) of the generated WAVs; each impulse is "
+                             "centred on its peak to this length.")
     parser.add_argument("--normalize", type=str2bool, default=True,
                         metavar="true|false",
-                        help="Normalizar las componentes por el pico de la principal (true) o "
-                             "guardar los valores PCA crudos (false). Por defecto: true")
+                        help="Normalize the components by the peak of the principal one (true) "
+                             "or save the raw PCA values (false). Default: true")
     parsed = parser.parse_args()
 
     if not os.path.isdir(parsed.impulse_dir):

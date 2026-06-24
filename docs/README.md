@@ -92,6 +92,7 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [Example configurations](config_samples/README.md).
 - [Running natambio as an automatic service on a standalone NatAmbio DSP processor](../natambio_as_a_service/natambio_systemd.md).
 - [How to build an audio system that is a NatAmbio system](hw_setup_en.md).
+- [How to measure impulse responses for DRC](how_to_measure_impulse_responses.md)
 
 ### Other available tools
 

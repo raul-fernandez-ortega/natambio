@@ -48,18 +48,18 @@ def wav_to_raw(wav_path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convierte WAV a raw float 32-bit LE (formato que lee DRC).")
+        description="Convert WAV to raw float 32-bit LE (the format DRC reads).")
     parser.add_argument("inputs", nargs="+",
-                        help="WAV(s) a convertir; por cada uno se crea <nombre>.raw.")
+                        help="WAV(s) to convert; <name>.raw is created for each.")
     parsed = parser.parse_args()
 
     for wav_path in parsed.inputs:
         if not os.path.isfile(wav_path):
-            print(f"AVISO: '{wav_path}' no existe; se omite.", file=sys.stderr)
+            print(f"WARNING: '{wav_path}' does not exist; skipping.", file=sys.stderr)
             continue
         raw_path, n, sr = wav_to_raw(wav_path)
         print(f"    {os.path.basename(wav_path)} -> {os.path.basename(raw_path)} "
-              f"({n} muestras, {sr} Hz, f32 LE)")
+              f"({n} samples, {sr} Hz, f32 LE)")
 
 
 if __name__ == "__main__":

@@ -92,6 +92,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [Ejemplos de posibles configuraciones](config_samples/README.md).
 - [Uso de natambio como servicio automático en un NatAmbio DSP procesador autónomo](../natambio_as_a_service/natambio_systemd.md).
 - [¿Cómo construir un equipo de audio que sea un sistema NatAmbio?](hw_setup_es.md)
+- [Cómo medir respuestas impulsivas para DRC](como_medir_respuestas_impulsivas.md)
 
 ### Otras herramientas disponibles
 

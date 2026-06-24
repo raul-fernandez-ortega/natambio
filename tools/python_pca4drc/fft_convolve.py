@@ -31,10 +31,10 @@ def read_mono(path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Convolución de dos WAV por FFT (FFT, producto, IFFT).")
-    parser.add_argument("wav1", help="Primer WAV de entrada.")
-    parser.add_argument("wav2", help="Segundo WAV de entrada.")
-    parser.add_argument("output", help="WAV de salida con el resultado.")
+        description="FFT convolution of two WAVs (FFT, product, IFFT).")
+    parser.add_argument("wav1", help="First input WAV.")
+    parser.add_argument("wav2", help="Second input WAV.")
+    parser.add_argument("output", help="Output WAV with the result.")
     parsed = parser.parse_args()
 
     x, sr1 = read_mono(parsed.wav1)

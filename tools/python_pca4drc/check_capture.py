@@ -36,17 +36,17 @@ import soundfile as sf
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Analiza una captura de sweep y avisa de clipping / nivel "
-                    "bajo / SNR baja.")
-    parser.add_argument("wav", help="WAV de la captura a analizar.")
+        description="Analyse a sweep capture and warn about clipping / low "
+                    "level / low SNR.")
+    parser.add_argument("wav", help="WAV of the capture to analyse.")
     parser.add_argument("label", nargs="?", default="",
-                        help="Etiqueta opcional para identificar la captura.")
+                        help="Optional label to identify the capture.")
     parser.add_argument("--min-level", type=float, default=-40.0,
                         metavar="dBFS",
-                        help="Umbral de nivel bajo en dBFS (por defecto: -40).")
+                        help="Low-level threshold in dBFS (default: -40).")
     parser.add_argument("--min-snr", type=float, default=20.0,
                         metavar="dB",
-                        help="Umbral de SNR baja en dB (por defecto: 20).")
+                        help="Low-SNR threshold in dB (default: 20).")
     parsed = parser.parse_args()
 
     label = parsed.label
@@ -54,12 +54,12 @@ def main():
     try:
         x, sr = sf.read(parsed.wav, dtype="float64")
     except Exception as e:
-        print(f"    [{label}] AVISO: no se pudo leer la captura ({e})")
+        print(f"    [{label}] WARNING: could not read the capture ({e})")
         return 1
     if x.ndim > 1:
         x = x[:, 0]
     if len(x) == 0:
-        print(f"    [{label}] AVISO: captura vacía")
+        print(f"    [{label}] WARNING: empty capture")
         return 1
 
     peak = float(np.abs(x).max())
@@ -72,15 +72,15 @@ def main():
 
     warns = []
     if peak >= 0.999:
-        warns.append(f"CLIPPING (pico {peak_db:.2f} dBFS)")
+        warns.append(f"CLIPPING (peak {peak_db:.2f} dBFS)")
     elif peak_db < parsed.min_level:
-        warns.append(f"nivel BAJO (pico {peak_db:.1f} dBFS)")
+        warns.append(f"LOW level (peak {peak_db:.1f} dBFS)")
     if snr is not None and snr < parsed.min_snr:
-        warns.append(f"SNR baja (~{snr:.0f} dB)")
+        warns.append(f"low SNR (~{snr:.0f} dB)")
 
     snr_txt = f", SNR~{snr:.0f} dB" if snr is not None else ""
-    status = "OK" if not warns else "*** AVISO: " + "; ".join(warns) + " ***"
-    print(f"    [{label}] pico {peak_db:.1f} dBFS{snr_txt} -> {status}")
+    status = "OK" if not warns else "*** WARNING: " + "; ".join(warns) + " ***"
+    print(f"    [{label}] peak {peak_db:.1f} dBFS{snr_txt} -> {status}")
     return 1 if warns else 0
 
 
