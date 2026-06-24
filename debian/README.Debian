@@ -13,7 +13,7 @@ The source produces four binary packages:
   natambio-tools   Offline C generators, installed under namespaced names:
                        natambio-xtc-filters
 
-  natambio-ladspa  LADSPA plugin (the NAE / Panambio engine), installed in the
+  natambio-ladspa  LADSPA plugin (the NAE engine), installed in the
                    multiarch LADSPA directory so any LADSPA host can load it.
 
   natambio-drc     Offline Python toolkit. The scripts and their reference data

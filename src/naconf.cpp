@@ -483,37 +483,6 @@ struct convol* NaConf::parse_convol(xmlNodePtr xmlnode)
   return naconvol;
 }
 
-/*bool NaConf::parse_panambio_old(xmlNodePtr xmlnode)
-{ 
-  while (xmlnode != NULL) {
-    xmlChar *cnt = xmlNodeGetContent(xmlnode);
-    if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pca")) {
-      this->naelist.push_back(parse_pca(xmlnode->children));
-    }
-    xmlFree(cnt);
-    xmlnode = xmlnode->next;
-  }
-  if(!quiet) {
-    for (std::vector<nae*>::iterator it = this->naelist.begin() ; it != this->naelist.end(); ++it) {
-      std::cout << std::fixed << std::setprecision(3);
-      std::cout << "New NAE struct:" << std::endl;
-      std::cout << "\tName: " << (*it)->name << std::endl;
-      std::cout << "\tLeft channel input: " << (*it)->left_in << std::endl;
-      std::cout << "\tRight channel input: " << (*it)->right_in << std::endl;
-      std::cout << "\tMode: " << (*it)->mode << std::endl;
-      if((*it)->mode) {
-	std::cout << "\t\tRear surround gain: " << (*it)->gain_surr << std::endl;
-      } else {
-	std::cout << "\t\tFront main gain: " << (*it)->gain_main << std::endl;
-	std::cout << "\t\tFront ambience gain: " << (*it)->gain_amb << std::endl;
-      }
-      std::cout << "\tLeft channel output: " << (*it)->left_out << std::endl;
-      std::cout << "\tRight channel output: " << (*it)->right_out << std::endl;
-    }
-  }
-  return true;
-} */
-	
 struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
 {
   struct s_nae *nae;

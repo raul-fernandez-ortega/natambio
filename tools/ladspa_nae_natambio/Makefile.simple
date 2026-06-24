@@ -1,9 +1,9 @@
 # --------------------------------------------------------------------------------
 #
-#  ladspa_nae_natambio -- LADSPA port of the natambio Panambio (PCA) engine.
+#  ladspa_nae_natambio -- LADSPA port of the natambio NAE (PCA) engine.
 #
 #  Builds the shared library ladspa_nae_natambio.so. The plugin is self-contained
-#  (a near-direct translation of src/panambio.cpp); it does NOT link the project's
+#  (a near-direct translation of src/nae.cpp); it does NOT link the project's
 #  lib/ filter-design code, so there is no VPATH here.
 #
 #  Usage (standalone, no autotools):

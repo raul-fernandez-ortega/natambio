@@ -1,8 +1,8 @@
 # -----------------------------------------------------------------------------
 # NatAmbio -- tools/ladspa_nae_natambio/Makefile.am
 #
-# LADSPA plugin port of the natambio Panambio (PCA) engine. The plugin is a
-# self-contained near-direct translation of src/panambio.cpp and does NOT link
+# LADSPA plugin port of the natambio NAE (PCA) engine. The plugin is a
+# self-contained near-direct translation of src/nae.cpp and does NOT link
 # the project's lib/ filter-design code.
 #
 # The project does not use libtool, so the shared module (.so) is produced by an

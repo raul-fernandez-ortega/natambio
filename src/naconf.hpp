@@ -48,7 +48,6 @@ private:
   struct lowhigh* parse_lowhigh(xmlNodePtr xmlnode);
   struct loudness* parse_loudness(xmlNodePtr xmlnode);
   struct convol* parse_convol(xmlNodePtr xmlnode);
-  //bool parse_panambio_old(xmlNodePtr xmlnode);
   struct s_nae* parse_nae(xmlNodePtr xmlnode);
   bool parse_jackinput(xmlNodePtr xmlnode);
   bool parse_jackoutput(xmlNodePtr xmlnode);

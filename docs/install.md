@@ -178,7 +178,7 @@ install what you need:
 |---|---|---|---|
 | `natambio` | any | The real-time JACK client `/usr/bin/natambio` and example configs in `/usr/share/natambio/examples/`. | `jackd2 \| jackd` (recommended) |
 | `natambio-tools` | any | Offline C FIR generators: `/usr/bin/natambio-xtc-filters`. | — |
-| `natambio-ladspa` | any | LADSPA plugin `…/ladspa/ladspa_nae_natambio.so` (the NAE/Panambio engine for any LADSPA host). | — |
+| `natambio-ladspa` | any | LADSPA plugin `…/ladspa/ladspa_nae_natambio.so` (the NAE engine for any LADSPA host). | — |
 | `natambio-drc` | all | Python measurement/DRC toolkit + offline NAE: the `natambio-*` Python launchers and their data under `/usr/share/natambio/`. | `python3`, `python3-numpy`, `python3-scipy`, `python3-soundfile` |
 
 `natambio` suggests `natambio-tools` and `natambio-drc`; install the latter if you

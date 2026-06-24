@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------
 # NatAmbio -- tools/python_nae_natambio/Makefile.am
 #
-# Pure-Python NAE (Panambio PCA) reference tool. Nothing is compiled here;
+# Pure-Python NAE (PCA) reference tool. Nothing is compiled here;
 # `make install` copies it to $(datadir)/natambio/python_nae_natambio -- the
 # SAME layout the Debian package uses (/usr/share/natambio/python_nae_natambio
 # under prefix=/usr) -- with a $(bindir)/natambio-nae launcher.

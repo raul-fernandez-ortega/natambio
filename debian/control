@@ -55,9 +55,9 @@ Architecture: any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends}
-Description: LADSPA plugin port of the NatAmbio NAE / Panambio engine
+Description: LADSPA plugin port of the NatAmbio NAE engine
  A LADSPA module implementing NatAmbio's PCA-based stereo spatial
- decomposition (the Panambio engine), so the same main/ambience separation
+ decomposition, so the same main/ambience separation
  can be run in any LADSPA-compatible host (e.g. ecasound) outside the JACK
  application. Useful for quick experimentation and algorithm verification.
 
