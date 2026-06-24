@@ -27,6 +27,15 @@
 .anjuta_sym_db.db
 qjackctl.log
 
+# ---- Editor / IDE local config ----
+.vscode/
+
+# ---- Local AI-assistant files (not for publication) ----
+.claude/
+/CLAUDE.md
+/claude_restore
+/claude_resume
+
 # Local-only: old root READMEs kept aside (GitHub front page is now docs/README.md)
 /README*.bak
 
