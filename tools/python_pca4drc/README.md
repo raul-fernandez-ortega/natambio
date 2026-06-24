@@ -17,7 +17,7 @@ Contents:
 - `sweepgen.py` — generates a log-sweep and its inverse (excitation/
   deconvolution pair): `python sweepgen.py sweep.xml [-s sweep.wav] [-i inverse.wav]` (see below).
 - `fft_convolve.py` — FFT convolution of two WAV files (`scipy.signal.fftconvolve`).
-  Useful to deconvolve measured sweeps with their inverse to obtain impulses:
+  Useful to deconvolve measured sweeps with their inverse to obtain impulse responses:
   `python fft_convolve.py <wav_1> <wav_2> <out_wav>`.
 - `check_capture.py` — analyses a capture and warns about clipping / low level /
   low SNR: `python check_capture.py <wav> [label] [--min-level -40] [--min-snr 20]`.
@@ -119,7 +119,7 @@ system (JACK + Audio Interface). It chains five phases:
    routing of natambio's outputs to the card outputs `system:playback_*`, queried
    from JACK) and asks for **confirmation** before measuring. When the
    measurement finishes, natambio is stopped automatically (SIGINT, escalating to
-   SIGTERM/SIGKILL if it does not respond). After each capture, `check_capture.py`
+   SIGTERM/SIGKILL if it does not respond). After each recording, `check_capture.py`
    analyses the WAV and warns about clipping, low level (`MIN_LEVEL`, default
    -40 dBFS) or low SNR (`MIN_SNR`, default 20 dB); if the levels are not valid,
    the measurement does not advance: it asks to readjust the microphone preamp
@@ -163,7 +163,7 @@ DO_SWEEP=0 DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh  # PCA + DRC only
 DO_MEASURE=0 DO_IMPULSES=0 DO_PCA=0 ./measure_pca4drc.sh    # DRC only over already-generated PCA_0.raw
 FULL_NATAMBIO=false NUM_POS=8 ./measure_pca4drc.sh         # 2 loudspeakers, 8 positions
 OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh  # adjust PCA parameters
-IN_MEAS=system:capture_2 ./measure_pca4drc.sh             # microphone on another capture input
+IN_MEAS=system:capture_2 ./measure_pca4drc.sh             # microphone on another recording input
 SELECT_INPUT=1 ./measure_pca4drc.sh                        # choose the microphone input from a menu
 ```
 
@@ -174,14 +174,14 @@ combined to run only the phases of interest.
 ### JACK output (sweep) and input (microphone) ports
 
 Each measurement is performed by `ecasound` with two chains: one **plays** the
-sweep into natambio's input and the other **records** the microphone capture.
+sweep into natambio's input and the other **records** the microphone recording.
 
 - **Output (sweep → natambio):** the destination is set by the `OUT_PORTS` array,
   one entry per channel, pointing to natambio's input ports
   (`natambio:front_input_left`, `natambio:front_input_right`, ...). It rarely
   needs changing: natambio fixes those names.
 - **Input (microphone → WAV):** a single port common to all channels, the variable
-  `IN_MEAS` (default `system:capture_1`, the card's first capture input, where
+  `IN_MEAS` (default `system:capture_1`, the card's first recording input, where
   the microphone preamp usually is).
 
 ecasound connects to those ports with `jack_auto` (auto-connection): the output
