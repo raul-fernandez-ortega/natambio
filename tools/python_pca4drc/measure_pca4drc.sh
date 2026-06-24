@@ -13,15 +13,15 @@
 #      (subwoofer/normal); its stdout/stderr are redirected to NATAMBIO_LOG
 #      (/tmp) and it is checked that it starts and registers its JACK ports.
 #      ecasound sends the sweep to those input ports (OUT_PORTS).
-#    - The four ways (front L/R, rear L/R) described in arrays and traversed in
+#    - The four channels (front L/R, rear L/R) described in arrays and traversed in
 #      a loop, instead of four nearly identical blocks copied by hand.
 #    - Impulse extraction with fft_convolve.py (scipy, no pyDRC) instead of
 #      lsconv.py / pyDRC.LsConv.
 #    - A PCA step with pca4drc.py (when there are 2 or more measurements): for
-#      each way it generates i_<way>/pca4drc/ with the WAVs of the PCA
+#      each channel it generates i_<channel>/pca4drc/ with the WAVs of the PCA
 #      components and their .raw. With a single measurement (NUM_POS=1) PCA is
 #      NOT applied: the measured impulse is used.
-#    - A final correction step with drc (Sbragion) per way, using config.drc
+#    - A final correction step with drc (Sbragion) per channel, using config.drc
 #      and, as input, the principal PCA component PCA_0.raw (>=2 measurements)
 #      or the directly measured impulse (1 measurement); it converts the
 #      outputs to WAV.
@@ -94,8 +94,8 @@ PCA_NORMALIZE=${PCA_NORMALIZE:-true}
 
 # =============================================================================
 # --- DRC parameters (Phase 4: correction with the standard drc by Sbragion) ---
-# For each way drc is run with DRC_CONFIG (config.drc next to this script).
-# --BCBaseDir is overridden with the way's impulse folder (same level as the
+# For each channel drc is run with DRC_CONFIG (config.drc next to this script).
+# --BCBaseDir is overridden with the channel's impulse folder (same level as the
 # original p_left/, so the relative paths of the config, e.g.
 # PSPointsobjetivo '../target/...', keep resolving) and --BCInFile with the
 # principal component pca4drc/PCA_0.raw. When finished, the outputs DRC_PS_OUT
@@ -147,8 +147,8 @@ if [ "$CALIBRATE" = "1" ]; then
     DO_DRC=0
 fi
 
-# --- Definition of the ways (parallel arrays) ---------------------------------
-# The four ways are defined; with FULL_NATAMBIO=false only the first two
+# --- Definition of the channels (parallel arrays) ---------------------------------
+# The four channels are defined; with FULL_NATAMBIO=false only the first two
 # (front L/R) are used by trimming NUM_WAYS below.
 #   label               natambio JACK input port             meas dir       impulse dir     sweep        impulse prefix
 LABELS=(    "front left"  "front right"  "rear left"   "rear right" )
@@ -159,7 +159,7 @@ IMP_DIRS=(  "i_front_left"      "i_front_right"      "i_rear_left"  "i_rear_righ
 SWEEP_PRE=( "left_sweep"  "right_sweep"  "left_sweep"  "right_sweep" )
 IMP_PRE=(   "front_left_impulse" "front_right_impulse" "rear_left_impulse" "rear_right_impulse" )
 
-# 4 ways for the full NatAmbio, 2 (only front L/R) otherwise.
+# 4 channels for the full NatAmbio, 2 (only front L/R) otherwise.
 if [ "$FULL_NATAMBIO" = "true" ]; then
     NUM_WAYS=4
 else
@@ -229,7 +229,7 @@ check_capture() {
         --min-level "$MIN_LEVEL" --min-snr "$MIN_SNR"
 }
 
-# --- Plays the sweep through a way and records the microphone response ---------
+# --- Plays the sweep through a channel and records the microphone response ---------
 run_ecasound_capture() {
     # $1 output port (natambio input), $2 output gain (dB),
     # $3 input gain (dB), $4 output WAV file.
@@ -297,7 +297,7 @@ start_natambio() {
 }
 
 stop_natambio() {
-    # Stops natambio with SIGINT (its normal way of stopping). If it does not
+    # Stops natambio with SIGINT (its normal channel of stopping). If it does not
     # finish within a couple of seconds, it escalates to SIGTERM and, as a last
     # resort, SIGKILL, so as not to leave the script hanging on exit.
     if [ -n "$NATAMBIO_PID" ] && kill -0 "$NATAMBIO_PID" 2>/dev/null; then
@@ -360,13 +360,13 @@ report_natambio_routing() {
     pause "Press Enter to confirm and start the measurement..."
 }
 
-# --- Interactive selection of the destination JACK port per way ---------------
+# --- Interactive selection of the destination JACK port per channel ---------------
 # NOTE: not used for now (natambio fixes OUT_PORTS with its own labels), but it
 # is kept in case ports need to be reassigned by hand later on.
 select_jack_ports() {
     # Queries the available JACK input ports (sweep destinations: the card
     # outputs system:playback_* and the inputs of other applications, e.g.
-    # natambio:*_input_*) and allows assigning one to each way via a numeric
+    # natambio:*_input_*) and allows assigning one to each channel via a numeric
     # menu, overwriting OUT_PORTS[w]. Only in interactive mode (without AUTO) and
     # if jack_lsp is available.
     if [ "$AUTO" = "1" ]; then
@@ -393,7 +393,7 @@ select_jack_ports() {
         printf "  %2d) %s\n" "$((idx + 1))" "${ports[$idx]}"
     done
     echo "   0) keep the current value"
-    echo "Assign the ecasound output port for each measurement way:"
+    echo "Assign the ecasound output port for each measurement channel:"
 
     local w sel
     for w in $(seq 0 $((NUM_WAYS - 1))); do
@@ -465,11 +465,11 @@ select_input_port() {
 
 # --- Gain calibration (CALIBRATE=1): a common GAIN_OUT/GAIN_IN -----------------
 calibrate_gains() {
-    # Plays the sweep through each way at the current gains, records to a
+    # Plays the sweep through each channel at the current gains, records to a
     # temporary WAV and analyzes levels with check_capture. The user keeps trying
-    # until finding a common GAIN_OUT/GAIN_IN valid for all ways. It saves nothing
+    # until finding a common GAIN_OUT/GAIN_IN valid for all channels. It saves nothing
     # for DRC: it only serves to adjust levels before measuring.
-    echo "### Gain calibration (common to all ways)"
+    echo "### Gain calibration (common to all channels)"
     start_natambio
     select_input_port
     report_natambio_routing
@@ -478,7 +478,7 @@ calibrate_gains() {
     gout="$GAIN_OUT"; gin="$GAIN_IN"
     while true; do
         echo
-        echo "Trying GAIN_OUT=$gout dB / GAIN_IN=$gin dB over the $NUM_WAYS ways..."
+        echo "Trying GAIN_OUT=$gout dB / GAIN_IN=$gin dB over the $NUM_WAYS channels..."
         okall=1
         for w in $(seq 0 $((NUM_WAYS - 1))); do
             echo "--- ${LABELS[$w]} ---"
@@ -492,9 +492,9 @@ calibrate_gains() {
         done
         echo
         if [ "$okall" = "1" ]; then
-            echo "All ways with correct levels at GAIN_OUT=$gout / GAIN_IN=$gin."
+            echo "All channels with correct levels at GAIN_OUT=$gout / GAIN_IN=$gin."
         else
-            echo "Some way does not pass: adjust the gains (and/or the microphone preamp)."
+            echo "Some channel does not pass: adjust the gains (and/or the microphone preamp)."
         fi
         [ "$AUTO" = "1" ] && break
         read -r -p "Enter to accept, or new 'GAIN_OUT GAIN_IN' (e.g. -3 12): " ans
@@ -541,7 +541,7 @@ fi
 
 # --- Phase 1: measurement -----------------------------------------------------
 if [ "$DO_MEASURE" = "1" ]; then
-    echo "### Phase 1: sweep measurement ($NUM_POS positions x $NUM_WAYS ways)"
+    echo "### Phase 1: sweep measurement ($NUM_POS positions x $NUM_WAYS channels)"
     # Starts natambio with the corresponding configuration; exposes the input
     # ports (OUT_PORTS) to which ecasound will send the sweep.
     start_natambio
@@ -651,7 +651,7 @@ if [ "$DO_DRC" = "1" ]; then
             continue
         fi
         echo "DRC of ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel"
-        # BaseDir = the way's impulse folder (same level as the original
+        # BaseDir = the channel's impulse folder (same level as the original
         # p_left/). Since --BCBaseDir goes on the command line, it also affects
         # --BCInFile (-> $base/$in_rel) and the config's outputs/relative paths
         # (rps.raw/rms.raw -> $base/, ../target/... -> measurement root).
@@ -665,7 +665,7 @@ if [ "$DO_DRC" = "1" ]; then
                 fi
             done
         else
-            echo "ERROR: DRC failed for ${LABELS[$w]} (continuing with the other ways)."
+            echo "ERROR: DRC failed for ${LABELS[$w]} (continuing with the other channels)."
         fi
     done
 fi

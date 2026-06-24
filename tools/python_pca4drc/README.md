@@ -96,7 +96,7 @@ seconds).
 ## Complete measurement chain: `measure_pca4drc.sh`
 
 Template derived from `ecasound_script.sh` for the four-loudspeaker panambio
-system (JACK + Echo AudioFire 4). It chains five phases:
+system (JACK + Audio Interface). It chains five phases:
 
 0. **Sweep** (`sweepgen.py`): generates the excitation log-sweep (`SWEEP`) and its
    inverse (`INVERSE`) from the generation-parameter block (`SWEEP_RATE`,
@@ -104,8 +104,8 @@ system (JACK + Echo AudioFire 4). It chains five phases:
    (48000 Hz). If you already have a sweep/inverse pair, disable it with
    `DO_SWEEP=0`.
 1. **Measurement** (`ecasound`): for each microphone position it plays the sweep
-   through each way and records the response. The number of ways depends on
-   `FULL_NATAMBIO`: `true` (default) measures the four ways of the full NatAmbio
+   through each channel and records the response. The number of channels depends on
+   `FULL_NATAMBIO`: `true` (default) measures the four channels of the full NatAmbio
    (front L/R + rear L/R); `false` measures only 2 loudspeakers (front L/R).
    Before measuring it starts **natambio** with the configuration corresponding
    to `FULL_NATAMBIO` (full/half) and `SUBWOOFER` (subwoofer/normal):
@@ -115,7 +115,7 @@ system (JACK + Echo AudioFire 4). It chains five phases:
    registers its JACK ports (otherwise it aborts, showing the end of the log).
    ecasound sends the sweep to natambio's input ports
    (`natambio:front_input_left`, ...). Once running, it prints a **configuration
-   report** (full/half mode, subwoofer mode, ways to measure and the actual
+   report** (full/half mode, subwoofer mode, channels to measure and the actual
    routing of natambio's outputs to the card outputs `system:playback_*`, queried
    from JACK) and asks for **confirmation** before measuring. When the
    measurement finishes, natambio is stopped automatically (SIGINT, escalating to
@@ -126,17 +126,17 @@ system (JACK + Echo AudioFire 4). It chains five phases:
    gain and repeats it (except under `AUTO=1`).
 2. **Impulses** (`fft_convolve.py`): deconvolves each recorded sweep with the
    inverse sweep to obtain the impulse response.
-3. **PCA** (`pca4drc.py`): for each way it generates `i_<way>/pca4drc/` with the
+3. **PCA** (`pca4drc.py`): for each channel it generates `i_<channel>/pca4drc/` with the
    PCA component WAVs and then converts them to `.raw` (float 32-bit LE) with
    `wav2raw.py` in the same directory, to feed DRC.
-4. **DRC** (Sbragion's `drc`): for each way it runs `drc` with `config.drc`
-   (next to this script), overriding `--BCBaseDir=i_<way>/` (the impulse folder,
+4. **DRC** (Sbragion's `drc`): for each channel it runs `drc` with `config.drc`
+   (next to this script), overriding `--BCBaseDir=i_<channel>/` (the impulse folder,
    at the same level as the original `p_left/` so the config's relative paths,
    e.g. the target curve `../target/...`, keep resolving) and
    `--BCInFile=pca4drc/PCA_0.raw` (the principal component). When finished, it
    converts the `rps.raw` (`PSOutFile`) and `rms.raw` (`MSOutFile`) outputs,
-   generated in `i_<way>/`, to WAV with `raw2wav.py`. Enabled with `DO_DRC`
-   (1 by default). If a way fails, it is reported and the rest continue.
+   generated in `i_<channel>/`, to WAV with `raw2wav.py`. Enabled with `DO_DRC`
+   (1 by default). If a channel fails, it is reported and the rest continue.
 
 ### Command-line configuration
 
@@ -177,10 +177,10 @@ Each measurement is performed by `ecasound` with two chains: one **plays** the
 sweep into natambio's input and the other **records** the microphone capture.
 
 - **Output (sweep → natambio):** the destination is set by the `OUT_PORTS` array,
-  one entry per way, pointing to natambio's input ports
+  one entry per channel, pointing to natambio's input ports
   (`natambio:front_input_left`, `natambio:front_input_right`, ...). It rarely
   needs changing: natambio fixes those names.
-- **Input (microphone → WAV):** a single port common to all ways, the variable
+- **Input (microphone → WAV):** a single port common to all channels, the variable
   `IN_MEAS` (default `system:capture_1`, the card's first capture input, where
   the microphone preamp usually is).
 

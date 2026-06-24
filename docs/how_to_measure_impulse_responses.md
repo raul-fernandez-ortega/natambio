@@ -101,7 +101,7 @@ In the Focusrite Scarlett 6i6 example, the microphone inputs correspond to ``sys
 
 ### NatAmbio in bypass and subwoofer mode
 
-One way to standardize the measurement process is to always have a NatAmbio session running. This way the log-sweep is not sent directly to an output of the audio interface, but to a NatAmbio input. For the case of subwoofer management from NatAmbio, this step is essential, since the measurement must be done with the low-pass and high-pass filters active and sent to the monitors and the subwoofer respectively.
+One channel to standardize the measurement process is to always have a NatAmbio session running. This channel the log-sweep is not sent directly to an output of the audio interface, but to a NatAmbio input. For the case of subwoofer management from NatAmbio, this step is essential, since the measurement must be done with the low-pass and high-pass filters active and sent to the monitors and the subwoofer respectively.
 
 Inside the pca4drc measurement-tools folder there is a set of XML configuration files to take measurements with NatAmbio in bypass / subwoofer-management mode.
 
@@ -183,10 +183,10 @@ To take the measurements manually on GNU/Linux a very useful and flexible comman
 
 The idea is to launch two audio chains at the same time within the same `ecasound` run:
 
-- A playback chain that sends the sweep (`sweep_48k.wav`) to the natambio input of the way to be measured.
+- A playback chain that sends the sweep (`sweep_48k.wav`) to the natambio input of the channel to be measured.
 - A recording chain that captures the microphone (`system:capture_1`) and writes it to a WAV.
 
-Assuming JACK and natambio are already running (natambio with the measurement configuration, exposing its `natambio:*_input_*` ports), a measurement of the *front left* way would be:
+Assuming JACK and natambio are already running (natambio with the measurement configuration, exposing its `natambio:*_input_*` ports), a measurement of the *front left* channel would be:
 
 ```sh
 ecasound -t:10 \
@@ -202,7 +202,7 @@ Breakdown of the parameters (identical to those of the script):
 | `-t:10` | capture duration in seconds (`REC_SECONDS`) |
 | `-a:1` | chain 1 = sweep **playback** |
 | `-i sweep_48k.wav` | input of chain 1: the sweep file (`SWEEP`) |
-| `-o:jack_auto,natambio:front_input_left` | output of chain 1: auto-connects to the natambio input of that way (`OUT_PORTS`) |
+| `-o:jack_auto,natambio:front_input_left` | output of chain 1: auto-connects to the natambio input of that channel (`OUT_PORTS`) |
 | `-eadb:0` (chain 1) | **output** gain in dB (`GAIN_OUT`) |
 | `-a:2` | chain 2 = microphone **recording** |
 | `-i:jack_auto,system:capture_1` | input of chain 2: auto-connects to the microphone input (`IN_MEAS`) |
@@ -215,7 +215,7 @@ The `jack_auto` is what performs the **auto-connection**: `ecasound` creates its
 
 The `-ev` parameter is included so that ecasound generates a table of measured levels, so you can analyse whether the signal's peak and average are too low or too close to saturation.
 
-To measure **another way** just change the output port (e.g. `natambio:front_input_right`) and the WAV name. And to measure **without going through natambio** (directly to a loudspeaker on the card), replace the output with the corresponding physical port, e.g. `-o:jack_auto,system:playback_1`.
+To measure **another channel** just change the output port (e.g. `natambio:front_input_right`) and the WAV name. And to measure **without going through natambio** (directly to a loudspeaker on the card), replace the output with the corresponding physical port, e.g. `-o:jack_auto,system:playback_1`.
 
 This capture is still the *recorded sweep*: to obtain the **impulse response** it must be deconvolved with the inverse sweep, which is exactly what the `fft_convolve.py` script does (Phase 2 of the automated flow):
 
@@ -239,7 +239,7 @@ Summary of the tools involved in a manual measurement, in the order in which the
 | Step | Tool | Belongs to | What it does | Example |
 |---|---|---|---|---|
 | 1. Generate the sweep | `sweepgen.py` | `tools/python_pca4drc/` | Generates the excitation log-sweep and its inverse filter from the `<generate_sweep>` XML | `python sweepgen.py sweep.xml -s sweep_48k.wav -i inverse_48k.wav` |
-| 2. Measure (play and record) | `ecasound` | external (system) | Plays the sweep through one way and records the microphone response into a WAV | `ecasound -t:10 -a:1 -i sweep_48k.wav -a:1 -o:jack_auto,natambio:front_input_left -a:1 -eadb:0 -a:2 -i:jack_auto,system:capture_1 -a:2 -f:f32_le,1,48000 -o:left_sweep_1.wav -a:2 -eadb:10 -ev` |
+| 2. Measure (play and record) | `ecasound` | external (system) | Plays the sweep through one channel and records the microphone response into a WAV | `ecasound -t:10 -a:1 -i sweep_48k.wav -a:1 -o:jack_auto,natambio:front_input_left -a:1 -eadb:0 -a:2 -i:jack_auto,system:capture_1 -a:2 -f:f32_le,1,48000 -o:left_sweep_1.wav -a:2 -eadb:10 -ev` |
 | 2b. Validate the capture (optional) | `check_capture.py` | `tools/python_pca4drc/` | Analyses the recorded WAV and warns about clipping, low level or low SNR before continuing | `python check_capture.py left_sweep_1.wav "front left"` |
 | 3. Obtain the impulse | `fft_convolve.py` | `tools/python_pca4drc/` | Deconvolves the recorded sweep with the inverse to obtain the impulse response | `python fft_convolve.py left_sweep_1.wav inverse_48k.wav front_left_impulse_1.wav` |
 
@@ -374,9 +374,9 @@ It is advisable to run the process from a **new, dedicated measurement folder** 
 - The **natambio configuration XML** (`$TOOLS_DIR/half_natambio_measurements_normal.xml`, etc.).
 - The **`config.drc`** (`$TOOLS_DIR/config.drc`).
 
-**Root 2 — the current directory (CWD)**, that is, the measurement folder from which the command is launched. There the `sweep_48k.wav` / `inverse_48k.wav`, the output folders `m_<way>/`, `i_<way>/`, `i_<way>/pca4drc/`, and — importantly — the **target curve** `target/` are **created** (and looked for).
+**Root 2 — the current directory (CWD)**, that is, the measurement folder from which the command is launched. There the `sweep_48k.wav` / `inverse_48k.wav`, the output folders `m_<channel>/`, `i_<channel>/`, `i_<channel>/pca4drc/`, and — importantly — the **target curve** `target/` are **created** (and looked for).
 
-> ⚠️ **The `target/` is looked for in the measurement folder, not in `TOOLS_DIR`.** DRC is invoked with `--BCBaseDir=i_<way>/` (a path relative to the CWD) and in `config.drc` the curve is `PSPointsFile = ../target/48.0 kHz/...`; therefore it resolves as `i_<way>/../target/... → ./target/...` **of the measurement directory**. Even though a `target/` exists inside `tools/python_pca4drc/`, DRC does not look there: you must have `./target/` in the measurement folder or Phase 4 will fail.
+> ⚠️ **The `target/` is looked for in the measurement folder, not in `TOOLS_DIR`.** DRC is invoked with `--BCBaseDir=i_<channel>/` (a path relative to the CWD) and in `config.drc` the curve is `PSPointsFile = ../target/48.0 kHz/...`; therefore it resolves as `i_<channel>/../target/... → ./target/...` **of the measurement directory**. Even though a `target/` exists inside `tools/python_pca4drc/`, DRC does not look there: you must have `./target/` in the measurement folder or Phase 4 will fail.
 
 #### What to copy (and what not)
 
@@ -417,11 +417,11 @@ FULL_NATAMBIO=false NUM_POS=1 \
 "$TOOLS_DIR/measure_pca4drc.sh"
 ```
 
-This way **everything modified and generated stays inside `measurement_2026-06-23/`** (edited XML, `config.drc`, `target/`, sweeps, impulses and DRC filters), while the scripts remain intact in `$TOOLS_DIR`. The measurement folder is self-contained and tracking is trivial.
+This channel **everything modified and generated stays inside `measurement_2026-06-23/`** (edited XML, `config.drc`, `target/`, sweeps, impulses and DRC filters), while the scripts remain intact in `$TOOLS_DIR`. The measurement folder is self-contained and tracking is trivial.
 
 > In the examples that follow `"$TOOLS_DIR/measure_pca4drc.sh"` is used, assuming `TOOLS_DIR` is exported as above. The script is never copied to the measurement folder: doing so would break the detection of `TOOLS_DIR` and stop it finding the `.py`.
 
-> If you want to enable the **microphone** compensation, `MCPointsFile = wm-61a.txt` (without `../`) would resolve as `i_<way>/wm-61a.txt`; to avoid copying it into each way folder, the cleanest is to give an **absolute path** in `MCPointsFile`.
+> If you want to enable the **microphone** compensation, `MCPointsFile = wm-61a.txt` (without `../`) would resolve as `i_<channel>/wm-61a.txt`; to avoid copying it into each channel folder, the cleanest is to give an **absolute path** in `MCPointsFile`.
 
 #### Common case: tools installed from the Debian package
 
@@ -473,7 +473,7 @@ The simplest case is a basic stereo system that you want to turn into a single-d
 
 These conditions translate into three inline parameters of [`measure_pca4drc.sh`](../tools/python_pca4drc/measure_pca4drc.sh), prefixed to the call:
 
-- `FULL_NATAMBIO=false` → a single dipole: it measures only two ways, *front left* and *front right* (uses `half_natambio_measurements_normal.xml`).
+- `FULL_NATAMBIO=false` → a single dipole: it measures only two channels, *front left* and *front right* (uses `half_natambio_measurements_normal.xml`).
 - `SUBWOOFER=false` → without subwoofer. It is the default value, so it can be omitted.
 - `NUM_POS=1` → a single measurement per channel. With a single measurement **no PCA is applied**: the measured impulse is used directly as DRC input.
 
@@ -505,7 +505,7 @@ In this case, compared to the previous one, only one parameter changes in the sc
 FULL_NATAMBIO=false SUBWOOFER=true NUM_POS=1 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR/measure_pca4drc.sh"
 ```
 
-The script will run natambio with the half_natambio_measurements_subwoofer.xml configuration. Before starting it, you will have to edit this xml to configure the low-pass and high-pass filters in the desired way.
+The script will run natambio with the half_natambio_measurements_subwoofer.xml configuration. Before starting it, you will have to edit this xml to configure the low-pass and high-pass filters in the desired channel.
 
 ### Single dipole, several measurements per channel
 
@@ -537,11 +537,11 @@ FULL_NATAMBIO=true SUBWOOFER=true NUM_POS=16 GAIN_OUT=-3 GAIN_IN=12 "$TOOLS_DIR/
 
 ### Calibration
 
-Before taking any good measurement it is advisable to fix playback (`GAIN_OUT`) and capture (`GAIN_IN`) gains that work **at the same time** for both ways of the dipole (front left and front right), without clipping, with sufficient level and good signal-to-noise ratio. For this the script [`measure_pca4drc.sh`](../tools/python_pca4drc/measure_pca4drc.sh) provides a **calibration mode** (`CALIBRATE=1`) that limits itself to playing the sweep and recording to adjust levels: it does not extract impulses, nor does PCA, nor DRC (it disables those phases so as not to require their dependencies).
+Before taking any good measurement it is advisable to fix playback (`GAIN_OUT`) and capture (`GAIN_IN`) gains that work **at the same time** for both channels of the dipole (front left and front right), without clipping, with sufficient level and good signal-to-noise ratio. For this the script [`measure_pca4drc.sh`](../tools/python_pca4drc/measure_pca4drc.sh) provides a **calibration mode** (`CALIBRATE=1`) that limits itself to playing the sweep and recording to adjust levels: it does not extract impulses, nor does PCA, nor DRC (it disables those phases so as not to require their dependencies).
 
 For a **single-dipole, no-subwoofer** system, the mode is selected with:
 
-- `FULL_NATAMBIO=false` → only two ways, *front left* and *front right* (one dipole).
+- `FULL_NATAMBIO=false` → only two channels, *front left* and *front right* (one dipole).
 - `SUBWOOFER=false` → system without subwoofer (it is the default value, can be omitted).
 - `CALIBRATE=1` → gain calibration mode.
 
@@ -559,8 +559,8 @@ What the calibration mode does, step by step:
 
 1. Generates the sweep and its inverse (Phase 0), unless skipped with `DO_SWEEP=0` reusing an existing pair.
 2. Starts `natambio` with the `half_natambio_measurements_normal.xml` configuration (half system = one dipole, no subwoofer) and shows the **routing report** (which natambio output goes to each physical card output). You must confirm with Enter that the assignment is correct.
-3. Plays the sweep through **each way** (front L and front R) at the gains defined at that moment, records the microphone capture and analyses it with `check_capture.py`, warning about **clipping**, **low level** (`MIN_LEVEL`, −40 dBFS by default) or **low SNR** (`MIN_SNR`, 20 dB).
-4. After trying both ways, if any does not meet the requirements, you can repeat the process with **two new values of** `GAIN_OUT GAIN_IN` (e.g. `-3 12`), as well as adjusting the physical gain of the microphone preamp. When both ways give correct levels, you just press Enter to accept.
+3. Plays the sweep through **each channel** (front L and front R) at the gains defined at that moment, records the microphone capture and analyses it with `check_capture.py`, warning about **clipping**, **low level** (`MIN_LEVEL`, −40 dBFS by default) or **low SNR** (`MIN_SNR`, 20 dB).
+4. After trying both channels, if any does not meet the requirements, you can repeat the process with **two new values of** `GAIN_OUT GAIN_IN` (e.g. `-3 12`), as well as adjusting the physical gain of the microphone preamp. When both channels give correct levels, you just press Enter to accept.
 5. When finished, natambio stops and the script prints the **recommended gains**, ready to use in the actual measurement, for example:
 
    ```sh
@@ -569,9 +569,9 @@ What the calibration mode does, step by step:
 
 > During calibration it is advisable to adjust the **physical** gain of the microphone preamp first and leave the fine adjustment to `GAIN_OUT`/`GAIN_IN`. And to watch the playback level at all times to avoid accidents (see the warning in [Before measuring](#before-measuring)).
 
-The script repeats the whole process for each **way** (loudspeaker) of the system:
+The script repeats the whole process for each **channel** (loudspeaker) of the system:
 
-- **Full NatAmbio** (`FULL_NATAMBIO=true`, default): four ways — `front_left`, `front_right`, `rear_left`, `rear_right`.
+- **Full NatAmbio** (`FULL_NATAMBIO=true`, default): four channels — `front_left`, `front_right`, `rear_left`, `rear_right`.
 - **Two-loudspeaker system** (`FULL_NATAMBIO=false`): only `front_left` and `front_right`.
 
 
@@ -593,7 +593,7 @@ The rps.wav and rms.wav files of each loudspeaker are the ones applicable to Nat
 In case at some point you want to change some specific behavior or variable of the ``measure_pca4drc.sh`` script that has not been covered so far in this document, here is the list of possibilities. All variables have a default value, but can be **overridden on the fly** by prefixing them to the call (without editing the script):
 
 ```sh
-"$TOOLS_DIR/measure_pca4drc.sh"                       # the five phases, interactive (4 ways, normal)
+"$TOOLS_DIR/measure_pca4drc.sh"                       # the five phases, interactive (4 channels, normal)
 FULL_NATAMBIO=false "$TOOLS_DIR/measure_pca4drc.sh"   # 2-loudspeaker system (front L/R only)
 SUBWOOFER=true "$TOOLS_DIR/measure_pca4drc.sh"        # start natambio with the subwoofer config
 NUM_POS=8 "$TOOLS_DIR/measure_pca4drc.sh"             # 8 microphone positions instead of 16
@@ -610,7 +610,7 @@ Most common variables:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FULL_NATAMBIO` | `true` | `true` = 4 ways (front+rear); `false` = 2 (front) |
+| `FULL_NATAMBIO` | `true` | `true` = 4 channels (front+rear); `false` = 2 (front) |
 | `SUBWOOFER` | `false` | natambio config with/without subwoofer |
 | `NUM_POS` | `16` | Number of microphone positions |
 | `IN_MEAS` | `system:capture_1` | Microphone capture JACK port |
@@ -628,7 +628,7 @@ The complete list of variables is documented in [`tools/python_pca4drc/README.md
 ## Recommended workflow
 
 1. **Prepare the room and the system**: JACK running at 48 kHz, microphone placed at the first position, reasonable preamp levels.
-2. **First full, interactive run**: `"$TOOLS_DIR/measure_pca4drc.sh"`. Review the configuration report (way routing) before confirming.
+2. **First full, interactive run**: `"$TOOLS_DIR/measure_pca4drc.sh"`. Review the configuration report (channel routing) before confirming.
 3. **Adjust the gain** if `check_capture.py` warns about level/SNR, and repeat the position.
-4. Once all positions and ways have been measured, phases 2–4 generate impulses, PCA and DRC filters with no further intervention.
+4. Once all positions and channels have been measured, phases 2–4 generate impulses, PCA and DRC filters with no further intervention.
 5. To **re-process** without measuring again (e.g. trying another target curve or PCA parameters), repeat with `DO_SWEEP=0 DO_MEASURE=0`.

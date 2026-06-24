@@ -96,7 +96,7 @@ longitud del barrido (`length` segundos).
 ## Cadena completa de medición: `measure_pca4drc.sh`
 
 Plantilla derivada de `ecasound_script.sh` para el sistema panambio de cuatro
-altavoces (JACK + Echo AudioFire 4). Encadena cinco fases:
+altavoces (JACK + Interfaz Audio). Encadena cinco fases:
 
 0. **Sweep** (`sweepgen.py`): genera el log-sweep de excitación (`SWEEP`) y su
    inversa (`INVERSE`) a partir del bloque de parámetros de generación
