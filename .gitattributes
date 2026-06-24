@@ -1,0 +1,7 @@
+# Keep shell scripts and other Unix-run text files LF-only, so a checkout on
+# Windows does not rewrite them to CRLF and break execution on GNU/Linux.
+*.sh    text eol=lf
+*.py    text eol=lf
+configure.ac  text eol=lf
+*.am    text eol=lf
+debian/rules  text eol=lf
