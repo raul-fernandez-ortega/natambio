@@ -103,9 +103,15 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 
 ### Intuiciones técnicas sobre potencialidades futuras del estéreo 
 
+**[Pendiente]**
+
 ### Rincón audiófilo: las grabaciones que han hecho posible NatAmbio
 
+**[Pendiente]**
+
 ### Apuntes personales
+
+**[Pendiente]**
 
 #### Notas
 

@@ -103,9 +103,15 @@ Finally, a commented selection of recordings that proved especially relevant dur
 
 ### Technical intuitions on future possibilities of stereo
 
+**[TODO]**
+
 ### Audiophile corner: the recordings that made NatAmbio possible
 
+**[TODO]**
+
 ### Personal notes
+
+**[TODO]**
 
 #### Notes
 
