@@ -1,0 +1,147 @@
+<main>
+  <natambio>
+    <!--
+      NAE front dipole (alpha) + XTC + DRC, no subwoofer.
+      CHAINED CONVOLVERS variant of nae_dipole_drc_xtc.xml.
+
+      Instead of pre-convolving each XTC path with the destination DRC into a
+      single derived coeff (<convol_coeff>), here XTC and DRC live in separate
+      <convol> blocks that are wired together with <from_convol>:
+
+        Stage 1 — XTC (intermediate convols, no <to_output>)
+          XTC direct * nae_out_left   →  xtc_left_direct  ┐
+          XTC cross  * nae_out_right  →  xtc_left_cross   ┴→ (speaker-left feed)
+          XTC direct * nae_out_right  →  xtc_right_direct ┐
+          XTC cross  * nae_out_left   →  xtc_right_cross  ┴→ (speaker-right feed)
+
+        Stage 2 — DRC (chained from stage 1, to output)
+          DRC left  * (xtc_left_direct  + xtc_left_cross)  →  output_left
+          DRC right * (xtc_right_direct + xtc_right_cross) →  output_right
+
+      This is mathematically identical to nae_dipole_drc_xtc.xml, but keeps the
+      XTC and DRC filters as independent, runtime-swappable stages. DRC is now
+      applied once per speaker (2 convols) instead of being baked into all four
+      XTC paths, and no <convol_coeff> derived coeffs are needed.
+
+      LATENCY COST — unlike the single-step config, chaining doubles the
+      convolution delay. Each convolver reads its input from the previous JACK
+      period, so a <from_convol> hand-off costs one full jackd cycle (n_samples)
+      before stage 2 sees stage 1's output. The single-step version convolves
+      XTC and DRC in one pass (one cycle of inherent convolution delay); this
+      two-stage chain adds a second cycle, so the total latency is 2 * n_samples.
+      Every extra chained stage adds another n_samples on top of that.
+    -->
+
+    <!-- XTC: basic parameters for typical front listening position -->
+    <xtc>
+      <itd_us>180</itd_us>
+      <ild_db>10</ild_db>
+      <ild_alpha>1.8</ild_alpha>
+      <azimuth_deg>20</azimuth_deg>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_filter_name>XTC cross</cross_filter_name>
+    </xtc>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!-- Front dipole: blends main component and ambience -->
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <output_left>nae_out_left</output_left>
+      <output_right>nae_out_right</output_right>
+    </nae>
+
+    <!-- ================= Stage 1: XTC (intermediate, no <to_output>) ================= -->
+
+    <!-- Left speaker feed: direct from left NAE, cross-cancel from right NAE -->
+    <convol>
+      <name>xtc_left_direct</name>
+      <coeff_name>XTC direct</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>xtc_left_cross</name>
+      <coeff_name>XTC cross</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right speaker feed: direct from right NAE, cross-cancel from left NAE -->
+    <convol>
+      <name>xtc_right_direct</name>
+      <coeff_name>XTC direct</coeff_name>
+      <from_nae>nae_out_right</from_nae>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>xtc_right_cross</name>
+      <coeff_name>XTC cross</coeff_name>
+      <from_nae>nae_out_left</from_nae>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- ================= Stage 2: DRC (chained from stage 1, to output) ================= -->
+
+    <!-- Left monitor: sum the two XTC feeds, then apply left DRC -->
+    <convol>
+      <name>drc_left</name>
+      <coeff_name>DRC monitor left</coeff_name>
+      <from_convol>xtc_left_direct</from_convol>
+      <from_convol>xtc_left_cross</from_convol>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: sum the two XTC feeds, then apply right DRC -->
+    <convol>
+      <name>drc_right</name>
+      <coeff_name>DRC monitor right</coeff_name>
+      <from_convol>xtc_right_direct</from_convol>
+      <from_convol>xtc_right_cross</from_convol>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>
