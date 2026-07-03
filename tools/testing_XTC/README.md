@@ -1,5 +1,11 @@
 # testing_XTC
 
+These tools are the measurement and listening tests used during the development
+of NatAmbio's XTC filters.
+
+They are intentionally published before the accompanying perceptual analysis, so
+that anyone can reproduce the experiments independently.
+
 Test-signal generators for evaluating cross-talk cancellation (XTC) and
 inter-aural cue perception. Each tool sweeps a controlled cue across a stereo
 pair while music plays, so you can listen to how the sweet spot and the
