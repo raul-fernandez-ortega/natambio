@@ -100,6 +100,7 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [ladspa_nae_natambio](../tools/ladspa_nae_natambio/README.md) NAE module for LADSPA-compatible audio hosts (applyplugin, ecasound, …).
 - [xtc_filters](../tools/xtc_filters/README.md) A C tool that implements the [design of a stereo crosstalk canceller (XTC) by convolution for NatAmbio](xtc/xtc_filters_en.md) for standalone use outside natambio. Generates the XTC FIR filters for use in another convolver.
 - [pca4drc](../tools/python_pca4drc/README.md) A set of tools to take acoustic room measurements, apply the PCA4DRC method and obtain a reference impulse for use in a DRC FIR filter generator (http://drc-fir.sourceforge.net recommended).
+- [testing_XTC](../tools/testing_XTC/README.md) Python test-signal generators (realtime JACK clients and offline WAV renderers) that sweep inter-aural cues across a stereo pair to evaluate sound-stage width and virtual-source localisation. Useful on conventional stereo systems too, to gauge the baseline scene before applying XTC.
 
 ### Technical intuitions on future possibilities of stereo
 

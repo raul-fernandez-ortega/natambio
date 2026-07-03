@@ -100,6 +100,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [ladspa_nae_natambio](../tools/ladspa_nae_natambio/README.md) Módulo NAE aplicable a procesadores audio compatibles con LADSPA (applyplugin, ecasound,...)
 - [xtc_filters](../tools/xtc_filters/README.md) Una herramienta escrita en c que implementa el [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc/xtc_filters_es.md) para su uso independiente de natambio. Genera los filtros FIR XTC para su uso en otro convolver.
 - [pca4drc](../tools/python_pca4drc/README_es.md) Incluye un conjunto de herramientas para tomar medidas acústicas de la sala, aplicar el método PCA4DRC y obtener un impulso de referencia a utilizar en un generador de filtros DRC FIR (se recomienda http://drc-fir.sourceforge.net) 
+- [testing_XTC](../tools/testing_XTC/README.md) Generadores de señales de test en Python (clientes JACK en tiempo real y renderizadores offline a WAV) que barren las claves interaurales sobre un par estéreo para evaluar la apertura de escena y la localización de fuentes virtuales. También útiles en sistemas estéreo convencionales, para medir la escena de referencia antes de aplicar XTC. (Documentación solo en inglés.)
 
 ### Intuiciones técnicas sobre potencialidades futuras del estéreo 
 
