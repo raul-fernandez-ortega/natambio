@@ -55,7 +55,11 @@ PKG_PROG_PKG_CONFIG([0.25])
 PKG_CHECK_MODULES([JACK],    [jack         >= 0.124.0])
 PKG_CHECK_MODULES([XML2],    [libxml-2.0   >= 2.9.0])
 PKG_CHECK_MODULES([SNDFILE], [sndfile      >= 1.0.25])
+# fftw3f: single precision, required by zita-convolver on the RT path.
+# fftw3:  double precision, used by lib/dsp.c for offline filter design. The
+#         cepstral minimum-phase step needs the headroom; see lib/dsp.c.
 PKG_CHECK_MODULES([FFTW3F],  [fftw3f       >= 3.3])
+PKG_CHECK_MODULES([FFTW3],   [fftw3        >= 3.3])
 
 # --------------------------- zita-convolver -----------------------------------
 # zita-convolver (Fons Adriaensen) does not ship a pkg-config file.

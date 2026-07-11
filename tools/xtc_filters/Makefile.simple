@@ -27,7 +27,7 @@ CFLAGS  += -O3 -Wall
 LIBDIR   = ../../lib
 VPATH    = $(LIBDIR)
 INC      = -I$(LIBDIR)
-LDLIBS  += -lsndfile -lfftw3f -lm
+LDLIBS  += -lsndfile -lfftw3f -lfftw3 -lm
 
 ifeq ($(DEBUG),1)
 CFLAGS  += -DDEBUG

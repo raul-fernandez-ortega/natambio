@@ -13,7 +13,8 @@ natambio_xtc_filters_SOURCES = main.c
 natambio_xtc_filters_CPPFLAGS = \
 	-I$(top_srcdir)/lib \
 	$(SNDFILE_CFLAGS)   \
-	$(FFTW3F_CFLAGS)
+	$(FFTW3F_CFLAGS)    \
+	$(FFTW3_CFLAGS)
 
 natambio_xtc_filters_CFLAGS = -Wall -O3
 
@@ -21,6 +22,7 @@ natambio_xtc_filters_LDADD = \
 	$(top_builddir)/lib/libnatdsp.a \
 	$(SNDFILE_LIBS) \
 	$(FFTW3F_LIBS)  \
+	$(FFTW3_LIBS)   \
 	-lm
 
 EXTRA_DIST = Makefile.simple README.md

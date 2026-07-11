@@ -14,6 +14,7 @@ libnatdsp_a_SOURCES = \
 	xtc.c           xtc.h          \
 	loudness.c      loudness.h
 
-# dsp.c uses the single-precision FFTW API (fftwf_*).
+# dsp.c uses the double-precision FFTW API (fftw_*) for offline filter design;
+# fftw3f stays for the RT path via zita-convolver.
 libnatdsp_a_CFLAGS  = -Wall -fPIC -O3
-libnatdsp_a_CPPFLAGS = $(FFTW3F_CFLAGS)
+libnatdsp_a_CPPFLAGS = $(FFTW3F_CFLAGS) $(FFTW3_CFLAGS)

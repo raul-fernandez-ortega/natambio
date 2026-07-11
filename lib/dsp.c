@@ -7,16 +7,30 @@
 #include "dsp.h"
 
 #include <fftw3.h>
+#include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* This unit uses exclusively the single-precision FFTW API (fftwf_*),
- * so the binary only needs to link -lfftw3f (the same one already required
- * by zita-convolver) and not -lfftw3. The public signatures remain double
- * for compatibility with callers; the double<->float conversion happens at
- * the boundaries. This is consistent with the rest of the project, which
- * is single-precision (float coeffs, zita-convolver fftwf). */
+/* This unit uses the double-precision FFTW API (fftw_*), so the binary links
+ * -lfftw3 in addition to the -lfftw3f that zita-convolver already requires.
+ *
+ * The extra dependency buys correctness in minimum_phase(). The homomorphic
+ * cepstrum takes log|X|, and the linear-phase FIR from firwin2() has forced
+ * zeros at DC and Nyquist. At those bins |X| collapses onto the FFT's own noise
+ * floor, which in single precision sits around 1e-5 -- seven orders of magnitude
+ * above LOG_EPS. log|X| then returns the log of the rounding error instead of
+ * the log of the response, and get_xtc() feeds that noise through sixteen
+ * chained convolutions. In double precision the noise floor drops below LOG_EPS
+ * and the epsilon does the job it was written to do.
+ *
+ * Filter *coefficients* stay single precision: naconf.cpp narrows to float when
+ * it hands them to zita-convolver, which is the right place for the conversion
+ * and is plenty for playback. Only the design math is double.
+ *
+ * These routines run offline at configuration time, never on the RT path, so the
+ * cost of the wider transform is irrelevant.
+ */
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -24,7 +38,16 @@
 
 #define LOG_EPS 1e-12
 
+/* Bound on any transform length handled here. Keeps len_a + len_b - 1 and its
+ * next-power-of-2 padding inside int range, so next_pow2() cannot spin past
+ * INT_MAX and the shift below stays defined. */
+#define DSP_MAX_LEN (1 << 26)
+
+/* Smallest power of two >= n. Returns 0 if n is out of range, which every caller
+ * treats as an error: without the cap, p <<= 1 would shift into the sign bit and
+ * loop forever. */
 static int next_pow2(int n) {
+    if (n < 1 || n > DSP_MAX_LEN) return 0;
     int p = 1;
     while (p < n) p <<= 1;
     return p;
@@ -33,7 +56,8 @@ static int next_pow2(int n) {
 int firwin2(int numtaps, int sample_rate,
             firwin2_db_model_fn model, void *ctx,
             double *out) {
-    if (numtaps < 2 || sample_rate <= 0 || !model) return -1;
+    if (numtaps < 2 || numtaps > DSP_MAX_LEN) return -1;
+    if (sample_rate <= 0 || !model || !out)   return -1;
 
     /* nfreqs = 1 + 2^ceil(log2(numtaps))  →  half-complex grid */
     int log2nt = 0;
@@ -43,17 +67,17 @@ int firwin2(int numtaps, int sample_rate,
     int nfreqs    = 1 + (1 << log2nt);
     int real_size = 2 * (nfreqs - 1);          /* real IFFT length */
 
-    fftwf_complex *spec = fftwf_alloc_complex((size_t)nfreqs);
-    float         *time = fftwf_alloc_real((size_t)real_size);
+    fftw_complex *spec = fftw_alloc_complex((size_t)nfreqs);
+    double       *time = fftw_alloc_real((size_t)real_size);
     if (!spec || !time) {
-        if (spec) fftwf_free(spec);
-        if (time) fftwf_free(time);
+        if (spec) fftw_free(spec);
+        if (time) fftw_free(time);
         return -2;
     }
-    fftwf_plan plan = fftwf_plan_dft_c2r_1d(real_size, spec, time, FFTW_ESTIMATE);
+    fftw_plan plan = fftw_plan_dft_c2r_1d(real_size, spec, time, FFTW_ESTIMATE);
     if (!plan) {
-        fftwf_free(spec);
-        fftwf_free(time);
+        fftw_free(spec);
+        fftw_free(time);
         return -3;
     }
 
@@ -79,77 +103,88 @@ int firwin2(int numtaps, int sample_rate,
         } else {
             double f_hz = ((double)i / (double)(nfreqs - 1)) * nyq_hz;
             double db   = model(f_hz, ctx);
-            gain_lin    = pow(10.0, db / 20.0);
+            /* A model that returns a non-finite or absurd dB value would turn
+             * the whole spectrum into inf/NaN on the pow() below. Reject it
+             * here, where the offending bin is still identifiable. */
+            if (!isfinite(db) || db > 300.0) {
+                fftw_destroy_plan(plan);
+                fftw_free(spec);
+                fftw_free(time);
+                return -4;
+            }
+            gain_lin = pow(10.0, db / 20.0);
         }
         double x     = (double)i / (double)(nfreqs - 1);
         double phase = -M_PI * x * delay;
-        spec[i][0]   = (float)(gain_lin * cos(phase));
-        spec[i][1]   = (float)(gain_lin * sin(phase));
+        spec[i][0]   = gain_lin * cos(phase);
+        spec[i][1]   = gain_lin * sin(phase);
     }
 
-    fftwf_execute(plan);
+    fftw_execute(plan);
 
     /* FFTW c2r is unnormalised (÷ real_size); symmetric Hamming window
      * (fftbins=False):  w[n] = 0.54 - 0.46 · cos(2πn / (N-1)) */
     double norm = 1.0 / (double)real_size;
     for (int n = 0; n < numtaps; n++) {
         double w = 0.54 - 0.46 * cos(2.0 * M_PI * (double)n / (double)(numtaps - 1));
-        out[n]   = (double)time[n] * norm * w;
+        out[n]   = time[n] * norm * w;
     }
 
-    fftwf_destroy_plan(plan);
-    fftwf_free(spec);
-    fftwf_free(time);
+    fftw_destroy_plan(plan);
+    fftw_free(spec);
+    fftw_free(time);
     return 0;
 }
 
 int minimum_phase(const double *x, int n, double *out) {
-    if (n < 2) return -1;
+    if (n < 2 || n > DSP_MAX_LEN) return -1;
+    if (!x || !out)               return -1;
     int half = n / 2 + 1;
 
-    fftwf_complex *X        = fftwf_alloc_complex((size_t)half);
-    float         *real_buf = fftwf_alloc_real((size_t)n);
-    float         *ceps     = fftwf_alloc_real((size_t)n);
-    float         *out_buf  = fftwf_alloc_real((size_t)n);
+    fftw_complex *X        = fftw_alloc_complex((size_t)half);
+    double       *real_buf = fftw_alloc_real((size_t)n);
+    double       *ceps     = fftw_alloc_real((size_t)n);
+    double       *out_buf  = fftw_alloc_real((size_t)n);
     if (!X || !real_buf || !ceps || !out_buf) {
-        if (X)        fftwf_free(X);
-        if (real_buf) fftwf_free(real_buf);
-        if (ceps)     fftwf_free(ceps);
-        if (out_buf)  fftwf_free(out_buf);
+        if (X)        fftw_free(X);
+        if (real_buf) fftw_free(real_buf);
+        if (ceps)     fftw_free(ceps);
+        if (out_buf)  fftw_free(out_buf);
         return -2;
     }
 
     /* FFTW_ESTIMATE does not destroy the buffers during planning,
      * so we can create all plans upfront. */
-    fftwf_plan p_fwd1 = fftwf_plan_dft_r2c_1d(n, real_buf, X,       FFTW_ESTIMATE);
-    fftwf_plan p_inv1 = fftwf_plan_dft_c2r_1d(n, X,        ceps,    FFTW_ESTIMATE);
-    fftwf_plan p_fwd2 = fftwf_plan_dft_r2c_1d(n, ceps,     X,       FFTW_ESTIMATE);
-    fftwf_plan p_inv2 = fftwf_plan_dft_c2r_1d(n, X,        out_buf, FFTW_ESTIMATE);
+    fftw_plan p_fwd1 = fftw_plan_dft_r2c_1d(n, real_buf, X,       FFTW_ESTIMATE);
+    fftw_plan p_inv1 = fftw_plan_dft_c2r_1d(n, X,        ceps,    FFTW_ESTIMATE);
+    fftw_plan p_fwd2 = fftw_plan_dft_r2c_1d(n, ceps,     X,       FFTW_ESTIMATE);
+    fftw_plan p_inv2 = fftw_plan_dft_c2r_1d(n, X,        out_buf, FFTW_ESTIMATE);
     if (!p_fwd1 || !p_inv1 || !p_fwd2 || !p_inv2) {
-        if (p_fwd1) fftwf_destroy_plan(p_fwd1);
-        if (p_inv1) fftwf_destroy_plan(p_inv1);
-        if (p_fwd2) fftwf_destroy_plan(p_fwd2);
-        if (p_inv2) fftwf_destroy_plan(p_inv2);
-        fftwf_free(X); fftwf_free(real_buf); fftwf_free(ceps); fftwf_free(out_buf);
+        if (p_fwd1) fftw_destroy_plan(p_fwd1);
+        if (p_inv1) fftw_destroy_plan(p_inv1);
+        if (p_fwd2) fftw_destroy_plan(p_fwd2);
+        if (p_inv2) fftw_destroy_plan(p_inv2);
+        fftw_free(X); fftw_free(real_buf); fftw_free(ceps); fftw_free(out_buf);
         return -3;
     }
 
     /* 1) X = FFT(x) */
-    for (int k = 0; k < n; k++) real_buf[k] = (float)x[k];
-    fftwf_execute(p_fwd1);
+    for (int k = 0; k < n; k++) real_buf[k] = x[k];
+    fftw_execute(p_fwd1);
 
-    /* 2) X ← log|X| + 0j  (keep valid half-complex format) */
+    /* 2) X ← log|X| + 0j  (keep valid half-complex format).
+     * hypot() rather than sqrt(re*re + im*im): the squares would underflow to
+     * zero near the forced zeros at DC and Nyquist, which is exactly where this
+     * epsilon is supposed to be the thing that saves us. */
     for (int k = 0; k < half; k++) {
-        double re  = (double)X[k][0];
-        double im  = (double)X[k][1];
-        double mag = sqrt(re * re + im * im) + LOG_EPS;
-        X[k][0] = (float)log(mag);
-        X[k][1] = 0.0f;
+        double mag = hypot(X[k][0], X[k][1]) + LOG_EPS;
+        X[k][0] = log(mag);
+        X[k][1] = 0.0;
     }
 
     /* 3) ceps = IFFT(log|X|).real  (÷ n to normalise) */
-    fftwf_execute(p_inv1);
-    float inv_n = 1.0f / (float)n;
+    fftw_execute(p_inv1);
+    double inv_n = 1.0 / (double)n;
     for (int k = 0; k < n; k++) ceps[k] *= inv_n;
 
     /* 4) Apply the min-phase window to the cepstrum:
@@ -157,96 +192,111 @@ int minimum_phase(const double *x, int n, double *out) {
      *      n odd  : [1, 2, 2, …, 2, 0, 0, …, 0]
      */
     if ((n % 2) == 0) {
-        for (int k = 1; k < n / 2; k++) ceps[k] *= 2.0f;
-        for (int k = n / 2 + 1; k < n; k++) ceps[k] = 0.0f;
+        for (int k = 1; k < n / 2; k++) ceps[k] *= 2.0;
+        for (int k = n / 2 + 1; k < n; k++) ceps[k] = 0.0;
     } else {
-        for (int k = 1; k <= (n - 1) / 2; k++)     ceps[k] *= 2.0f;
-        for (int k = (n - 1) / 2 + 1; k < n; k++)  ceps[k] = 0.0f;
+        for (int k = 1; k <= (n - 1) / 2; k++)     ceps[k] *= 2.0;
+        for (int k = (n - 1) / 2 + 1; k < n; k++)  ceps[k] = 0.0;
     }
 
     /* 5) X = FFT(ceps · window)  → complex cepstrum of the min-phase signal */
-    fftwf_execute(p_fwd2);
+    fftw_execute(p_fwd2);
 
     /* 6) X ← exp(X)   :  exp(a + jb) = e^a · (cos b + j sin b) */
     for (int k = 0; k < half; k++) {
-        double a  = (double)X[k][0];
-        double b  = (double)X[k][1];
+        double a  = X[k][0];
+        double b  = X[k][1];
         double ea = exp(a);
-        X[k][0] = (float)(ea * cos(b));
-        X[k][1] = (float)(ea * sin(b));
+        X[k][0] = ea * cos(b);
+        X[k][1] = ea * sin(b);
     }
 
     /* 7) out = IFFT(exp(...)).real  (÷ n) */
-    fftwf_execute(p_inv2);
-    for (int k = 0; k < n; k++) out[k] = (double)out_buf[k] * (double)inv_n;
+    fftw_execute(p_inv2);
+    for (int k = 0; k < n; k++) out[k] = out_buf[k] * inv_n;
 
-    fftwf_destroy_plan(p_fwd1);
-    fftwf_destroy_plan(p_inv1);
-    fftwf_destroy_plan(p_fwd2);
-    fftwf_destroy_plan(p_inv2);
-    fftwf_free(X);
-    fftwf_free(real_buf);
-    fftwf_free(ceps);
-    fftwf_free(out_buf);
+    fftw_destroy_plan(p_fwd1);
+    fftw_destroy_plan(p_inv1);
+    fftw_destroy_plan(p_fwd2);
+    fftw_destroy_plan(p_inv2);
+    fftw_free(X);
+    fftw_free(real_buf);
+    fftw_free(ceps);
+    fftw_free(out_buf);
     return 0;
 }
 
 int fft_convolve_truncate(const double *a, int len_a,
                           const double *b, int len_b,
                           double *out, int out_len) {
+    if (!a || !b || !out)              return -1;
+    if (len_a < 1 || len_b < 1)        return -1;
+    if (out_len < 1)                   return -1;
+    /* len_a + len_b - 1 must not overflow int, and the padded length must stay
+     * within what next_pow2 can represent. */
+    if (len_a > DSP_MAX_LEN || len_b > DSP_MAX_LEN) return -1;
+
     int conv_len = len_a + len_b - 1;
     int N        = next_pow2(conv_len);
+    if (N == 0)  return -1;
     int half     = N / 2 + 1;
 
-    float        *ap     = fftwf_alloc_real((size_t)N);
-    float        *bp     = fftwf_alloc_real((size_t)N);
-    fftwf_complex *Af     = fftwf_alloc_complex((size_t)half);
-    fftwf_complex *Bf     = fftwf_alloc_complex((size_t)half);
-    float        *result = fftwf_alloc_real((size_t)N);
+    double       *ap     = fftw_alloc_real((size_t)N);
+    double       *bp     = fftw_alloc_real((size_t)N);
+    fftw_complex *Af     = fftw_alloc_complex((size_t)half);
+    fftw_complex *Bf     = fftw_alloc_complex((size_t)half);
+    double       *result = fftw_alloc_real((size_t)N);
     if (!ap || !bp || !Af || !Bf || !result) {
-        if (ap)     fftwf_free(ap);
-        if (bp)     fftwf_free(bp);
-        if (Af)     fftwf_free(Af);
-        if (Bf)     fftwf_free(Bf);
-        if (result) fftwf_free(result);
+        if (ap)     fftw_free(ap);
+        if (bp)     fftw_free(bp);
+        if (Af)     fftw_free(Af);
+        if (Bf)     fftw_free(Bf);
+        if (result) fftw_free(result);
         return -2;
     }
 
-    memset(ap, 0, (size_t)N * sizeof(float));
-    memset(bp, 0, (size_t)N * sizeof(float));
-    for (int i = 0; i < len_a; i++) ap[i] = (float)a[i];
-    for (int i = 0; i < len_b; i++) bp[i] = (float)b[i];
+    memset(ap, 0, (size_t)N * sizeof(double));
+    memset(bp, 0, (size_t)N * sizeof(double));
+    memcpy(ap, a, (size_t)len_a * sizeof(double));
+    memcpy(bp, b, (size_t)len_b * sizeof(double));
 
-    fftwf_plan pa = fftwf_plan_dft_r2c_1d(N, ap, Af,     FFTW_ESTIMATE);
-    fftwf_plan pb = fftwf_plan_dft_r2c_1d(N, bp, Bf,     FFTW_ESTIMATE);
-    fftwf_plan pi = fftwf_plan_dft_c2r_1d(N, Af, result, FFTW_ESTIMATE);
+    fftw_plan pa = fftw_plan_dft_r2c_1d(N, ap, Af,     FFTW_ESTIMATE);
+    fftw_plan pb = fftw_plan_dft_r2c_1d(N, bp, Bf,     FFTW_ESTIMATE);
+    fftw_plan pi = fftw_plan_dft_c2r_1d(N, Af, result, FFTW_ESTIMATE);
+    if (!pa || !pb || !pi) {
+        if (pa) fftw_destroy_plan(pa);
+        if (pb) fftw_destroy_plan(pb);
+        if (pi) fftw_destroy_plan(pi);
+        fftw_free(ap); fftw_free(bp); fftw_free(Af); fftw_free(Bf); fftw_free(result);
+        return -3;
+    }
 
-    fftwf_execute(pa);
-    fftwf_execute(pb);
+    fftw_execute(pa);
+    fftw_execute(pb);
 
     /* Point-wise multiplication in the frequency domain,
      * with the 1/N IFFT normalisation folded into Af. */
-    float inv_N = 1.0f / (float)N;
+    double inv_N = 1.0 / (double)N;
     for (int k = 0; k < half; k++) {
-        float ar = Af[k][0], ai = Af[k][1];
-        float br = Bf[k][0], bi = Bf[k][1];
+        double ar = Af[k][0], ai = Af[k][1];
+        double br = Bf[k][0], bi = Bf[k][1];
         Af[k][0] = (ar * br - ai * bi) * inv_N;
         Af[k][1] = (ar * bi + ai * br) * inv_N;
     }
 
-    fftwf_execute(pi);
+    fftw_execute(pi);
 
     int copy_len = (out_len < N) ? out_len : N;
-    for (int k = 0; k < copy_len; k++) out[k] = (double)result[k];
+    memcpy(out, result, (size_t)copy_len * sizeof(double));
     for (int k = copy_len; k < out_len; k++) out[k] = 0.0;
 
-    fftwf_destroy_plan(pa);
-    fftwf_destroy_plan(pb);
-    fftwf_destroy_plan(pi);
-    fftwf_free(ap);
-    fftwf_free(bp);
-    fftwf_free(Af);
-    fftwf_free(Bf);
-    fftwf_free(result);
+    fftw_destroy_plan(pa);
+    fftw_destroy_plan(pb);
+    fftw_destroy_plan(pi);
+    fftw_free(ap);
+    fftw_free(bp);
+    fftw_free(Af);
+    fftw_free(Bf);
+    fftw_free(result);
     return 0;
 }

@@ -26,7 +26,8 @@ natambio_CPPFLAGS = \
 	$(JACK_CFLAGS)    \
 	$(XML2_CFLAGS)    \
 	$(SNDFILE_CFLAGS) \
-	$(FFTW3F_CFLAGS)
+	$(FFTW3F_CFLAGS)  \
+	$(FFTW3_CFLAGS)
 
 natambio_CXXFLAGS = -Wall -fPIC -O3 $(CXX_STD_FLAG) $(PTHREAD_FLAGS)
 
@@ -38,6 +39,7 @@ natambio_LDADD = \
 	$(XML2_LIBS)             \
 	$(SNDFILE_LIBS)          \
 	$(FFTW3F_LIBS)           \
+	$(FFTW3_LIBS)            \
 	$(ZITA_CONVOLVER_LIBS)
 
 EXTRA_DIST = README.md Makefile.simple

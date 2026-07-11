@@ -40,7 +40,7 @@ CFLAGS  += -O3 -Wall -fPIC
 #CXXFLAGS += -DDEBUG -DRTDEBUG
 
 LIBINCLUDES = -I/usr/include/libxml2
-LDLIBS  += -lxml2 -lzita-convolver -lfftw3f -lsndfile -ljack -pthread -lrt
+LDLIBS  += -lxml2 -lzita-convolver -lfftw3f -lfftw3 -lsndfile -ljack -pthread -lrt
 
 # Shared C filter-design code (binaural_cues, dsp, xtc, loudness) lives in
 # ../lib and is compiled here via VPATH; -I../lib lets naconf.cpp find its headers.
