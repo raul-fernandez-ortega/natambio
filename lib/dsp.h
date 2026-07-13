@@ -42,11 +42,18 @@ int firwin2(int numtaps, int sample_rate,
  *   n   : length
  *   out : output (length n, allocated by the caller)
  *
- * Algorithm:
- *   X      = FFT(x)
+ * Algorithm, carried out on a transform of length N = next_pow2(n) · 8, with x
+ * zero-padded, and truncated back to n taps at the end:
+ *   X      = FFT(x, N)
  *   c      = IFFT(log|X| + eps).real
- *   c_min  = c · window_min      (folding causal: 1, 2..2, 1?, 0..0)
+ *   c_min  = c · window_min      (causal fold: 1, 2..2, 1, 0..0)
  *   y      = IFFT(exp(FFT(c_min))).real
+ *
+ * The oversampling is not optional. The complex cepstrum has infinite support
+ * and decays as ~1/k, so a transform of length n aliases its tail back onto
+ * itself; see the comment above the definition in dsp.c for the measured cost.
+ *
+ * Returns 0 on success, non-zero on error.
  */
 int minimum_phase(const double *x, int n, double *out);
 
