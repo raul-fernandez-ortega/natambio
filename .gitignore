@@ -81,3 +81,6 @@ Makefile.in
 *.deb
 *.buildinfo
 *.changes
+
+# Working notes, not for publication
+/docs/CHANGES_xtc_hardening.md
