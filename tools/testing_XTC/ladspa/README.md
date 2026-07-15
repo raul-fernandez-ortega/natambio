@@ -64,7 +64,7 @@ atten) appear in the terminal as the sweep advances. Examples:
 **Live: 2 JACK inputs → sweep → 2 JACK outputs** (JACK client `testing_XTC`):
 
 ```sh
-ecasound -G:jack,testing_XTC,notransport \
+ecasound -r:50 -G:jack,testing_XTC,notransport \
          -f:f32,2,48000 \
          -i:jack \
          -el:natambio_xtc_sweep \
@@ -80,6 +80,12 @@ your source and route the two outputs to the audio processor. Swap the label
 for `natambio_ild_itd_sweep` to run the ITD/ILD sweep, and append `,step,trans`
 to override the timings. Set `-f`'s sample rate to match your JACK/PipeWire
 server (48000 here) so no resampling is inserted.
+
+`-r:50` enables realtime (`SCHED_FIFO`) scheduling for low-latency, xrun-free
+operation. On modern systems this needs no root — just an `rtprio` limit for
+your user (e.g. membership of the `audio`/`realtime` group; check with
+`ulimit -r`). Keep the priority **below** the JACK/PipeWire server's; drop it or
+use `-r:-1` to disable if you hit conflicts.
 
 **Play a file and send the sweep to NatAmbio's JACK inputs** (2 s per step,
 0.1 s crossfade — the defaults):
