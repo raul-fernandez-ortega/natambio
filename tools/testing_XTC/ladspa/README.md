@@ -61,6 +61,26 @@ ecasound -c -E "ladspa-register" </dev/null | grep -i natambio
 The stderr messages (step / gain / channel / inversion, or angle / delay /
 atten) appear in the terminal as the sweep advances. Examples:
 
+**Live: 2 JACK inputs → sweep → 2 JACK outputs** (JACK client `testing_XTC`):
+
+```sh
+ecasound -G:jack,testing_XTC,notransport \
+         -f:f32,2,48000 \
+         -i:jack \
+         -el:natambio_xtc_sweep \
+         -o:jack
+```
+
+This registers a JACK client named **`testing_XTC`** exposing two input ports
+(`testing_XTC:in_1`, `testing_XTC:in_2`) and two output ports
+(`testing_XTC:out_1`, `testing_XTC:out_2`). With no peer client after `-i:jack`
+/ `-o:jack`, ecasound makes **no** automatic connections — wire the ports in
+your patchbay (qpwgraph, QjackCtl, `jack_connect`, …): feed the two inputs from
+your source and route the two outputs to the audio processor. Swap the label
+for `natambio_ild_itd_sweep` to run the ITD/ILD sweep, and append `,step,trans`
+to override the timings. Set `-f`'s sample rate to match your JACK/PipeWire
+server (48000 here) so no resampling is inserted.
+
 **Play a file and send the sweep to NatAmbio's JACK inputs** (2 s per step,
 0.1 s crossfade — the defaults):
 
