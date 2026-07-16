@@ -41,6 +41,12 @@ Una de las críticas más repetidas a los algoritmos XTC existentes es que mejor
 | $a = 10^{-\text{ILD}_{dB}/20}$ | Factor de atenuación lineal asociado al ILD |
 | $\alpha$ | Exponente del modelo espectral de ILD |
 | $N$ | Número de términos (iteraciones) del sumatorio |
+| $\mathbf{H}$ | Matriz de transferencia acústica del sistema simétrico |
+| $\mathbf{C}_G$ | Matriz de acoplamiento relativo normalizado |
+| $\mathbf{F}_{XTC}$ | Matriz de filtrado XTC (filtros directo y cruzado) |
+| $\mathbf{A}$ | Matriz de acoplamiento cruzado ($\mathbf{C}_G=\mathbf{I}+\mathbf{A}$) |
+| $\mathbf{I}$ | Matriz identidad |
+| $E$ | Filtro de ecualización / corrección de sala (DRC) |
 
 ## Análisis del problema y resolución
 
@@ -111,6 +117,68 @@ Aunque, en sentido estricto, el número de términos del sumatorio debería ser 
 Conviene subrayar que, aunque el *proceso de diseño* es recursivo, el filtro finalmente realizado es **FIR** (no recursivo en ejecución): la recurrencia se resuelve y se trunca en tiempo de diseño, generando una respuesta impulsiva de longitud finita. Nótese también que $F^{direct}\neq\delta$: lo que permanece inalterado es el *camino acústico* directo $H_{direct}$, pero la señal entregada al altavoz del lado directo sí incorpora los términos de corrección $\sum G^{2i}$, necesarios para cancelar la diafonía que las propias emisiones cruzadas reintroducen en el oído directo.
 
 Sin embargo, es importante tener en consideración algunos aspectos prácticos durante la implementación. A bajas frecuencias (aproximadamente por debajo de 200 Hz), la diferencia de nivel entre recepción directa y cruzada disminuye significativamente, haciendo que $|G|$ pueda aproximarse a la unidad. En estas condiciones resulta necesario proteger la estabilidad del sistema limitando la energía asociada a los términos recursivos de orden superior (los $G^{n}$ con $n$ creciente). Esto está motivado porque la convergencia matemática de los filtros XTC no garantiza por sí sola un comportamiento acústico óptimo. En sistemas reales, la interacción entre los filtros XTC, la respuesta modal de la sala y la respuesta propia de los altavoces puede producir refuerzos audibles en bajas frecuencias. Por este motivo, puede resultar conveniente introducir atenuaciones adicionales o limitaciones espectrales sobre la función $G$, independientemente de que la serie permanezca matemáticamente convergente.
+
+## Formulación matricial y separación entre XTC y DRC
+
+El desarrollo iterativo de la sección anterior admite una reescritura matricial compacta que, sin introducir ninguna hipótesis nueva, hace explícita una decisión estructural del modelo: qué parte del sistema acústico se invierte realmente y qué parte se conserva de forma deliberada.
+
+### Sistema acústico en forma matricial
+
+Bajo la hipótesis de simetría ya adoptada ($H_{lr}=H_{rl}=H_{cross}$ y $H_{ll}=H_{rr}=H_{direct}$), los cuatro caminos acústicos entre los dos altavoces y los dos oídos pueden agruparse en una única matriz de transferencia:
+
+$$ \mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix} $$
+
+de modo que, si $\mathbf{x}=[X_l,\ X_r]^{\mathsf{T}}$ es el vector de señales emitidas y $\mathbf{y}$ el par de señales recibidas en los oídos, se tiene $\mathbf{y}=\mathbf{H}\ast\mathbf{x}$ (entendiendo el producto matricial con convolución en cada término). Es exactamente la misma escena descrita antes mediante $S_l$ y $S_r$, ahora expresada de forma compacta.
+
+Extrayendo el camino directo como factor común aparece la estructura clave del modelo:
+
+$$ \mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix} $$
+
+donde $G = H_{cross}/H_{direct}$ es la función cruzada normalizada ya definida. La factorización separa dos objetos de naturaleza distinta: el camino directo $H_{direct}$, que se desea conservar, y el acoplamiento relativo $\mathbf{C}_G$, único responsable de la diafonía y, por tanto, lo único que el filtrado XTC debe cancelar.
+
+### El filtro XTC como inversa del acoplamiento normalizado
+
+Los dos filtros ya obtenidos, $F^{direct}$ y $F^{cross}$, se agrupan del mismo modo en una matriz de filtrado:
+
+$$ \mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix} $$
+
+Como ya se ha mostrado, para $|G|<1$ las series convergen a $F^{direct}=1/(1-G^2)$ y $F^{cross}=-G/(1-G^2)$, con lo que:
+
+$$ \mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1} $$
+
+Es decir, la secuencia de cancelaciones y recancelaciones desarrollada iterativamente no es otra cosa que la inversa de la matriz de acoplamiento normalizada. Puede verse también como una serie de Neumann: escribiendo $\mathbf{C}_G = \mathbf{I} + \mathbf{A}$ con
+
+$$ \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix} $$
+
+la identidad $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduce término a término el desarrollo anterior: las potencias pares de $\mathbf{A}$ generan los términos directos $G^{2i}$ y las impares los cruzados $-G^{2i-1}$. La interpretación temporal —una cadena de ecos correctores alternados entre ambos altavoces— y la matricial —la inversa de $\mathbf{C}_G$— describen por tanto el mismo sistema: la primera explica cómo se construye físicamente la solución y la segunda hacia qué objeto algebraico converge.
+
+### Qué se invierte y qué no: separación entre XTC y DRC
+
+La distinción esencial es que NatAmbio no calcula la inversa acústica completa. Ésta sería
+
+$$ \mathbf{H}^{-1} = \mathbf{C}_G^{-1}\,H_{direct}^{-1} $$
+
+mientras que el algoritmo construye únicamente $\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}$, sin el factor $H_{direct}^{-1}$. En consecuencia, el resultado ideal del filtrado no es la identidad, sino:
+
+$$ \mathbf{H}\,\mathbf{F}_{XTC} = H_{direct}\,\mathbf{C}_G\,\mathbf{C}_G^{-1} = H_{direct}\,\mathbf{I} $$
+
+esto es, cada oído recibe solo la señal que le corresponde ($y_l=H_{direct}\ast X_l$, $y_r=H_{direct}\ast X_r$) pero a través del camino directo natural, que permanece intacto. Esto coincide con la premisa de partida del análisis: mantener sin filtro los caminos $H_{ll}$ y $H_{rr}$, dejando el sistema acústico real inalterado en los caminos directos.
+
+La corrección del propio $H_{direct}$ —respuesta del altavoz, modos de sala, coloración espectral— no pertenece al problema de diafonía y se delega, como ya se ha mencionado, a la etapa de ecualización (DRC). Formalmente, si $E$ es un filtro de corrección común a ambos canales tal que $E\ast H_{direct}\approx\delta$, el procesado total es
+
+$$ \mathbf{F}_{total} = E\,\mathbf{I}\,\mathbf{F}_{XTC}, \qquad \mathbf{H}\,\mathbf{F}_{total} = E\,H_{direct}\,\mathbf{I} \approx \mathbf{I} $$
+
+de modo que la identidad final no se alcanza mediante una única inversión acústica conjunta, sino a través de dos operaciones independientes: el desacoplamiento espacial (XTC) y la corrección espectral (DRC).
+
+Mantener $H_{direct}^{-1}$ fuera de la matriz XTC no es una simplificación accidental, sino una decisión de diseño con ventajas prácticas. La inversión del camino directo puede ser problemática si contiene ceros profundos, componentes de fase no mínima, reflexiones tardías, ruido de medida o variaciones con la posición del oyente; de incluirse en la misma operación, todos esos problemas pasarían a formar parte del filtro de cancelación. Al separar ambos problemas, cada etapa puede emplear sus propios criterios de suavizado, límites de ganancia, ventana temporal y estrategia de fase —lo que, en el caso de $G$, se concreta en el modelo paramétrico y de fase mínima que se desarrolla en las secciones siguientes—. Esta separación es coherente, además, con la protección en baja frecuencia ya descrita: al no arrastrar la inversa del camino directo, el tratamiento de la región donde $|G|\to 1$ queda acotado al propio filtro cruzado.
+
+### Definición compacta del modelo
+
+Reuniendo lo anterior, el filtro XTC de NatAmbio puede definirse como una aproximación FIR causal y truncada a la inversa de la matriz de diafonía normalizada respecto al camino directo:
+
+$$ \mathbf{F}_{XTC} \approx \left(H_{direct}^{-1}\,\mathbf{H}\right)^{-1} = \mathbf{C}_G^{-1} \neq \mathbf{H}^{-1} $$
+
+La diferencia entre ambas expresiones —invertir $\mathbf{C}_G$ en lugar de $\mathbf{H}$— resume la arquitectura completa: XTC realiza el desacoplamiento espacial relativo entre canales y DRC, en una etapa posterior e independiente, ecualiza el camino directo conservado.
 
 ## Desarrollo del diseño final
 

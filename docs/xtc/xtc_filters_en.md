@@ -42,6 +42,12 @@ One of the most frequently repeated criticisms of existing XTC algorithms is tha
 | $a = 10^{-\text{ILD}_{dB}/20}$ | Linear attenuation factor associated with the ILD |
 | $\alpha$ | Exponent of the spectral ILD model |
 | $N$ | Number of terms (iterations) in the summation |
+| $\mathbf{H}$ | Acoustic transfer matrix of the symmetric system |
+| $\mathbf{C}_G$ | Normalized relative coupling matrix |
+| $\mathbf{F}_{XTC}$ | XTC filtering matrix (direct and cross filters) |
+| $\mathbf{A}$ | Cross coupling matrix ($\mathbf{C}_G=\mathbf{I}+\mathbf{A}$) |
+| $\mathbf{I}$ | Identity matrix |
+| $E$ | Equalization / room-correction filter (DRC) |
 
 ## Problem analysis and resolution
 
@@ -112,6 +118,68 @@ Although, strictly speaking, the number of terms in the summation should be infi
 It is worth emphasizing that, although the *design process* is recursive, the filter finally realized is **FIR** (not recursive at run time): the recurrence is resolved and truncated at design time, generating a finite-length impulse response. Note also that $F^{direct}\neq\delta$: what remains unchanged is the direct *acoustic path* $H_{direct}$, but the signal delivered to the direct-side loudspeaker does incorporate the correction terms $\sum G^{2i}$, needed to cancel the crosstalk that the cross emissions themselves reintroduce into the direct ear.
 
 However, some practical aspects must be taken into account during implementation. At low frequencies (roughly below 200 Hz), the level difference between direct and cross reception decreases significantly, so that $|G|$ may approach unity. Under these conditions it is necessary to protect the stability of the system by limiting the energy associated with the higher-order recursive terms (the $G^{n}$ with increasing $n$). This is motivated by the fact that the mathematical convergence of the XTC filters does not by itself guarantee optimal acoustic behavior. In real systems, the interaction between the XTC filters, the room's modal response and the loudspeakers' own response can produce audible reinforcements at low frequencies. For this reason, it may be advisable to introduce additional attenuations or spectral limitations on the function $G$, regardless of whether the series remains mathematically convergent.
+
+## Matrix formulation and separation between XTC and DRC
+
+The iterative development of the previous section admits a compact matrix rewriting that, without introducing any new hypothesis, makes explicit a structural decision of the model: which part of the acoustic system is actually inverted and which part is deliberately preserved.
+
+### The acoustic system in matrix form
+
+Under the symmetry assumption already adopted ($H_{lr}=H_{rl}=H_{cross}$ and $H_{ll}=H_{rr}=H_{direct}$), the four acoustic paths between the two loudspeakers and the two ears can be grouped into a single transfer matrix:
+
+$$ \mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix} $$
+
+so that, if $\mathbf{x}=[X_l,\ X_r]^{\mathsf{T}}$ is the vector of emitted signals and $\mathbf{y}$ the pair of signals received at the ears, then $\mathbf{y}=\mathbf{H}\ast\mathbf{x}$ (understanding the matrix product with convolution in each term). This is exactly the same scene described earlier through $S_l$ and $S_r$, now expressed compactly.
+
+Extracting the direct path as a common factor reveals the key structure of the model:
+
+$$ \mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix} $$
+
+where $G = H_{cross}/H_{direct}$ is the normalized cross function already defined. The factorization separates two objects of different nature: the direct path $H_{direct}$, which is to be preserved, and the relative coupling $\mathbf{C}_G$, the sole cause of crosstalk and therefore the only thing that XTC filtering must cancel.
+
+### The XTC filter as the inverse of the normalized coupling
+
+The two filters already obtained, $F^{direct}$ and $F^{cross}$, are grouped in the same way into a filtering matrix:
+
+$$ \mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix} $$
+
+As already shown, for $|G|<1$ the series converge to $F^{direct}=1/(1-G^2)$ and $F^{cross}=-G/(1-G^2)$, so that:
+
+$$ \mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1} $$
+
+That is, the sequence of cancellations and recancellations developed iteratively is nothing other than the inverse of the normalized coupling matrix. It can also be seen as a Neumann series: writing $\mathbf{C}_G = \mathbf{I} + \mathbf{A}$ with
+
+$$ \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix} $$
+
+the identity $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduces the earlier development term by term: the even powers of $\mathbf{A}$ generate the direct terms $G^{2i}$ and the odd powers the cross terms $-G^{2i-1}$. The time-domain interpretation —a chain of alternating corrective echoes between the two loudspeakers— and the matrix interpretation —the inverse of $\mathbf{C}_G$— therefore describe the same system: the former explains how the solution is physically built, the latter which algebraic object it converges to.
+
+### What is inverted and what is not: separation between XTC and DRC
+
+The essential distinction is that NatAmbio does not compute the complete acoustic inverse. This would be
+
+$$ \mathbf{H}^{-1} = \mathbf{C}_G^{-1}\,H_{direct}^{-1} $$
+
+whereas the algorithm builds only $\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}$, without the factor $H_{direct}^{-1}$. Consequently, the ideal result of filtering is not the identity, but:
+
+$$ \mathbf{H}\,\mathbf{F}_{XTC} = H_{direct}\,\mathbf{C}_G\,\mathbf{C}_G^{-1} = H_{direct}\,\mathbf{I} $$
+
+that is, each ear receives only its assigned signal ($y_l=H_{direct}\ast X_l$, $y_r=H_{direct}\ast X_r$) but through the natural direct path, which remains intact. This matches the premise the analysis started from: keeping the paths $H_{ll}$ and $H_{rr}$ unfiltered, leaving the real acoustic system unaltered along the direct paths.
+
+Correcting $H_{direct}$ itself —loudspeaker response, room modes, spectral coloration— does not belong to the crosstalk problem and is delegated, as already mentioned, to the equalization stage (DRC). Formally, if $E$ is a correction filter common to both channels such that $E\ast H_{direct}\approx\delta$, the total processing is
+
+$$ \mathbf{F}_{total} = E\,\mathbf{I}\,\mathbf{F}_{XTC}, \qquad \mathbf{H}\,\mathbf{F}_{total} = E\,H_{direct}\,\mathbf{I} \approx \mathbf{I} $$
+
+so that the final identity is not reached through a single joint acoustic inversion, but through two independent operations: spatial decoupling (XTC) and spectral correction (DRC).
+
+Keeping $H_{direct}^{-1}$ outside the XTC matrix is not an accidental simplification, but a design decision with practical advantages. Inverting the direct path can be problematic if it contains deep zeros, non-minimum-phase components, late reflections, measurement noise or listener-position dependence; were it included in the same operation, all those problems would become part of the cancellation filter. By separating the two problems, each stage can use its own smoothing criteria, gain limits, time window and phase strategy —which, in the case of $G$, takes the form of the parametric, minimum-phase model developed in the following sections—. This separation is also consistent with the low-frequency protection already described: by not carrying along the inverse of the direct path, the treatment of the region where $|G|\to 1$ is confined to the cross filter itself.
+
+### Compact definition of the model
+
+Gathering the above, the NatAmbio XTC filter can be defined as a causal, truncated FIR approximation to the inverse of the crosstalk matrix normalized with respect to the direct path:
+
+$$ \mathbf{F}_{XTC} \approx \left(H_{direct}^{-1}\,\mathbf{H}\right)^{-1} = \mathbf{C}_G^{-1} \neq \mathbf{H}^{-1} $$
+
+The difference between these two expressions —inverting $\mathbf{C}_G$ instead of $\mathbf{H}$— summarizes the complete architecture: XTC performs the relative spatial decoupling between channels, and DRC, in a later and independent stage, equalizes the preserved direct path.
 
 ## Final design development
 
