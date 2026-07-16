@@ -168,7 +168,7 @@ La distinción esencial es que NatAmbio no calcula la inversa acústica completa
 
 $$ \mathbf{H}^{-1} = \mathbf{C}_G^{-1}\,H_{direct}^{-1} $$
 
-mientras que el algoritmo construye únicamente $\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}$, sin el factor $H_{direct}^{-1}$. En consecuencia, el resultado ideal del filtrado no es la identidad, sino:
+mientras que el algoritmo construye únicamente $`\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}`$, sin el factor $`H_{direct}^{-1}`$. En consecuencia, el resultado ideal del filtrado no es la identidad, sino:
 
 $$ \mathbf{H}\,\mathbf{F}_{XTC} = H_{direct}\,\mathbf{C}_G\,\mathbf{C}_G^{-1} = H_{direct}\,\mathbf{I} $$
 
@@ -254,7 +254,9 @@ Buscando la menor coloración, hay que evitar cualquier pico o valle en la forma
 
 Se evaluó como punto de partida un modelo paramétrico de $ILD(\Theta,f)$ (Akeroyd et al., 2021, ajustado a los datos de Shaw y Vaillancourt, 1985), pero su repunte en altas frecuencias no se ajusta bien al promedio de los modelos HRTF públicos estudiados. Por ello se ha optado por desarrollar una ecuación de ajuste empírico, más sencilla y monótona, de la siguiente forma:
 
- $$ILD_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1)  \cdot \sin(\Theta)  $$
+```math
+ILD_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1) \cdot \sin(\Theta)
+```
 
 Esta forma se ajustó a la media de las $ILD$ normalizadas en azimut de los conjuntos HRTF públicos estudiados (HUTUBS, RIEC, BiLi, CIPIC y ARI; véase Referencias). Como puede apreciarse en las gráficas de $ILD_{spectrum}(f)$, el ajuste emplea un parámetro $\alpha$ que tendrá un valor de entre 1.5 y 2.0.
 

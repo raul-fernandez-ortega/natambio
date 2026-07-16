@@ -169,7 +169,7 @@ The essential distinction is that NatAmbio does not compute the complete acousti
 
 $$ \mathbf{H}^{-1} = \mathbf{C}_G^{-1}\,H_{direct}^{-1} $$
 
-whereas the algorithm builds only $\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}$, without the factor $H_{direct}^{-1}$. Consequently, the ideal result of filtering is not the identity, but:
+whereas the algorithm builds only $`\mathbf{F}_{XTC}=\mathbf{C}_G^{-1}`$, without the factor $`H_{direct}^{-1}`$. Consequently, the ideal result of filtering is not the identity, but:
 
 $$ \mathbf{H}\,\mathbf{F}_{XTC} = H_{direct}\,\mathbf{C}_G\,\mathbf{C}_G^{-1} = H_{direct}\,\mathbf{I} $$
 
@@ -255,7 +255,9 @@ Seeking the least coloration, any peak or notch in the shape of $\text{ILD}_{spe
 
 A parametric model of $ILD(\Theta,f)$ (Akeroyd et al., 2021, fitted to the data of Shaw and Vaillancourt, 1985) was evaluated as a starting point, but its high-frequency upturn does not fit well the average of the public HRTF models studied. For this reason, a simpler and monotonic empirical fitting equation has been developed, of the following form:
 
- $$\text{ILD}_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1)  \cdot \sin(\Theta)  $$
+```math
+\text{ILD}_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1) \cdot \sin(\Theta)
+```
 
 This form was fitted to the mean of the azimuth-normalized $\text{ILD}$ values of the public HRTF sets studied (HUTUBS, RIEC, BiLi, CIPIC and ARI; see References). As can be seen in the $ILD_{spectrum}(f)$ plots, the fit uses a parameter $\alpha$ with a value between 1.5 and 2.0.
 
