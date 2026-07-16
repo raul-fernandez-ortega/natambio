@@ -127,13 +127,17 @@ The iterative development of the previous section admits a compact matrix rewrit
 
 Under the symmetry assumption already adopted ($H_{lr}=H_{rl}=H_{cross}$ and $H_{ll}=H_{rr}=H_{direct}$), the four acoustic paths between the two loudspeakers and the two ears can be grouped into a single transfer matrix:
 
-$$ \mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix} $$
+```math
+\mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix}
+```
 
 so that, if $\mathbf{x}=[X_l,\ X_r]^{\mathsf{T}}$ is the vector of emitted signals and $\mathbf{y}$ the pair of signals received at the ears, then $\mathbf{y}=\mathbf{H}\ast\mathbf{x}$ (understanding the matrix product with convolution in each term). This is exactly the same scene described earlier through $S_l$ and $S_r$, now expressed compactly.
 
 Extracting the direct path as a common factor reveals the key structure of the model:
 
-$$ \mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix} $$
+```math
+\mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix}
+```
 
 where $G = H_{cross}/H_{direct}$ is the normalized cross function already defined. The factorization separates two objects of different nature: the direct path $H_{direct}$, which is to be preserved, and the relative coupling $\mathbf{C}_G$, the sole cause of crosstalk and therefore the only thing that XTC filtering must cancel.
 
@@ -141,15 +145,21 @@ where $G = H_{cross}/H_{direct}$ is the normalized cross function already define
 
 The two filters already obtained, $F^{direct}$ and $F^{cross}$, are grouped in the same way into a filtering matrix:
 
-$$ \mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix} $$
+```math
+\mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix}
+```
 
 As already shown, for $|G|<1$ the series converge to $F^{direct}=1/(1-G^2)$ and $F^{cross}=-G/(1-G^2)$, so that:
 
-$$ \mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1} $$
+```math
+\mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1}
+```
 
 That is, the sequence of cancellations and recancellations developed iteratively is nothing other than the inverse of the normalized coupling matrix. It can also be seen as a Neumann series: writing $\mathbf{C}_G = \mathbf{I} + \mathbf{A}$ with
 
-$$ \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix} $$
+```math
+\mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix}
+```
 
 the identity $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduces the earlier development term by term: the even powers of $\mathbf{A}$ generate the direct terms $G^{2i}$ and the odd powers the cross terms $-G^{2i-1}$. The time-domain interpretation —a chain of alternating corrective echoes between the two loudspeakers— and the matrix interpretation —the inverse of $\mathbf{C}_G$— therefore describe the same system: the former explains how the solution is physically built, the latter which algebraic object it converges to.
 

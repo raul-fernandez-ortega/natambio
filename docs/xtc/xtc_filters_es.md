@@ -126,13 +126,17 @@ El desarrollo iterativo de la sección anterior admite una reescritura matricial
 
 Bajo la hipótesis de simetría ya adoptada ($H_{lr}=H_{rl}=H_{cross}$ y $H_{ll}=H_{rr}=H_{direct}$), los cuatro caminos acústicos entre los dos altavoces y los dos oídos pueden agruparse en una única matriz de transferencia:
 
-$$ \mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix} $$
+```math
+\mathbf{H} = \begin{bmatrix} H_{direct} & H_{cross} \\ H_{cross} & H_{direct} \end{bmatrix}
+```
 
 de modo que, si $\mathbf{x}=[X_l,\ X_r]^{\mathsf{T}}$ es el vector de señales emitidas y $\mathbf{y}$ el par de señales recibidas en los oídos, se tiene $\mathbf{y}=\mathbf{H}\ast\mathbf{x}$ (entendiendo el producto matricial con convolución en cada término). Es exactamente la misma escena descrita antes mediante $S_l$ y $S_r$, ahora expresada de forma compacta.
 
 Extrayendo el camino directo como factor común aparece la estructura clave del modelo:
 
-$$ \mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix} $$
+```math
+\mathbf{H} = H_{direct}\,\mathbf{C}_G, \qquad \mathbf{C}_G = \begin{bmatrix} 1 & G \\ G & 1 \end{bmatrix}
+```
 
 donde $G = H_{cross}/H_{direct}$ es la función cruzada normalizada ya definida. La factorización separa dos objetos de naturaleza distinta: el camino directo $H_{direct}$, que se desea conservar, y el acoplamiento relativo $\mathbf{C}_G$, único responsable de la diafonía y, por tanto, lo único que el filtrado XTC debe cancelar.
 
@@ -140,15 +144,21 @@ donde $G = H_{cross}/H_{direct}$ es la función cruzada normalizada ya definida.
 
 Los dos filtros ya obtenidos, $F^{direct}$ y $F^{cross}$, se agrupan del mismo modo en una matriz de filtrado:
 
-$$ \mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix} $$
+```math
+\mathbf{F}_{XTC} = \begin{bmatrix} F^{direct} & F^{cross} \\ F^{cross} & F^{direct} \end{bmatrix}
+```
 
 Como ya se ha mostrado, para $|G|<1$ las series convergen a $F^{direct}=1/(1-G^2)$ y $F^{cross}=-G/(1-G^2)$, con lo que:
 
-$$ \mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1} $$
+```math
+\mathbf{F}_{XTC} = \frac{1}{1-G^2}\begin{bmatrix} 1 & -G \\ -G & 1 \end{bmatrix} = \mathbf{C}_G^{-1}
+```
 
 Es decir, la secuencia de cancelaciones y recancelaciones desarrollada iterativamente no es otra cosa que la inversa de la matriz de acoplamiento normalizada. Puede verse también como una serie de Neumann: escribiendo $\mathbf{C}_G = \mathbf{I} + \mathbf{A}$ con
 
-$$ \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix} $$
+```math
+\mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix}
+```
 
 la identidad $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduce término a término el desarrollo anterior: las potencias pares de $\mathbf{A}$ generan los términos directos $G^{2i}$ y las impares los cruzados $-G^{2i-1}$. La interpretación temporal —una cadena de ecos correctores alternados entre ambos altavoces— y la matricial —la inversa de $\mathbf{C}_G$— describen por tanto el mismo sistema: la primera explica cómo se construye físicamente la solución y la segunda hacia qué objeto algebraico converge.
 
