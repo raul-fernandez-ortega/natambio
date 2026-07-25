@@ -343,14 +343,14 @@ NAE's first approach can be interpreted as a search for the principal/ambient po
 
 Assuming that the problem may be due to the low correlation between L/R channels, a transformation can be made prior to the PCA step that increases this correlation:
 
-$$ l' = ( 1- \mu)\space l + \mu \space r$$
-$$ r' = ( 1- \mu)\space r + \mu \space l$$
+$$ l' = ( 1- \mu)\quad l + \mu \quad r$$
+$$ r' = ( 1- \mu)\quad r + \mu \quad l$$
 
 In this way the M/S signals become:
 
 $$ m = l + r $$
 $$ s = ( 1 - 2 \mu) (l -r) = \beta (l-r)$$
-$$ \text{with}\space \beta = ( 1 - 2 \mu), \qquad \mu \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
+$$ \text{with}\quad \beta = ( 1 - 2 \mu), \qquad \mu \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
 
 In this way, with the factor $\beta$, the side component can be reduced in the M/S weight. The pending question is to decide what the best setting of $\beta$ will be, which will necessarily have to depend on the nature of the recording itself. If in the case of Kind of Blue it is not needed, or a $\beta$ factor close to 1 will suffice, in the case of At The Blackhawk it seems logical to think that it will be convenient to introduce a smaller $\beta$. In any case, it is evident that it must be the recording itself, with its correlation characteristics, that generates its own $\beta$, variable with its evolution.
 The parametrization proposed for application in the NAE algorithm to generate $\beta$ starts from the previously discussed observation that there is a strong relationship between the L/R correlation and the rotation of the PCA axes. If the objective is to avoid this rotation, a candidate for the parametrization of $\beta$ is the L/R correlation itself. Correlation is not used only as a perceptual measure of stereo width. In the context of NAE it also acts as an indirect indicator of the stability of the PCA decomposition. High correlations produce more elongated M/S clouds and more stable eigenvectors, while low correlations generate more isotropic distributions and PCA orientations more sensitive to small statistical variations.
@@ -359,7 +359,7 @@ Empirically, the proposal included in NAE is:
 
 $$ \rho_{lr} = corr(l, r)$$
 
-$$ \beta = 0.55 + 0.45\space|\rho_{lr}| $$
+$$ \beta = 0.55 + 0.45\quad|\rho_{lr}| $$
 
 Correlations close to 1 in absolute value will give rise to $\beta \approx 1$, so that the side component will hardly change its weight, while for correlations close to zero, $\beta$ $\approx$ 0.55, which has been empirically established as the minimum weight of the side component in this new transformation. The minimum value 0.55 does not arise from a formal mathematical optimization but from the empirical evaluation of multiple reference recordings. Lower values produce an excessive collapse of the stereo image, while higher values do not sufficiently stabilize the PCA orientation in strongly localized to the sides recordings. In any case, its nature is arbitrary and, functionally in NAE, any kind of increasing relationship between $corr(l/r)$ and $\beta$ is acceptable. Its perceptual result and subjective evaluation will be quite different.
 

@@ -221,7 +221,7 @@ $$ |v_{22}| > |v_{21}| \rightarrow |k_2| > 1 $$
 
 Luego:
 
-$$ l_{c2} = \lambda \times r_{c2} \space siempre \space con \space \lambda < 0 $$
+$$ l_{c2} = \lambda \times r_{c2} \quad siempre \quad con \quad \lambda < 0 $$
 
 Por lo que la correlación entre $l_{c2}$ y $r_{c2}$ siempre será justamente -1. 
 
@@ -335,14 +335,14 @@ La primera aproximación de NAE puede interpretarse como una búsqueda de los po
 
 Asumiendo que el problema puede deberse a la baja correlación entre canales $L/R$, se puede hacer una transformación previa al paso a PCA que haga aumentar esta correlación:
 
-$$ l^\prime = ( 1- \mu)\space l + \mu \space r$$
-$$ r^\prime = ( 1- \mu)\space r + \mu \space l$$
+$$ l^\prime = ( 1- \mu)\quad l + \mu \quad r$$
+$$ r^\prime = ( 1- \mu)\quad r + \mu \quad l$$
 
 De esta forma las señales M/S quedan:
 
 $$ m = l + r $$
 $$ s = ( 1 - 2 \mu) (l -r) = \beta (l-r)$$
-$$ siendo\space \beta = ( 1 - 2 \mu), \qquad \mu \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
+$$ siendo\quad \beta = ( 1 - 2 \mu), \qquad \mu \in [0,\, 0.5] \;\Rightarrow\; \beta \in [0,\, 1]$$
 
 De esta forma, con el factor $\beta$ se puede hacer disminuir la componente side en el peso $M/S$. La cuestión pendiente es decidir cuál será el mejor ajuste de $\beta$, que necesariamente tendrá que depender de la naturaleza de la propia grabación. Si en el caso de Kind of Blue no se necesita o será suficiente con un factor $\beta$ próximo a 1, en el caso de At The Blackhawk, parece lógico pensar que será conveniente introducir $\beta$ más reducido. En cualquier caso, es evidente que tiene que ser la propia grabación, con sus características de correlación, la que genere su propia $\beta$ variable con su evolución.
 La parametrización propuesta para aplicar en el algoritmo NAE y generar $\beta$  parte de la observación, anteriormente comentada, de que hay una fuerte relación entre la correlacion $L/R$ y la rotación de ejes PCA. Si el objetivo es evitar esta rotación, un candidato a la parametrización de $\beta$ es la propia correlación $L/R$. La correlación no se utiliza únicamente como una medida perceptual de amplitud estéreo. En el contexto de NAE actúa además como un indicador indirecto de la estabilidad de la descomposición PCA. Correlaciones elevadas producen nubes $M/S$ más alargadas y autovectores más estables, mientras que correlaciones reducidas generan distribuciones más isotrópicas y orientaciones PCA más sensibles a pequeñas variaciones estadísticas.
@@ -351,7 +351,7 @@ De manera empírica, la propuesta incluida en NAE es:
 
 $$ \rho_{lr} = corr(l, r)$$
 
-$$ \beta = 0.55 + 0.45\space|\rho_{lr}| $$
+$$ \beta = 0.55 + 0.45\quad|\rho_{lr}| $$
 
 Correlaciones próximas a 1 en valor absoluto darán lugar a $\beta \approx 1$, con lo que la componente side apenas variará su peso, y en cambio para correlaciones próximas a cero, $\beta$ $\approx$ 0.55, que de modo empírico se ha establecido como peso mínimo de la componente side en esta nueva transformación. El valor mínimo 0.55 no surge de una optimización matemática formal sino de la evaluación empírica de múltiples grabaciones de referencia. Valores inferiores producen un colapso excesivo de la imagen estéreo, mientras que valores superiores no estabilizan suficientemente la orientación PCA en grabaciones altamente lateralizadas. En cualquier caso, su naturaleza es arbitraria y, funcionalmente en NAE, cualquier tipo de relación creciente entre $corr(l/r)$ y $\beta$ es aceptable. Bien distinto será su resultado perceptual y su valoración subjetiva.
 

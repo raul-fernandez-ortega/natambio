@@ -20,9 +20,9 @@ Cuando $\alpha = [1,2]$ el experimento se mueve de manera distinta. El panning s
 $$\rho(\alpha) = \frac{L\cdot R}{|L||R|} = \frac{1-\alpha}{|1-\alpha|}$$
 
 $$\rho(\alpha) = \left\{ \begin{array}{c}
-+1 \space si \space 0 \leq \alpha \lt 1 \\
--1 \space si \space 1 \lt \alpha \leq 2 \\
-0 \space si \space \alpha = 0
++1 \quad si \quad 0 \leq \alpha \lt 1 \\
+-1 \quad si \quad 1 \lt \alpha \leq 2 \\
+0 \quad si \quad \alpha = 0
 \end{array} \right.$$
 
 La cuestión es: en esta situación, ¿el efecto panning es el mismo que en el intervalo [0,1]?¿O la anticorrelación genera otra localización?
