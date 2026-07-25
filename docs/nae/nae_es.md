@@ -212,7 +212,7 @@ $$ |v_{11}| > |v_{12}| \rightarrow |k_1| < 1 $$
 
 Luego para la componente principal:
 
-$$ l_{c1} = \lambda \times r_{c1} \space siempre \space con \space \lambda > 0 $$
+$$ l_{c1} = \lambda \times r_{c1} \quad siempre \quad con \quad \lambda > 0 $$
 Por lo que la correlación entre $l_{c1}$ y $r_{c1}$ siempre será 1.
 
 En cambio para $C_2$ el signo es justamente contrario, al estar más cerca de la componente side:
