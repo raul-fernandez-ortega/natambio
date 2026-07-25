@@ -213,6 +213,7 @@ $$ |v_{11}| > |v_{12}| \rightarrow |k_1| < 1 $$
 Luego para la componente principal:
 
 $$ l_{c1} = \lambda \times r_{c1} \quad siempre \quad con \quad \lambda > 0 $$
+
 Por lo que la correlación entre $l_{c1}$ y $r_{c1}$ siempre será 1.
 
 En cambio para $C_2$ el signo es justamente contrario, al estar más cerca de la componente side:
@@ -246,8 +247,10 @@ $$ l_{c1} = \frac {mC_{1} + sC_{1}}{2}  = \frac {1 + k_1}{2} mC_1 $$
 $$ r_{c1} = \frac {mC_{1} - sC_{1}}{2}  = \frac {1 - k_1}{2} mC_1 $$
 
 El balance $L/R$ de $C_1$ y $C_2$ dependen de:
+
 $$ \frac {l_{c1}}{r_{c1}} = \frac {{1 + k_1}}{1 - k_1}$$
 $$ \frac {l_{c2}}{r_{c2}} = \frac {{1 + k_2}}{1 - k_2}$$
+
 Dado que las componentes $C_1$ y $C_2$ son ortogonales entre sí (ver [figura 1](#figure_01)), se cumple que:
 
 $$ {k_1} \cdot {k_2} = -1 \rightarrow k_2 = \frac {-1}{k_1}$$
