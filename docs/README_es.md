@@ -102,6 +102,12 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [pca4drc](../tools/python_pca4drc/README_es.md) Incluye un conjunto de herramientas para tomar medidas acústicas de la sala, aplicar el método PCA4DRC y obtener un impulso de referencia a utilizar en un generador de filtros DRC FIR (se recomienda http://drc-fir.sourceforge.net) 
 - [testing_XTC](../tools/testing_XTC/README.md) Generadores de señales de test en Python (clientes JACK en tiempo real y renderizadores offline a WAV) que barren las claves interaurales sobre un par estéreo para evaluar la apertura de escena y la localización de fuentes virtuales. También útiles en sistemas estéreo convencionales, para medir la escena de referencia antes de aplicar XTC. (Documentación solo en inglés.)
 
+### Ports de NatAmbio
+
+Son adaptaciones independientes de NatAmbio mantenidas por terceros, no forman parte de este repositorio.
+
+- [NatAmbio-VST3](https://github.com/digitalfrost84/NatAmbio-VST3) de **digitalfrost84**: un plugin VST3 multiplataforma (Windows x64, macOS y Linux x86_64) que lleva la cadena de procesado de NatAmbio — NAE (extracción de ambiente) seguido de XTC (cancelación de diafonía) — a cualquier host VST3 de 64 bits. Construido como un envoltorio JUCE 8 sobre una reimplementación del DSP original fijada a un commit concreto del proyecto original, mantiene la fidelidad con los algoritmos originales y añade una interfaz de plugin compacta con telemetría opcional de nivel y de NAE/PCA en vivo, presets de fábrica para estéreo convencional o configuraciones Ambiophonics, una extensión opcional de atenuación de graves y una batería de tests exhaustiva. El código DSP es GPLv3; el envoltorio VST3 basado en JUCE hace que la distribución combinada quede sujeta a AGPLv3.
+
 ### Intuiciones técnicas sobre potencialidades futuras del estéreo 
 
 **[Pendiente]**

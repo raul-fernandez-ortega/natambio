@@ -102,6 +102,12 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [pca4drc](../tools/python_pca4drc/README.md) A set of tools to take acoustic room measurements, apply the PCA4DRC method and obtain a reference impulse for use in a DRC FIR filter generator (http://drc-fir.sourceforge.net recommended).
 - [testing_XTC](../tools/testing_XTC/README.md) Python test-signal generators (realtime JACK clients and offline WAV renderers) that sweep inter-aural cues across a stereo pair to evaluate sound-stage width and virtual-source localisation. Useful on conventional stereo systems too, to gauge the baseline scene before applying XTC.
 
+### NatAmbio ports
+
+These are independent adaptations of NatAmbio maintained by third parties, not part of this repository.
+
+- [NatAmbio-VST3](https://github.com/digitalfrost84/NatAmbio-VST3) by **digitalfrost84**: a cross-platform VST3 plugin (Windows x64, macOS and Linux x86_64) that brings the NatAmbio processing chain — NAE (ambience extraction) followed by XTC (crosstalk cancellation) — to any 64-bit VST3 host. Built as a JUCE 8 wrapper around a reimplementation of the original DSP pinned to a specific upstream commit, it keeps fidelity with the original algorithms while adding a compact plug-in interface with optional live level and NAE/PCA telemetry, factory presets for conventional stereo or Ambiophonic setups, an optional bass-rolloff extension and a comprehensive test suite. The DSP code is GPLv3; the JUCE-based VST3 wrapper makes the combined distribution subject to AGPLv3.
+
 ### Technical intuitions on future possibilities of stereo
 
 **[TODO]**
