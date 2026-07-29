@@ -45,6 +45,7 @@ private:
 
   struct coeff* parse_coeff(xmlNodePtr xmlnode);
   struct xtc* parse_xtc(xmlNodePtr xmlnode);
+  struct xtc* parse_xtc_asym(xmlNodePtr xmlnode);
   struct lowhigh* parse_lowhigh(xmlNodePtr xmlnode);
   struct loudness* parse_loudness(xmlNodePtr xmlnode);
   struct convol* parse_convol(xmlNodePtr xmlnode);

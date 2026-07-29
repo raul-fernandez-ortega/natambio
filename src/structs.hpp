@@ -80,14 +80,34 @@ struct coeff {
   vector<string> convol_coeffs;  // names of <convol_coeff> coeffs to convolve to build this one
 };
 
-struct xtc {
-  string direct_name;   // name of the resulting direct-path coeff
-  string cross_name;    // name of the resulting cross-path coeff
+// One speaker's parameters in an asymmetric <xtc_asym> block: exactly the four
+// values that define one acoustic path (one G of the model). Mirrors
+// xtc_asym_side in lib/xtc_asym.h, which is plain C and cannot be included here.
+struct xtc_side {
   int itd_us;           // inter-aural time difference, microseconds
   double ild_db;        // inter-aural level difference per step, dB
   double ild_alpha;     // log-empirical ILD model scale factor
   int azimuth_deg;      // source azimuth, degrees
-  int filter_len;       // direct/cross filter length, samples (sample rate is JACK's)
+};
+
+// Both <xtc> and <xtc_asym> land here; `asymmetric` says which set of fields is
+// live. The symmetric block yields two coeffs (direct + cross), the asymmetric
+// one three (direct + one cross per speaker), because in an asymmetric layout
+// the two cross filters differ while the direct filter is shared -- it depends
+// only on the product G_l*G_r. See docs/xtc/xtc_no_simetrico_es.md.
+struct xtc {
+  bool asymmetric;          // false: <xtc>;  true: <xtc_asym>
+  string direct_name;       // name of the resulting direct-path coeff (both)
+  string cross_name;        // <xtc>: name of the resulting cross-path coeff
+  string cross_left_name;   // <xtc_asym>: cross coeff feeding the left speaker
+  string cross_right_name;  // <xtc_asym>: cross coeff feeding the right speaker
+  int itd_us;               // <xtc>: inter-aural time difference, microseconds
+  double ild_db;            // <xtc>: inter-aural level difference per step, dB
+  double ild_alpha;         // <xtc>: log-empirical ILD model scale factor
+  int azimuth_deg;          // <xtc>: source azimuth, degrees
+  struct xtc_side left;     // <xtc_asym>: left speaker parameters
+  struct xtc_side right;    // <xtc_asym>: right speaker parameters
+  int filter_len;           // filter length, samples (sample rate is JACK's)
 };
 
 struct lowhigh {

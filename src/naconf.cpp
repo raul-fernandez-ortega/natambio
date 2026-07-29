@@ -13,6 +13,7 @@
 extern "C" {
 #include "dsp.h"
 #include "xtc.h"
+#include "xtc_asym.h"
 #include "loudness.h"
 }
 
@@ -204,13 +205,18 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
 struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
 {
   struct xtc *xtc = new struct xtc;
-  xtc->direct_name = "";
-  xtc->cross_name  = "";
+  xtc->asymmetric       = false;
+  xtc->direct_name      = "";
+  xtc->cross_name       = "";
+  xtc->cross_left_name  = "";
+  xtc->cross_right_name = "";
   xtc->itd_us      = 0;
   xtc->ild_db      = 0.0;
   xtc->ild_alpha   = 0.0;
   xtc->azimuth_deg = 0;
   xtc->filter_len  = 0;
+  memset(&xtc->left,  0, sizeof(xtc->left));
+  memset(&xtc->right, 0, sizeof(xtc->right));
 
   // Every <xtc> parameter is mandatory; track which tags actually appear so a
   // value that happens to equal the zero default is not mistaken for "absent".
@@ -269,6 +275,149 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     std::cout << "\tILD: " << xtc->ild_db << " dB" << std::endl;
     std::cout << "\tILD alpha: " << xtc->ild_alpha << std::endl;
     std::cout << "\tAzimuth: " << xtc->azimuth_deg << " degrees" << std::endl;
+    std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
+  }
+
+  return xtc;
+}
+
+/* Parse one <left>/<right> sub-block of an <xtc_asym> into a struct xtc_side.
+ * The four parameters describe one acoustic path (one G of the model) and all
+ * four are mandatory; `which` only names the offending block in the error. */
+static bool parse_xtc_side(xmlNodePtr xmlnode, struct xtc_side *side, const char *which)
+{
+  side->itd_us      = 0;
+  side->ild_db      = 0.0;
+  side->ild_alpha   = 0.0;
+  side->azimuth_deg = 0;
+
+  // As in <xtc>, track tag presence so a value equal to the zero default is not
+  // mistaken for "absent".
+  bool has_itd = false, has_ild = false, has_alpha = false, has_azimuth = false;
+
+  while (xmlnode != NULL) {
+    xmlChar *cnt = xmlNodeGetContent(xmlnode);
+    if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"itd_us")) {
+      side->itd_us = (int) strtol((char*)cnt, NULL, 10); has_itd = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"ild_db")) {
+      side->ild_db = strtod((char*)cnt, NULL); has_ild = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"ild_alpha")) {
+      side->ild_alpha = strtod((char*)cnt, NULL); has_alpha = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"azimuth_deg")) {
+      side->azimuth_deg = (int) strtol((char*)cnt, NULL, 10); has_azimuth = true;
+    }
+    xmlFree(cnt);
+    xmlnode = xmlnode->next;
+  }
+
+  const char *missing = NULL;
+  if      (!has_itd)     missing = "itd_us";
+  else if (!has_ild)     missing = "ild_db";
+  else if (!has_alpha)   missing = "ild_alpha";
+  else if (!has_azimuth) missing = "azimuth_deg";
+  if (missing != NULL) {
+    char msg[160];
+    snprintf(msg, sizeof(msg),
+	     "Error: xtc_asym <%s><%s> is required but not defined.", which, missing);
+    parse_error(msg);
+    return false;
+  }
+  return true;
+}
+
+/* Parse an <xtc_asym> block into a struct xtc with asymmetric = true. Unlike
+ * <xtc>, the geometry is given twice -- one <left> and one <right> sub-block --
+ * and the block yields THREE coeffs: a direct filter shared by both channels
+ * (it depends only on the product G_l*G_r, so the asymmetry cancels out of it)
+ * and one cross filter per speaker.
+ *
+ * The balance between channels is deliberately NOT a parameter here: it is a
+ * plain level trim that the user applies with the <gain> of the two <convol>
+ * blocks feeding the affected output. See the <xtc_asym> section of
+ * src/README.md and docs/xtc/xtc_no_simetrico_es.md.
+ *
+ * The filters are not computed here; build_xtc_coeffs() runs process_asym()
+ * (xtc_asym.c) afterwards and appends the three coeffs to coefslist. */
+struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
+{
+  struct xtc *xtc = new struct xtc;
+  xtc->asymmetric       = true;
+  xtc->direct_name      = "";
+  xtc->cross_name       = "";
+  xtc->cross_left_name  = "";
+  xtc->cross_right_name = "";
+  xtc->itd_us      = 0;
+  xtc->ild_db      = 0.0;
+  xtc->ild_alpha   = 0.0;
+  xtc->azimuth_deg = 0;
+  xtc->filter_len  = 0;
+  memset(&xtc->left,  0, sizeof(xtc->left));
+  memset(&xtc->right, 0, sizeof(xtc->right));
+
+  bool has_left = false, has_right = false, has_length = false;
+  bool sides_ok = true;
+
+  while (xmlnode != NULL) {
+    if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"left")) {
+      has_left = true;
+      if (!parse_xtc_side(xmlnode->children, &xtc->left, "left")) sides_ok = false;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"right")) {
+      has_right = true;
+      if (!parse_xtc_side(xmlnode->children, &xtc->right, "right")) sides_ok = false;
+    } else {
+      xmlChar *cnt = xmlNodeGetContent(xmlnode);
+      if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
+	xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
+	xtc->direct_name = (char*)cnt;
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_left_filter_name")) {
+	xtc->cross_left_name = (char*)cnt;
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_right_filter_name")) {
+	xtc->cross_right_name = (char*)cnt;
+      }
+      xmlFree(cnt);
+    }
+    xmlnode = xmlnode->next;
+  }
+
+  if (!sides_ok) {
+    delete xtc;
+    return NULL;
+  }
+
+  // All <xtc_asym> parameters are required.
+  const char *missing = NULL;
+  if      (xtc->direct_name.empty())      missing = "direct_filter_name";
+  else if (xtc->cross_left_name.empty())  missing = "cross_left_filter_name";
+  else if (xtc->cross_right_name.empty()) missing = "cross_right_filter_name";
+  else if (!has_left)                     missing = "left";
+  else if (!has_right)                    missing = "right";
+  else if (!has_length)                   missing = "length";
+  if (missing != NULL) {
+    char msg[120];
+    snprintf(msg, sizeof(msg), "Error: xtc_asym <%s> is required but not defined.", missing);
+    parse_error(msg);
+    delete xtc;
+    return NULL;
+  }
+  if(xtc->filter_len <= 0) {
+    parse_error("Error: xtc_asym <length> must be > 0.");
+    delete xtc;
+    return NULL;
+  }
+
+  if(!quiet) {
+    std::cout << std::fixed << std::setprecision(3);
+    std::cout << "New asymmetric xtc struct:" << std::endl;
+    std::cout << "\tDirect filter name: " << xtc->direct_name << std::endl;
+    std::cout << "\tCross left filter name: " << xtc->cross_left_name << std::endl;
+    std::cout << "\tCross right filter name: " << xtc->cross_right_name << std::endl;
+    std::cout << "\tLeft:  ITD " << xtc->left.itd_us << " us, ILD " << xtc->left.ild_db
+	      << " dB, alpha " << xtc->left.ild_alpha
+	      << ", azimuth " << xtc->left.azimuth_deg << " degrees" << std::endl;
+    std::cout << "\tRight: ITD " << xtc->right.itd_us << " us, ILD " << xtc->right.ild_db
+	      << " dB, alpha " << xtc->right.ild_alpha
+	      << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
   }
 
@@ -836,56 +985,115 @@ static struct coeff* make_mem_coeff(string name, const double *data, int len, in
   return c;
 }
 
-/* Run the XTC filter generator (process() in xtc.c) for every <xtc> block and
- * append the resulting direct/cross coeffs to coefslist. Called before
- * build_convol_coeffs() so that derived coeffs may reference XTC outputs. */
+/* Run the XTC filter generator for every <xtc> and <xtc_asym> block and append
+ * the resulting coeffs to coefslist. Called before build_convol_coeffs() so
+ * that derived coeffs may reference XTC outputs.
+ *
+ * A symmetric block publishes two coeffs (direct + cross) via process()
+ * (xtc.c); an asymmetric one publishes three (direct + cross per speaker) via
+ * process_asym() (xtc_asym.c). Everything around that call -- name checking,
+ * buffers, coeff construction -- is shared, so the two paths differ only in the
+ * list of names and in which generator runs. */
 bool NaConf::build_xtc_coeffs(void)
 {
   char msg[300];
 
   for (vector<struct xtc*>::iterator it = xtclist.begin(); it != xtclist.end(); ++it) {
     struct xtc *r = *it;
+    const char *kind = r->asymmetric ? "xtc_asym" : "xtc";
 
-    if (find_coeff(r->direct_name) != NULL || find_coeff(r->cross_name) != NULL) {
-      snprintf(msg, sizeof(msg), "Error: xtc filter name '%s'/'%s' already used by another coeff.",
-	       r->direct_name.c_str(), r->cross_name.c_str());
-      parse_error(msg);
-      return false;
+    // The names this block will publish, in the order the generator fills them.
+    vector<string> names;
+    names.push_back(r->direct_name);
+    if (r->asymmetric) {
+      names.push_back(r->cross_left_name);
+      names.push_back(r->cross_right_name);
+    } else {
+      names.push_back(r->cross_name);
+    }
+    const size_t n = names.size();
+
+    // A generated name must clash neither with an existing coeff nor with a
+    // sibling of its own block. find_coeff() only sees what is already in
+    // coefslist, so without the second test two identical names inside one
+    // block would both pass and publish twins that later lookups cannot tell
+    // apart.
+    for (size_t i = 0; i < n; i++) {
+      if (find_coeff(names[i]) != NULL) {
+	snprintf(msg, sizeof(msg), "Error: %s filter name '%s' already used by another coeff.",
+		 kind, names[i].c_str());
+	parse_error(msg);
+	return false;
+      }
+      for (size_t j = i + 1; j < n; j++) {
+	if (names[i] == names[j]) {
+	  snprintf(msg, sizeof(msg), "Error: %s filter name '%s' is used twice in the same block.",
+		   kind, names[i].c_str());
+	  parse_error(msg);
+	  return false;
+	}
+      }
     }
 
-    double *direct = (double*) malloc((size_t) r->filter_len * sizeof(double));
-    double *cross  = (double*) malloc((size_t) r->filter_len * sizeof(double));
-    if (direct == NULL || cross == NULL) {
-      free(direct); free(cross);
+    vector<double*> buf(n, (double*) NULL);
+    bool alloc_failed = false;
+    for (size_t i = 0; i < n; i++) {
+      buf[i] = (double*) malloc((size_t) r->filter_len * sizeof(double));
+      if (buf[i] == NULL) alloc_failed = true;
+    }
+    if (alloc_failed) {
+      for (size_t i = 0; i < n; i++) free(buf[i]);
       parse_error("Error: could not allocate memory for xtc filters.");
       return false;
     }
 
-    int rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
-		     jack_sample_rate, r->filter_len, direct, cross);
+    int rc;
+    if (r->asymmetric) {
+      xtc_asym_side left, right;
+      left.itd_us       = r->left.itd_us;
+      left.ild_db       = r->left.ild_db;
+      left.ild_alpha    = r->left.ild_alpha;
+      left.azimuth_deg  = r->left.azimuth_deg;
+      right.itd_us      = r->right.itd_us;
+      right.ild_db      = r->right.ild_db;
+      right.ild_alpha   = r->right.ild_alpha;
+      right.azimuth_deg = r->right.azimuth_deg;
+      rc = process_asym(&left, &right, jack_sample_rate, r->filter_len,
+			buf[0], buf[1], buf[2]);
+    } else {
+      rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
+		   jack_sample_rate, r->filter_len, buf[0], buf[1]);
+    }
     if (rc != 0) {
-      free(direct); free(cross);
-      snprintf(msg, sizeof(msg), "Error: xtc process() failed (rc=%d) for filters '%s'/'%s'.",
-	       rc, r->direct_name.c_str(), r->cross_name.c_str());
+      for (size_t i = 0; i < n; i++) free(buf[i]);
+      snprintf(msg, sizeof(msg), "Error: %s filter generation failed (rc=%d) for '%s'.",
+	       kind, rc, r->direct_name.c_str());
       parse_error(msg);
       return false;
     }
 
-    struct coeff *dc = make_mem_coeff(r->direct_name, direct, r->filter_len, jack_sample_rate);
-    struct coeff *cc = make_mem_coeff(r->cross_name,  cross,  r->filter_len, jack_sample_rate);
-    free(direct); free(cross);
-    if (dc == NULL || cc == NULL) {
-      if (dc) { free(dc->coeffs); delete dc; }
-      if (cc) { free(cc->coeffs); delete cc; }
+    vector<struct coeff*> made(n, (struct coeff*) NULL);
+    bool coeff_failed = false;
+    for (size_t i = 0; i < n; i++) {
+      made[i] = make_mem_coeff(names[i], buf[i], r->filter_len, jack_sample_rate);
+      if (made[i] == NULL) coeff_failed = true;
+    }
+    for (size_t i = 0; i < n; i++) free(buf[i]);
+    if (coeff_failed) {
+      for (size_t i = 0; i < n; i++)
+	if (made[i]) { free(made[i]->coeffs); delete made[i]; }
       parse_error("Error: could not allocate memory for xtc coeffs.");
       return false;
     }
-    coefslist.push_back(dc);
-    coefslist.push_back(cc);
+    for (size_t i = 0; i < n; i++)
+      coefslist.push_back(made[i]);
 
-    if (!quiet)
-      std::cout << "Built xtc coeffs '" << r->direct_name << "' and '" << r->cross_name
-		<< "' (" << r->filter_len << " samples each)." << std::endl;
+    if (!quiet) {
+      std::cout << "Built " << kind << " coeffs";
+      for (size_t i = 0; i < n; i++)
+	std::cout << (i == 0 ? " '" : ", '") << names[i] << "'";
+      std::cout << " (" << r->filter_len << " samples each)." << std::endl;
+    }
   }
 
   return true;
@@ -1259,6 +1467,13 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
 	this->coefslist.push_back(n_coeff);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"xtc")) {
       if((n_xtc = parse_xtc(xmlnode->children))==NULL) {
+	xmlCleanupParser();
+	xmlFreeDoc(xmlconf);
+	return false;
+      } else
+	this->xtclist.push_back(n_xtc);
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"xtc_asym")) {
+      if((n_xtc = parse_xtc_asym(xmlnode->children))==NULL) {
 	xmlCleanupParser();
 	xmlFreeDoc(xmlconf);
 	return false;
