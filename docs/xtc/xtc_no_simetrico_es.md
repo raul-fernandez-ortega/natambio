@@ -16,7 +16,7 @@ En la presente nota técnica se amplía el diseño de filtros XTC para entornos 
 | $b = H_{rr}/H_{ll}$ | Balance del sistema estéreo asimétrico |
 | $g_x,\ S_x$ | Parte de banda ancha y forma espectral de $G_x = g_x \ast S_x$ |
 | $\bar{S}$ | Forma espectral de la ida y vuelta (media de las log-magnitudes de $S_l$ y $S_r$) |
-| $P = g_l \ast g_r \ast \bar{S}$ | Operador de ida y vuelta: un escalón completo de la escalera |
+| $P = G_l \ast G_r$ | Operador de ida y vuelta: un escalón completo de la escalera (al implementarlo, $g_l \ast g_r \ast \bar{S}$) |
 | $\mathbf{H}$ | Matriz de transferencia acústica del sistema asimétrico |
 | $\mathbf{M}$ | Matriz de acoplamiento relativo normalizado (equivalente asimétrico de $\mathbf{C}_G$) |
 | $\mathbf{D}$ | Matriz diagonal de balance, $\mathbf{D} = \operatorname{diag}(1,\ b)$ |
@@ -135,17 +135,23 @@ F^{cross}_l = - {G_{r}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{r}} \ast \left( \del
 F^{cross}_r = - {G_{l}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{l}} \ast \left( \delta + \sum_{i=1}^{N-1} P^{i} \right)
 ```
 
-Siendo $P$ el operador de ida y vuelta, es decir, el paso completo de la escalera recursiva.
+Siendo $P$ el operador de ida y vuelta, es decir, el paso completo de la escalera recursiva. Por definición es el producto de las dos funciones cruzadas normalizadas:
 
-### El operador de ida y vuelta
+```math
+P = G_{l} \ast G_{r}
+```
 
-Siguiendo el convenio establecido en la nota principal —[aplicación del espectro ILD en la serie](xtc_filters_es.md#aplicaci%C3%B3n-del-espectro-ild-en-la-serie)—, cada función $G$ se separa en su parte de banda ancha y su forma espectral, $G_x = g_x \ast S_x$, y el espectro se aplica una sola vez por escalón. El operador de ida y vuelta es entonces
+que es exactamente el trayecto que describe un escalón de la recursión: la señal sale del altavoz izquierdo hacia el oído derecho —factor $G_{l}$— y vuelve desde el altavoz derecho hacia el oído izquierdo —factor $G_{r}$—. Es también el producto sobre el que se establece la condición de convergencia, y el objeto simétrico bajo intercambio de canales del que dependen los dos filtros directos.
+
+### Descomposición del operador de ida y vuelta
+
+La expresión $P = G_{l} \ast G_{r}$ es la que da sentido al desarrollo, pero no es la que se lleva directamente a código. En el paso a implementación cada función $G$ se separa en su parte de banda ancha y su forma espectral, $G_x = g_x \ast S_x$, y entra en juego el convenio establecido en la nota principal —[aplicación del espectro ILD en la serie](xtc_filters_es.md#aplicaci%C3%B3n-del-espectro-ild-en-la-serie)—: el espectro se aplica una sola vez por escalón, mientras que el retardo y la atenuación de banda ancha sí siguen la ley completa de potencias. El operador de ida y vuelta se genera entonces como
 
 ```math
 P = g_l \ast g_r \ast \bar{S}
 ```
 
-esto es: los retardos de ambos lados se suman, las atenuaciones se multiplican, y el espectro interviene una única vez. Con ello el término $i$ del filtro directo vale $(g_l g_r)^i \ast \bar{S}^i$ y el término $i$ de cada cruzado $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, de modo que el número de aplicaciones del espectro es $i$ en todos los casos, con el mismo índice $i$ numerando el mismo escalón en el filtro directo y en los cruzados.
+esto es: los retardos de ambos lados se suman, las atenuaciones se multiplican, y allí donde el producto $G_{l} \ast G_{r}$ acumularía $S_l \ast S_r$ el espectro interviene una única vez, a través de una forma promedio $\bar{S}$. Con ello el término $i$ del filtro directo vale $(g_l g_r)^i \ast \bar{S}^i$ y el término $i$ de cada cruzado $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, de modo que el número de aplicaciones del espectro es $i$ en todos los casos, con el mismo índice $i$ numerando el mismo escalón en el filtro directo y en los cruzados.
 
 Queda por determinar qué forma espectral corresponde a $\bar{S}$. Como la ida y vuelta atraviesa una sombra acústica de cabeza por cada lado, y solo hay sitio para una aplicación, la elección natural es la media de ambas log-magnitudes. Dado que el modelo empírico de $ILD_{spectrum}$ es lineal en el producto $\alpha \sin\Theta$, esa media se obtiene sin promediar respuestas: basta evaluar el mismo modelo con
 

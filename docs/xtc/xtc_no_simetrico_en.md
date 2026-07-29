@@ -16,7 +16,7 @@ This technical note extends the design of XTC filters for conventional stereo en
 | $b = H_{rr}/H_{ll}$ | Balance of the asymmetric stereo system |
 | $g_x,\ S_x$ | Broadband part and spectral shape of $G_x = g_x \ast S_x$ |
 | $\bar{S}$ | Spectral shape of the round trip (mean of the log-magnitudes of $S_l$ and $S_r$) |
-| $P = g_l \ast g_r \ast \bar{S}$ | Round-trip operator: one complete rung of the ladder |
+| $P = G_l \ast G_r$ | Round-trip operator: one complete rung of the ladder (when implemented, $g_l \ast g_r \ast \bar{S}$) |
 | $\mathbf{H}$ | Acoustic transfer matrix of the asymmetric system |
 | $\mathbf{M}$ | Normalised relative coupling matrix (asymmetric counterpart of $\mathbf{C}_G$) |
 | $\mathbf{D}$ | Diagonal balance matrix, $\mathbf{D} = \operatorname{diag}(1,\ b)$ |
@@ -135,17 +135,23 @@ F^{cross}_l = - {G_{r}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{r}} \ast \left( \del
 F^{cross}_r = - {G_{l}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{l}} \ast \left( \delta + \sum_{i=1}^{N-1} P^{i} \right)
 ```
 
-where $P$ is the round-trip operator, that is, one complete rung of the recursive ladder.
+where $P$ is the round-trip operator, that is, one complete rung of the recursive ladder. By definition it is the product of the two normalised crossed functions:
 
-### The round-trip operator
+```math
+P = G_{l} \ast G_{r}
+```
 
-Following the convention established in the main note — [application of the ILD spectrum within the series](xtc_filters_en.md#application-of-the-ild-spectrum-within-the-series) — each function $G$ is separated into its broadband part and its spectral shape, $G_x = g_x \ast S_x$, and the spectrum is applied only once per rung. The round-trip operator is then
+which is exactly the path described by one rung of the recursion: the signal leaves the left loudspeaker towards the right ear — factor $G_{l}$ — and comes back from the right loudspeaker towards the left ear — factor $G_{r}$. It is also the product on which the convergence condition is stated, and the object, symmetric under the exchange of channels, on which both direct filters depend.
+
+### Decomposition of the round-trip operator
+
+The expression $P = G_{l} \ast G_{r}$ is what gives the development its meaning, but it is not what goes directly into code. In the step towards implementation each function $G$ is separated into its broadband part and its spectral shape, $G_x = g_x \ast S_x$, and the convention established in the main note comes into play — [application of the ILD spectrum within the series](xtc_filters_en.md#application-of-the-ild-spectrum-within-the-series): the spectrum is applied only once per rung, whereas the delay and the broadband attenuation do follow the full power law. The round-trip operator is then generated as
 
 ```math
 P = g_l \ast g_r \ast \bar{S}
 ```
 
-that is: the delays of both sides add, the attenuations multiply, and the spectrum intervenes only once. With this, term $i$ of the direct filter is $(g_l g_r)^i \ast \bar{S}^i$ and term $i$ of each cross filter is $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, so that the number of applications of the spectrum is $i$ in every case, with the same index $i$ numbering the same rung in the direct filter and in the cross ones.
+that is: the delays of both sides add, the attenuations multiply, and where the product $G_{l} \ast G_{r}$ would accumulate $S_l \ast S_r$ the spectrum intervenes only once, through an averaged shape $\bar{S}$. With this, term $i$ of the direct filter is $(g_l g_r)^i \ast \bar{S}^i$ and term $i$ of each cross filter is $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, so that the number of applications of the spectrum is $i$ in every case, with the same index $i$ numbering the same rung in the direct filter and in the cross ones.
 
 It remains to determine which spectral shape corresponds to $\bar{S}$. Since the round trip crosses one head shadow on each side, and there is room for only one application, the natural choice is the mean of both log-magnitudes. Given that the empirical model of $ILD_{spectrum}$ is linear in the product $\alpha \sin\Theta$, that mean is obtained without averaging any responses: it suffices to evaluate the same model with
 
