@@ -23,10 +23,12 @@
 
       Adjust by ear with a well-known track before the switching session.
       Once levels are matched, the comparison can be run blind with a small
-      script that calls jack_snapshot at random intervals, e.g.:
+      script that calls jack_snapshot at random intervals. Invoke it with its
+      long "load" option (spelled with the usual two leading hyphens, which an
+      XML comment cannot contain, hence the placeholder below):
 
           while true; do
-              jack_snapshot --load preset_processed.xml   # or preset_bypass.xml
+              jack_snapshot <load-option> preset_processed.xml   # or preset_bypass.xml
               sleep $(( RANDOM % 8 + 4 ))
           done
 
@@ -138,10 +140,10 @@
       <output_right>nae_out_right</output_right>
     </nae>
 
-    <!-- ------------------------------------------------------------------ -->
+    <!-- ================================================================== -->
     <!-- PATH A: NAE + XTC + DRC                                             -->
     <!-- Adjust <gain> here to match the loudness of the bypass path.        -->
-    <!-- ------------------------------------------------------------------ -->
+    <!-- ================================================================== -->
 
     <!-- Left monitor: direct path + cross-cancellation from right NAE output -->
     <convol>
@@ -177,10 +179,10 @@
       <gain>0.0</gain>
     </convol>
 
-    <!-- ------------------------------------------------------------------ -->
+    <!-- ================================================================== -->
     <!-- PATH B: bypass (delta — no convolution, delay or gain only)         -->
     <!-- Adjust <gain> here to match the loudness of the processed path.     -->
-    <!-- ------------------------------------------------------------------ -->
+    <!-- ================================================================== -->
 
     <convol>
       <name>bypass left</name>
