@@ -19,6 +19,11 @@
 /tools/xtc_filters/natambio-xtc-filters
 /tools/ladspa_nae_natambio/ladspa_nae_natambio.so
 
+# ---- `make check` artifacts (automake test harness) ----
+/lib/test_xtc_asym
+/lib/*.log
+/lib/*.trs
+
 # ---- Editor backups / IDE / logs ----
 *~
 \#*#
