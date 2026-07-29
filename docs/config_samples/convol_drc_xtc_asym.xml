@@ -1,0 +1,154 @@
+<main>
+  <natambio>
+    <!--
+      DRC + asymmetric XTC stereo, no subwoofer, no NAE.
+
+      Same routing as convol_drc_xtc.xml, but for a room where the two speakers
+      are NOT at the same azimuth from the listening position. The four paths
+      are unchanged; what changes is that each cross-cancellation path now uses
+      its own filter instead of both sharing one:
+
+        XTC direct  * DRC left  →  input_left  → output_left   (direct path)
+        XTC cross L * DRC left  →  input_right → output_left   (cross-cancellation)
+        XTC direct  * DRC right →  input_right → output_right  (direct path)
+        XTC cross R * DRC right →  input_left  → output_right  (cross-cancellation)
+
+      The direct filter is shared by both channels: it depends only on the
+      product of the two crossed paths, so the asymmetry cancels out of it.
+
+      BALANCE. <xtc_asym> deliberately has no balance parameter. If the two
+      channels do not arrive at the same level at the listening position, trim
+      them with the <gain> of the TWO <convol> blocks feeding the affected
+      output (both the direct and the cross one, as they share a to_output).
+      Always ATTENUATE the channel that arrives louder, with a negative gain,
+      and leave the other at 0 dB; a positive gain only spends headroom.
+
+      To set it: play a mono signal through both channels and attenuate until
+      the image sits centred. Getting within about 1 dB is enough; a residual
+      balance error b caps the achievable cancellation at roughly 20*log10|1-b|,
+      that is about 19 dB at 1 dB of error and about 11 dB at 3 dB. It is not a
+      cosmetic trim: the balance is part of the cancellation, not just a level
+      match. See the <xtc_asym> section of src/README.md.
+    -->
+
+    <!-- Asymmetric XTC: left speaker slightly further out than the right one -->
+    <xtc_asym>
+      <left>
+        <itd_us>180</itd_us>
+        <ild_db>10</ild_db>
+        <ild_alpha>1.8</ild_alpha>
+        <azimuth_deg>20</azimuth_deg>
+      </left>
+      <right>
+        <itd_us>140</itd_us>
+        <ild_db>8</ild_db>
+        <ild_alpha>1.8</ild_alpha>
+        <azimuth_deg>15</azimuth_deg>
+      </right>
+      <length>4096</length>
+      <direct_filter_name>XTC direct</direct_filter_name>
+      <cross_left_filter_name>XTC cross L</cross_left_filter_name>
+      <cross_right_filter_name>XTC cross R</cross_right_filter_name>
+    </xtc_asym>
+
+    <!-- DRC FIR filters, one per monitor -->
+    <coeff>
+      <name>DRC monitor left</name>
+      <filename>~/filters/drc_monitor_left.wav</filename>
+    </coeff>
+
+    <coeff>
+      <name>DRC monitor right</name>
+      <filename>~/filters/drc_monitor_right.wav</filename>
+    </coeff>
+
+    <!-- Derived coeffs: XTC * DRC of the destination speaker -->
+    <coeff>
+      <name>XTC direct DRC left</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC left</name>
+      <convol_coeff>XTC cross L</convol_coeff>
+      <convol_coeff>DRC monitor left</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC direct DRC right</name>
+      <convol_coeff>XTC direct</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <coeff>
+      <name>XTC cross DRC right</name>
+      <convol_coeff>XTC cross R</convol_coeff>
+      <convol_coeff>DRC monitor right</convol_coeff>
+      <length>16384</length>
+    </coeff>
+
+    <jack_input>
+      <clientname>natambio</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port>
+        <name>output_left</name>
+        <destname>system:playback_1</destname>
+      </port>
+      <port>
+        <name>output_right</name>
+        <destname>system:playback_2</destname>
+      </port>
+    </jack_output>
+
+    <!-- Left monitor: direct path + cross-cancellation from right input.
+         These two <convol> share to_output=output_left: they are the pair to
+         attenuate together if the left channel is the louder one. -->
+    <convol>
+      <name>XTC direct DRC left</name>
+      <coeff_name>XTC direct DRC left</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC left</name>
+      <coeff_name>XTC cross DRC left</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_left</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <!-- Right monitor: direct path + cross-cancellation from left input -->
+    <convol>
+      <name>XTC direct DRC right</name>
+      <coeff_name>XTC direct DRC right</coeff_name>
+      <from_input>input_right</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+    <convol>
+      <name>XTC cross DRC right</name>
+      <coeff_name>XTC cross DRC right</coeff_name>
+      <from_input>input_left</from_input>
+      <to_output>output_right</to_output>
+      <gain>0.0</gain>
+    </convol>
+
+  </natambio>
+</main>

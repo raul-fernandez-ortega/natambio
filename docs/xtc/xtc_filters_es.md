@@ -110,9 +110,11 @@ En el caso de $F^{cross}$, $G$ convoluciona en contrafase, así como en fase par
 $$ F^{cross} = \sum_{i=1}^{N}- G^{2i-1}  $$
 $$ F^{direct} = \delta + \sum_{i=1}^{N} G ^{2i}  $$
 
+Estas dos expresiones son el resultado exacto del álgebra de las cancelaciones sucesivas. Cuando más adelante se parametrice $G$ separando su parte de banda ancha de su forma espectral, la implementación aplicará esta última una sola vez por escalón en lugar de elevarla a la potencia completa; es una decisión de modelado orientada a minimizar la coloración, que no altera la estructura temporal de la serie y se detalla en [Aplicación del espectro ILD en la serie](#aplicaci%C3%B3n-del-espectro-ild-en-la-serie).
+
 Las series convergen siempre y cuando $|G| < 1$, condición que se cumple de forma natural en el modelo matemático: la señal cruzada presenta menor nivel que la señal directa debido a la sombra acústica generada por la cabeza del oyente. Definido en términos acústicos esto equivale a que la energía del camino cruzado sea inferior a la del camino directo.
 
-Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae como $|G|^{2i-1}$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con $|G|\approx 0.32$ (el valor medio del ejemplo de la última sección, $ILD_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que $N=3\text{–}4$ resulta suficiente en la práctica.
+Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae con la atenuación de banda ancha elevada a $2i-1$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con una atenuación de $0.32$ por paso (el valor medio del ejemplo de la última sección, $ILD_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que $N=3\text{–}4$ resulta suficiente en la práctica.
 
 Conviene subrayar que, aunque el *proceso de diseño* es recursivo, el filtro finalmente realizado es **FIR** (no recursivo en ejecución): la recurrencia se resuelve y se trunca en tiempo de diseño, generando una respuesta impulsiva de longitud finita. Nótese también que $F^{direct}\neq\delta$: lo que permanece inalterado es el *camino acústico* directo $H_{direct}$, pero la señal entregada al altavoz del lado directo sí incorpora los términos de corrección $\sum G^{2i}$, necesarios para cancelar la diafonía que las propias emisiones cruzadas reintroducen en el oído directo.
 
@@ -160,7 +162,7 @@ Es decir, la secuencia de cancelaciones y recancelaciones desarrollada iterativa
 \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix}
 ```
 
-la identidad $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduce término a término el desarrollo anterior: las potencias pares de $\mathbf{A}$ generan los términos directos $G^{2i}$ y las impares los cruzados $-G^{2i-1}$. La interpretación temporal —una cadena de ecos correctores alternados entre ambos altavoces— y la matricial —la inversa de $\mathbf{C}_G$— describen por tanto el mismo sistema: la primera explica cómo se construye físicamente la solución y la segunda hacia qué objeto algebraico converge.
+la identidad $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduce término a término el desarrollo anterior: las potencias pares de $\mathbf{A}$ generan los términos directos $G^{2i}$ y las impares los cruzados $-G^{2i-1}$. La equivalencia con $\mathbf{C}_G^{-1}$ vale para el desarrollo algebraico exacto; el filtro realizado, con el espectro ILD aplicado una vez por escalón, es una aproximación deliberadamente suavizada de esa inversa en los términos de orden superior. La interpretación temporal —una cadena de ecos correctores alternados entre ambos altavoces— y la matricial —la inversa de $\mathbf{C}_G$— describen por tanto el mismo sistema: la primera explica cómo se construye físicamente la solución y la segunda hacia qué objeto algebraico converge.
 
 ### Qué se invierte y qué no: separación entre XTC y DRC
 
@@ -211,6 +213,30 @@ La siguiente aproximación es incluir el efecto de la frecuencia sobre el ILD. P
 $$ G = \delta \left ( \text{ITD}, \text{ILD}\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta, f \right ) $$
 
 La función G se obtendría por convolución de la impulsiva dependiente de $\text{ITD}$, e $ILD_{avg}$ y la impulsiva del espectro $ILD_{spectrum}(f)$
+
+### Aplicación del espectro ILD en la serie
+
+Esta descomposición separa $G$ en dos objetos de naturaleza distinta, y conviene darles nombre propio para lo que sigue:
+
+$$ g = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ), \qquad S = \text{ILD}_{spectrum} \left ( \Theta, f \right ), \qquad G = g \ast S $$
+
+$g$ es la parte de banda ancha —un retardo puro y una atenuación escalar— y $S$ es la forma espectral, normalizada de modo que no aporte nivel.
+
+Llegados a este punto, la implementación toma una decisión de modelado que conviene hacer explícita, porque no se deduce del álgebra de la sección anterior: **el factor espectral se aplica una sola vez por cada ida y vuelta de la recursión**, mientras que el retardo y la atenuación de banda ancha sí siguen la ley completa de potencias. Definiendo el operador de ida y vuelta
+
+$$ P = g^{2} \ast S $$
+
+los filtros efectivamente realizados son
+
+$$ F^{direct} = \delta + \sum_{i=1}^{N} P^{i} $$
+
+$$ F^{cross} = - G \ast \sum_{i=1}^{N} P^{i-1} $$
+
+de modo que el término $i$ vale $g^{2i} \ast S^{i}$ en el filtro directo y $g^{2i-1} \ast S^{i}$ en el cruzado. Nótese que el índice $i$ es el mismo en ambos: numera el mismo escalón de la escalera, del que el término cruzado es el medio paso de ida —a $(2i-1)\text{ITD}$— y el directo el paso completo —a $2i\,\text{ITD}$—. Lo único que los distingue es la parte de banda ancha; el número de aplicaciones del espectro es $i$ en los dos.
+
+La diferencia respecto a la expresión $G^{2i-1}$ de la sección anterior está exclusivamente en el exponente de $S$: allí sería $S^{2i-1}$, aquí es $S^{i}$. La razón es el objetivo declarado de este diseño, minimizar la coloración. Elevar la forma espectral a la potencia completa hace que los términos de orden superior acumulen una inclinación espectral cada vez más pronunciada, que es exactamente el mecanismo por el que los canceladores XTC colorean; aplicarla una vez por escalón conserva la corrección temporal de la cancelación y limita esa acumulación. El primer término cruzado —el dominante, y el que realmente cancela la diafonía— es idéntico bajo ambos convenios, ya que $S^{1}=S^{1}$; la diferencia solo afecta a términos que ya están 20 dB o más por debajo.
+
+Ambos convenios comparten el mismo comportamiento de convergencia, puesto que lo que decae escalón a escalón es la parte de banda ancha.
 
 ## Parametrización de XTC a partir de HRTF
 

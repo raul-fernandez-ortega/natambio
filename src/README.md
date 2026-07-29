@@ -277,6 +277,88 @@ section) before derived coeffs are resolved, so they may be referenced by a
 
 ---
 
+### `<xtc_asym>` — Asymmetric XTC Filter Generator Block
+
+Same as `<xtc>`, for rooms where the two speakers are **not** at the same
+azimuth from the listening position. The geometry is given twice, once per
+speaker, and the block publishes **three** coeffs instead of two.
+
+```xml
+<xtc_asym>
+  <left>
+    <itd_us>180</itd_us>
+    <ild_db>10</ild_db>
+    <ild_alpha>1.8</ild_alpha>
+    <azimuth_deg>20</azimuth_deg>
+  </left>
+  <right>
+    <itd_us>140</itd_us>
+    <ild_db>8</ild_db>
+    <ild_alpha>1.8</ild_alpha>
+    <azimuth_deg>15</azimuth_deg>
+  </right>
+  <length>4096</length>
+  <direct_filter_name>XTC direct</direct_filter_name>
+  <cross_left_filter_name>XTC cross L</cross_left_filter_name>
+  <cross_right_filter_name>XTC cross R</cross_right_filter_name>
+</xtc_asym>
+```
+
+| Tag | Description |
+|---|---|
+| `<left>`, `<right>` | One sub-block per speaker, each holding that side's `<itd_us>`, `<ild_db>`, `<ild_alpha>` and `<azimuth_deg>` — same meaning as in `<xtc>` (all required) |
+| `<length>` | Length of each generated filter, samples (required, > 0); common to all three |
+| `<direct_filter_name>` | Name of the resulting direct-path coeff, shared by both channels (required) |
+| `<cross_left_filter_name>` | Name of the cross coeff feeding the **left** speaker (required) |
+| `<cross_right_filter_name>` | Name of the cross coeff feeding the **right** speaker (required) |
+
+**All `<xtc_asym>` parameters are mandatory** — omitting any one is a parse error.
+
+**Why three filters and not four.** The direct filter depends only on the
+product of the two crossed paths, so the asymmetry cancels out of it and both
+channels share it; what differs between channels is the cross filter. Note that
+each cross filter carries the *other* speaker's ITD, because it is the one
+cancelling that speaker's crosstalk: `cross_left`, which feeds the left speaker,
+leads with the right side's delay. The routing is otherwise identical to the
+symmetric case — the same four `<convol>` paths, with two distinct cross coeff
+names instead of one repeated. See
+`docs/config_samples/convol_drc_xtc_asym.xml`.
+
+#### Balance
+
+`<xtc_asym>` has **no balance parameter**. If the two channels do not arrive at
+the same level at the listening position, trim them with the `<gain>` of the
+**two `<convol>` blocks that share the affected `to_output`** — both the direct
+and the cross one, regardless of which input each takes.
+
+Always **attenuate** the channel that arrives louder (a negative `<gain>`) and
+leave the other at 0 dB. The strict correction is a boost on the quieter
+channel, but only the ratio matters, and attenuating spends no headroom.
+
+To set it, play a **mono signal through both channels** and attenuate until the
+image sits centred; that is accurate enough. Getting within about 1 dB is the
+target, because the balance is **part of the cancellation and not a cosmetic
+trim**: a residual balance error `b` caps the achievable crosstalk cancellation
+at roughly `20*log10|1-b|`.
+
+| Balance error | Cancellation ceiling |
+|---|---|
+| 0.5 dB | ≈ −25 dB |
+| 1 dB | ≈ −19 dB |
+| 2 dB | ≈ −14 dB |
+| 3 dB | ≈ −11 dB |
+| 6 dB | ≈ −6 dB |
+
+If the DRC stage already levels both channels against a common target, the
+balance is already handled and the gains stay at 0 dB.
+
+The model is developed in `docs/xtc/xtc_no_simetrico_es.md`. Note that an
+asymmetric layout is not expected to reach the performance of an equivalent
+symmetric one: the block exists to make a compromised room usable, not to make
+asymmetry a preference.
+
+---
+
 ### `<low_and_high_filter>` — Crossover Filter Generator Block
 
 Synthesises a complementary low-pass / high-pass FIR pair (e.g. a subwoofer /
@@ -566,7 +648,11 @@ src/                  natambio JACK application (C++)
 lib/                  shared plain-C filter-design code (libnatdsp.a) — used by src/ and tools/
 ├── dsp.c/.h          Single-precision FFT helpers; fft_convolve_truncate() builds derived coeffs
 ├── xtc.c/.h         XTC crosstalk-cancellation filter generator; process() backs <xtc> blocks
-├── binaural_cues.c/.h  log-empirical ILD model used by xtc.c
+├── xtc_asym.c/.h    asymmetric variant; process_asym() backs <xtc_asym> blocks. Self-contained
+│                    on purpose: xtc.c is mirrored by third-party ports and stays frozen, so the
+│                    ILD model is duplicated rather than shared. test_xtc_asym.c (`make check`)
+│                    pins the two together by requiring equal parameters to give equal filters
+├── binaural_cues.c/.h  log-empirical ILD model used by xtc.c and xtc_asym.c
 └── loudness.c/.h     equal-loudness contour models; back <loudness> blocks
 
 tools/                auxiliary command-line tools that reuse lib/

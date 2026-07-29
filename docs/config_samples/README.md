@@ -75,6 +75,7 @@ decomposition.
 | [`convol_drc.xml`](convol_drc.xml) | Stereo DRC only.  One FIR filter per channel loaded from a WAV file, wired straight through. |
 | [`convol_drc_xtc.xml`](convol_drc_xtc.xml) | DRC + XTC.  Each XTC path (direct and cross) is pre-convolved with the DRC of the destination speaker via `<convol_coeff>`, giving four convols total. |
 | [`convol_drc_xtc_wav.xml`](convol_drc_xtc_wav.xml) | DRC + XTC from WAV files.  Functionally identical to the above but the XTC filters are loaded from `~/filters/xtc_direct.wav` and `~/filters/xtc_cross.wav` instead of being synthesised by an `<xtc>` block.  Use this when the filters were produced by an external tool and must be applied verbatim. |
+| [`convol_drc_xtc_asym.xml`](convol_drc_xtc_asym.xml) | DRC + **asymmetric** XTC, for a room where the two speakers sit at different azimuths.  Same four convols as `convol_drc_xtc.xml`, but the `<xtc_asym>` block gives the geometry once per speaker and yields three coeffs (a shared direct plus one cross per speaker).  Also documents how to set the channel balance with the `<convol>` gains, which `<xtc_asym>` deliberately leaves out. |
 
 ---
 

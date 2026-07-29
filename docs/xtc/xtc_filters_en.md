@@ -111,9 +111,11 @@ In the case of $F^{cross}$, $G$ convolves in anti-phase, and in phase for $F^{di
 $$ F^{cross} = \sum_{i=1}^{N}- G^{2i-1}  $$
 $$ F^{direct} = \delta + \sum_{i=1}^{N} G ^{2i}  $$
 
+These two expressions are the exact result of the algebra of successive cancellations. When $G$ is parametrized further on, separating its broadband part from its spectral shape, the implementation applies the latter only once per step instead of raising it to the full power; this is a modelling decision aimed at minimising colouration, it does not alter the temporal structure of the series, and it is detailed in [Application of the ILD spectrum within the series](#application-of-the-ild-spectrum-within-the-series).
+
 The series converge as long as $|G| < 1$, a condition that holds naturally in the mathematical model: the cross signal has a lower level than the direct signal due to the acoustic shadow created by the listener's head. In acoustic terms this is equivalent to the energy of the cross path being lower than that of the direct path.
 
-Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays as $|G|^{2i-1}$, its contribution drops to negligible levels within a few steps. As a reference, with $|G|\approx 0.32$ (the average value of the example in the final section, $ILD_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so $N=3\text{–}4$ is sufficient in practice.
+Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays with the broadband attenuation raised to $2i-1$, its contribution drops to negligible levels within a few steps. As a reference, with an attenuation of $0.32$ per step (the average value of the example in the final section, $ILD_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so $N=3\text{–}4$ is sufficient in practice.
 
 It is worth emphasizing that, although the *design process* is recursive, the filter finally realized is **FIR** (not recursive at run time): the recurrence is resolved and truncated at design time, generating a finite-length impulse response. Note also that $F^{direct}\neq\delta$: what remains unchanged is the direct *acoustic path* $H_{direct}$, but the signal delivered to the direct-side loudspeaker does incorporate the correction terms $\sum G^{2i}$, needed to cancel the crosstalk that the cross emissions themselves reintroduce into the direct ear.
 
@@ -161,7 +163,7 @@ That is, the sequence of cancellations and recancellations developed iteratively
 \mathbf{A} = \begin{bmatrix} 0 & G \\ G & 0 \end{bmatrix}
 ```
 
-the identity $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduces the earlier development term by term: the even powers of $\mathbf{A}$ generate the direct terms $G^{2i}$ and the odd powers the cross terms $-G^{2i-1}$. The time-domain interpretation —a chain of alternating corrective echoes between the two loudspeakers— and the matrix interpretation —the inverse of $\mathbf{C}_G$— therefore describe the same system: the former explains how the solution is physically built, the latter which algebraic object it converges to.
+the identity $(\mathbf{I}+\mathbf{A})^{-1} = \mathbf{I} - \mathbf{A} + \mathbf{A}^2 - \mathbf{A}^3 + \cdots$ reproduces the earlier development term by term: the even powers of $\mathbf{A}$ generate the direct terms $G^{2i}$ and the odd powers the cross terms $-G^{2i-1}$. The equivalence with $\mathbf{C}_G^{-1}$ holds for the exact algebraic development; the realised filter, with the ILD spectrum applied once per step, is a deliberately smoothed approximation of that inverse in the higher-order terms. The time-domain interpretation —a chain of alternating corrective echoes between the two loudspeakers— and the matrix interpretation —the inverse of $\mathbf{C}_G$— therefore describe the same system: the former explains how the solution is physically built, the latter which algebraic object it converges to.
 
 ### What is inverted and what is not: separation between XTC and DRC
 
@@ -212,6 +214,30 @@ The next approximation is to include the effect of frequency on the ILD. To do t
 $$ G = \delta \left ( \text{ITD}, \text{ILD}\right ) = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta, f \right ) $$
 
 The function G would be obtained by convolving the impulse response dependent on $\text{ITD}$ and $ILD_{avg}$ with the impulse response of the spectrum $ILD_{spectrum}(f)$.
+
+### Application of the ILD spectrum within the series
+
+This decomposition splits $G$ into two objects of a different nature, and it is worth naming them for what follows:
+
+$$ g = \delta \left ( \text{ITD} \left ( \Theta \right), \text{ILD}_{avg} \left ( \Theta \right ) \right ), \qquad S = \text{ILD}_{spectrum} \left ( \Theta, f \right ), \qquad G = g \ast S $$
+
+$g$ is the broadband part —a pure delay and a scalar attenuation— and $S$ is the spectral shape, normalised so that it contributes no level.
+
+At this point the implementation takes a modelling decision worth making explicit, because it does not follow from the algebra of the previous section: **the spectral factor is applied only once per round trip of the recursion**, whereas the delay and the broadband attenuation do follow the full power law. Defining the round-trip operator
+
+$$ P = g^{2} \ast S $$
+
+the filters actually realised are
+
+$$ F^{direct} = \delta + \sum_{i=1}^{N} P^{i} $$
+
+$$ F^{cross} = - G \ast \sum_{i=1}^{N} P^{i-1} $$
+
+so that term $i$ is $g^{2i} \ast S^{i}$ in the direct filter and $g^{2i-1} \ast S^{i}$ in the cross one. Note that the index $i$ is the same in both: it numbers the same rung of the ladder, of which the cross term is the outbound half step —at $(2i-1)\text{ITD}$— and the direct term the complete step —at $2i\,\text{ITD}$—. The only difference between them is the broadband part; the number of applications of the spectrum is $i$ in both.
+
+The difference with respect to the $G^{2i-1}$ expression of the previous section lies exclusively in the exponent of $S$: there it would be $S^{2i-1}$, here it is $S^{i}$. The reason is the declared goal of this design, minimising colouration. Raising the spectral shape to the full power makes the higher-order terms accumulate an increasingly pronounced spectral tilt, which is precisely the mechanism by which XTC cancellers colour the sound; applying it once per step preserves the temporal correction of the cancellation and bounds that accumulation. The first cross term —the dominant one, and the one that actually cancels the crosstalk— is identical under both conventions, since $S^{1}=S^{1}$; the difference only affects terms that are already 20 dB or more below it.
+
+Both conventions share the same convergence behaviour, since what decays from step to step is the broadband part.
 
 ## Parametrization of XTC from HRTF
 
