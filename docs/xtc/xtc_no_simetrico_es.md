@@ -136,12 +136,19 @@ Sustituyendo, la matriz de filtrado queda:
 Los dos elementos de la diagonal son el mismo desarrollo, sin factor cruzado que los distinga, y dan el filtro directo. Los dos elementos de fuera de la diagonal llevan cada uno **su propia $G$ como factor común**, heredada del cofactor correspondiente, y dan los dos filtros cruzados. Escritos elemento a elemento en función de los caminos acústicos:
 
 ```math
-\begin{aligned}
-F^{direct}_{l} &= \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i} \\
-F^{direct}_{r} &= \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i} \\
-F^{cross}_{l} &= - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1} \\
-F^{cross}_{r} &= - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
-\end{aligned}
+F^{direct}_{l} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i}
+```
+
+```math
+F^{direct}_{r} = \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i}
+```
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1}
+```
+
+```math
+F^{cross}_{r} = - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
 ```
 
 Los dos filtros directos son iguales por conmutatividad de la convolución, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, y en adelante se denotan sin subíndice. Nótese que **en los cruzados los exponentes del denominador van cruzados respecto a los del numerador**: en $F^{cross}_{l}$ el camino $H_{rl}$ aparece elevado a $i$ y normalizado por $H_{rr}^{i}$ —esto es, forma $G_{r}^{i}$—, mientras el otro par queda a $i-1$. Es un punto fácil de equivocar, y la comprobación es el término de primer orden: con $i=1$ el filtro debe reducirse a $-G_{r} = -H_{rl}/H_{rr}$, y no a $-H_{rl}/H_{ll}$, que sería $-b \ast G_{r}$ e introduciría el balance dentro de $\mathbf{M}^{-1}$, precisamente donde el modelo no lo quiere.
@@ -300,7 +307,7 @@ Los términos cruzados **no se anulan**: quedan proporcionales a $(b-1)$. Dicho 
 De la expresión anterior se deduce el límite que impone un balance imperfecto. La diafonía residual relativa a la señal directa es, en primer orden, $|1-b|$ veces la que había antes de filtrar, de modo que la cancelación alcanzable queda acotada por:
 
 ```math
-\text{cancelación máxima} \approx 20 \log_{10} \left| 1 - b \right|
+\text{cancelacion}_{max} \approx 20 \log_{10} \left| 1 - b \right| \ \text{dB}
 ```
 
 | Error de balance | Techo de cancelación |

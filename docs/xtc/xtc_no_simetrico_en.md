@@ -136,12 +136,19 @@ Substituting, the filtering matrix becomes:
 The two diagonal elements are the same development, with no crossed factor to tell them apart, and give the direct filter. The two off-diagonal elements each carry **their own $G$ as a common factor**, inherited from the corresponding cofactor, and give the two cross filters. Written element by element in terms of the acoustic paths:
 
 ```math
-\begin{aligned}
-F^{direct}_{l} &= \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i} \\
-F^{direct}_{r} &= \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i} \\
-F^{cross}_{l} &= - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1} \\
-F^{cross}_{r} &= - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
-\end{aligned}
+F^{direct}_{l} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i}
+```
+
+```math
+F^{direct}_{r} = \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i}
+```
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1}
+```
+
+```math
+F^{cross}_{r} = - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
 ```
 
 The two direct filters are equal by commutativity of convolution, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, and from here on are written without a subscript. Note that **in the cross filters the exponents of the denominator are crossed with respect to those of the numerator**: in $F^{cross}_{l}$ the path $H_{rl}$ appears raised to $i$ and normalised by $H_{rr}^{i}$ — that is, in the form $G_{r}^{i}$ — while the other pair stays at $i-1$. This is an easy point to get wrong, and the check is the first-order term: at $i=1$ the filter must reduce to $-G_{r} = -H_{rl}/H_{rr}$, and not to $-H_{rl}/H_{ll}$, which would be $-b \ast G_{r}$ and would introduce the balance inside $\mathbf{M}^{-1}$, precisely where the model does not want it.
@@ -304,7 +311,7 @@ The crossed terms **do not vanish**: they remain proportional to $(b-1)$. In oth
 The limit imposed by an imperfect balance follows from the expression above. The residual crosstalk relative to the direct signal is, to first order, $|1-b|$ times what it was before filtering, so the achievable cancellation is bounded by:
 
 ```math
-\text{maximum cancellation} \approx 20 \log_{10} \left| 1 - b \right|
+\text{cancellation}_{max} \approx 20 \log_{10} \left| 1 - b \right| \ \text{dB}
 ```
 
 | Balance error | Cancellation ceiling |
