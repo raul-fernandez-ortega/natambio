@@ -79,19 +79,7 @@ La matriz a invertir mediante el desarrollo recursivo presenta dos diferencias r
 
 Obsérvese que el modelo no cambia. La única diferencia respecto al caso simétrico consiste en que el sistema pasa de utilizar una única función $G$ a utilizar dos funciones distintas, $G_{l}$ y $G_{r}$, una para cada altavoz.
 
-Continuando con el planteamiento de [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc_filters_es.md#desarrollo-del-dise%C3%B1o-final), tanto $G_{l}$ como $G_{r}$ se pueden expresar como dependientes de:
-
-```math
-G_{l} = \delta \left ( \text{ITD}_{l}, \text{ILD}_{l} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{l} \right), \text{ILD}_{avg} \left ( \Theta_{l} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{l}, f \right )
-```
-
-```math
-G_{r} = \delta \left ( \text{ITD}_{r}, \text{ILD}_{r} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{r} \right), \text{ILD}_{avg} \left ( \Theta_{r} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{r}, f \right )
-```
-
-La parametrización de cada una de estas funciones puede seguir el mismo modelo desarrollado en la nota principal XTC para NatAmbio.
-
-En cuanto a la matriz $\mathbf{H}$, podemos seguir descomponiéndola en:
+La matriz $\mathbf{H}$, puede seguir descomponiéndose en:
 
 ```math
 \mathbf{H} = H_{ll} \begin{bmatrix} 1 & G_{r} \\ G_{l} & 1 \end{bmatrix} \cdot \begin{bmatrix} 1 & 0 \\ 0 & b \end{bmatrix} = H_{ll} \cdot \mathbf{M} \cdot \mathbf{D}
@@ -121,7 +109,48 @@ de modo que $\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}$: cada 
 
 ## Aplicación en NatAmbio
 
-Como ya hemos demostrado en la nota principal sobre XTC para NatAmbio, la inversión de la matriz $\mathbf{M}$ es equivalente a su solución recursiva. Aplicando el mismo desarrollo recursivo descrito en la nota principal al caso general $G_l \neq G_r$, se obtiene:
+Como ya hemos demostrado en la nota principal sobre XTC para NatAmbio, la inversión de la matriz $\mathbf{M}$ es equivalente a su solución recursiva. Conviene recorrer el desarrollo con detalle, porque es en él donde se decide qué función $G$ acaba en cada filtro cruzado.
+
+La inversa de una matriz $2\times2$ en el álgebra de la convolución se obtiene igual que en el caso escalar, ya que la convolución es conmutativa:
+
+```math
+\mathbf{M}^{-1} = \frac{1}{\det \mathbf{M}} \begin{bmatrix} \delta & -G_{r} \\ -G_{l} & \delta \end{bmatrix},
+\qquad \det \mathbf{M} = \delta - G_{l} \ast G_{r}
+```
+
+El determinante es precisamente $\delta - P$, con $P = G_{l} \ast G_{r}$: el operador de ida y vuelta no es una definición auxiliar introducida por comodidad, sino el objeto que aparece por sí solo al invertir $\mathbf{M}$, y de ahí que la condición de convergencia recaiga sobre él y no sobre cada $G$ por separado.
+
+Mientras $\left| P \right| < 1$, el inverso del determinante admite desarrollo en serie geométrica, que truncado a $N$ términos es:
+
+```math
+\left( \delta - P \right)^{-1} = \sum_{i=0}^{\infty} P^{i} \simeq \delta + \sum_{i=1}^{N} P^{i}
+```
+
+Sustituyendo, la matriz de filtrado queda:
+
+```math
+\mathbf{M}^{-1} \simeq \left( \delta + \sum_{i=1}^{N} P^{i} \right) \ast \begin{bmatrix} \delta & -G_{r} \\ -G_{l} & \delta \end{bmatrix}
+= \begin{bmatrix} F^{direct} & F^{cross}_{l} \\ F^{cross}_{r} & F^{direct} \end{bmatrix}
+```
+
+Los dos elementos de la diagonal son el mismo desarrollo, sin factor cruzado que los distinga, y dan el filtro directo. Los dos elementos de fuera de la diagonal llevan cada uno **su propia $G$ como factor común**, heredada del cofactor correspondiente, y dan los dos filtros cruzados. Escritos elemento a elemento en función de los caminos acústicos:
+
+```math
+\begin{aligned}
+F^{direct}_{l} &= \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i} \\
+F^{direct}_{r} &= \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i} \\
+F^{cross}_{l} &= - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1} \\
+F^{cross}_{r} &= - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
+\end{aligned}
+```
+
+Los dos filtros directos son iguales por conmutatividad de la convolución, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, y en adelante se denotan sin subíndice. Nótese que **en los cruzados los exponentes del denominador van cruzados respecto a los del numerador**: en $F^{cross}_{l}$ el camino $H_{rl}$ aparece elevado a $i$ y normalizado por $H_{rr}^{i}$ —esto es, forma $G_{r}^{i}$—, mientras el otro par queda a $i-1$. Es un punto fácil de equivocar, y la comprobación es el término de primer orden: con $i=1$ el filtro debe reducirse a $-G_{r} = -H_{rl}/H_{rr}$, y no a $-H_{rl}/H_{ll}$, que sería $-b \ast G_{r}$ e introduciría el balance dentro de $\mathbf{M}^{-1}$, precisamente donde el modelo no lo quiere.
+
+**Relación con las expresiones de la nota principal.** [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc_filters_es.md#an%C3%A1lisis-del-problema-y-resoluci%C3%B3n) escribe estos mismos cuatro filtros en su forma completa, con el balance incluido de manera implícita, ya que allí la cancelación se resuelve directamente sobre los caminos acústicos sin factorizar $\mathbf{D}$. Sus filtros cruzados quedan normalizados por el camino directo del altavoz que **radia** la antiseñal —$F^{cross}_{r}$ evaluado en $i=1$ vale allí $-H_{lr}/H_{rr}$—, mientras que aquí los elementos de $\mathbf{M}^{-1}$ normalizan cada $G$ por el camino directo de su **propio** altavoz —$-G_{l} = -H_{lr}/H_{ll}$—. Las dos expresiones difieren exactamente en el factor $b$ que $\mathbf{D}^{-1}$ aporta después, de modo que describen el mismo filtrado; bajo la hipótesis de simetría de la nota principal, $b = \delta$ y coinciden término a término. Al comparar ambas notas conviene tener presente cuál de las dos normalizaciones se está leyendo, porque los subíndices de los denominadores no son los mismos.
+
+El criterio de truncamiento es que ningún filtro exceda la extensión temporal $N(\tau_{l} + \tau_{r})$ del directo: como el factor $G$ ya aporta un medio escalón de retardo, la serie que acompaña al cruzado se corta un orden antes, con lo que su último tap cae en $(N-1)(\tau_{l}+\tau_{r}) + \tau_{x}$ y queda dentro de esa misma extensión. Es también lo que la recurrencia de Horner entrega de forma natural, sin cálculo adicional.
+
+En forma compacta, con $P$ como operador de ida y vuelta:
 
 ```math
 F^{direct} = \delta + \sum_{i=1}^{N} P^i
@@ -135,25 +164,86 @@ F^{cross}_l = - {G_{r}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{r}} \ast \left( \del
 F^{cross}_r = - {G_{l}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{l}} \ast \left( \delta + \sum_{i=1}^{N-1} P^{i} \right)
 ```
 
-Siendo $P$ el operador de ida y vuelta, es decir, el paso completo de la escalera recursiva. Por definición es el producto de las dos funciones cruzadas normalizadas:
+El operador de ida y vuelta que ha aparecido como determinante admite una lectura acústica directa:
 
 ```math
 P = G_{l} \ast G_{r}
 ```
 
-que es exactamente el trayecto que describe un escalón de la recursión: la señal sale del altavoz izquierdo hacia el oído derecho —factor $G_{l}$— y vuelve desde el altavoz derecho hacia el oído izquierdo —factor $G_{r}$—. Es también el producto sobre el que se establece la condición de convergencia, y el objeto simétrico bajo intercambio de canales del que dependen los dos filtros directos.
+es exactamente el trayecto que describe un escalón de la recursión: la señal sale del altavoz izquierdo hacia el oído derecho —factor $G_{l}$— y vuelve desde el altavoz derecho hacia el oído izquierdo —factor $G_{r}$—. Es también el producto sobre el que se establece la condición de convergencia, y el objeto simétrico bajo intercambio de canales del que dependen los dos filtros directos.
+
+### Correspondencia entre filtros, entradas y altavoces
+
+Llamando $\mathbf{x} = (x_{l}, x_{r})$ al par de señales de programa y $\mathbf{s} = (s_{l}, s_{r})$ al par entregado a los altavoces, se tiene $\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}$, de modo que **cada fila de la matriz de filtrado corresponde a un altavoz** y cada columna a una entrada:
+
+```math
+s_{l} = F^{direct} \ast x_{l} + F^{cross}_{l} \ast x_{r}
+```
+
+```math
+s_{r} = \frac{1}{b} \left( F^{direct} \ast x_{r} + F^{cross}_{r} \ast x_{l} \right)
+```
+
+| Filtro | Alimenta al altavoz | Toma la entrada | Contiene | Primer tap en | Nivel del primer tap |
+|---|---|---|---|---|---|
+| $F^{cross}_{l}$ | izquierdo | derecha | $G_{r}$ | $\text{ITD}_{r}$ | $-\text{ILD}_{r}$ |
+| $F^{cross}_{r}$ | derecho | izquierda | $G_{l}$ | $\text{ITD}_{l}$ | $-\text{ILD}_{l}$ |
+
+Todo en la rama cruzada izquierda es "derecho" —la entrada, la función $G$, el ITD y el ILD— excepto el altavoz que la radia. La razón es física y no una convención de escritura: la fuga que hay que cancelar en el oído izquierdo es la del altavoz **derecho**, descrita por $G_{r}$; pero la antiseñal que la cancela tiene que llegar a ese mismo oído izquierdo, y el único camino directo que llega allí es el del altavoz **izquierdo**. De ahí el cruce: el subíndice del filtro nombra el altavoz que radia, el subíndice de la $G$ que contiene nombra el altavoz cuya fuga cancela, y son siempre opuestos.
+
+Puede comprobarse sobre la contribución al oído izquierdo de la señal $x_{r}$, que es la que no debería llegar allí. El altavoz derecho aporta $s_{r}$ a través de su camino cruzado $H_{rl}$ y el izquierdo aporta $s_{l}$ a través de su camino directo $H_{ll}$:
+
+```math
+e_{l} \big|_{x_{r}} = \frac{x_{r}}{\delta - P} \ast \left( \frac{H_{rl}}{b} - G_{r} \ast H_{ll} \right) = 0
+```
+
+ya que $G_{r} \ast H_{ll} = \left( H_{rl}/H_{rr} \right) \ast H_{ll} = H_{rl}/b$. La cancelación es exacta, y lo es **solo con el factor $1/b$ en su sitio**: es el mismo resultado del apartado sobre el ajuste del balance, visto término a término en lugar de matricialmente.
 
 ### Descomposición del operador de ida y vuelta
 
-La expresión $P = G_{l} \ast G_{r}$ es la que da sentido al desarrollo, pero no es la que se lleva directamente a código. En el paso a implementación cada función $G$ se separa en su parte de banda ancha y su forma espectral, $G_x = g_x \ast S_x$, y entra en juego el convenio establecido en la nota principal —[aplicación del espectro ILD en la serie](xtc_filters_es.md#aplicaci%C3%B3n-del-espectro-ild-en-la-serie)—: el espectro se aplica una sola vez por escalón, mientras que el retardo y la atenuación de banda ancha sí siguen la ley completa de potencias. El operador de ida y vuelta se genera entonces como
+La expresión $P = G_{l} \ast G_{r}$ es la que da sentido al desarrollo, pero no es la que se lleva directamente a código. 
+
+Recordemos que según se hizo en el planteamiento de [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc_filters_es.md#desarrollo-del-dise%C3%B1o-final), tanto $G_{l}$ como $G_{r}$ se pueden expresar como dependientes de:
+
+```math
+G_{l} = \delta \left ( \text{ITD}_{l}, \text{ILD}_{l} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{l} \right), \text{ILD}_{avg} \left ( \Theta_{l} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{l}, f \right )
+```
+
+```math
+G_{r} = \delta \left ( \text{ITD}_{r}, \text{ILD}_{r} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{r} \right), \text{ILD}_{avg} \left ( \Theta_{r} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{r}, f \right )
+```
+
+La parametrización de cada una de estas funciones puede seguir el mismo modelo desarrollado en la nota principal XTC para NatAmbio, de manera que el paso a implementación para cada función $G$ se separa en su parte de banda ancha y su forma espectral:
+
+$$G_x = g_x \ast S_x$$
+
+$$g_x = \delta \left ( \text{ITD} \left ( \Theta_{x} \right ), \text{ILD}_{avg} \left ( \Theta_{x} \right ) \right)$$
+
+$$S_x = \text{ILD}_{spectrum} \left ( \Theta_{x}, f \right )$$
+
+y entra en juego el convenio establecido en la nota principal —[aplicación del espectro ILD en la serie](xtc_filters_es.md#aplicaci%C3%B3n-del-espectro-ild-en-la-serie)—: el espectro se aplica una sola vez por escalón, mientras que el retardo y la atenuación de banda ancha sí siguen la ley completa de potencias. El operador de ida y vuelta se genera entonces como
 
 ```math
 P = g_l \ast g_r \ast \bar{S}
 ```
 
-esto es: los retardos de ambos lados se suman, las atenuaciones se multiplican, y allí donde el producto $G_{l} \ast G_{r}$ acumularía $S_l \ast S_r$ el espectro interviene una única vez, a través de una forma promedio $\bar{S}$. Con ello el término $i$ del filtro directo vale $(g_l g_r)^i \ast \bar{S}^i$ y el término $i$ de cada cruzado $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, de modo que el número de aplicaciones del espectro es $i$ en todos los casos, con el mismo índice $i$ numerando el mismo escalón en el filtro directo y en los cruzados.
+esto es: los retardos de ambos lados se suman, las atenuaciones se multiplican, y allí donde el producto $G_{l} \ast G_{r}$ acumularía $S_l \ast S_r$ el espectro interviene una única vez, a través de una forma promedio $\bar{S}$. Con ello el término $i$ del filtro directo vale: 
+```math
+(g_l g_r)^i \ast \bar{S}^i 
+```
+y el término $i$ de cada cruzado:
+```math
+g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}
+``` 
+de modo que el número de aplicaciones del espectro es $i$ en todos los casos, con el mismo índice $i$ numerando el mismo escalón en el filtro directo y en los cruzados.
 
-Queda por determinar qué forma espectral corresponde a $\bar{S}$. Como la ida y vuelta atraviesa una sombra acústica de cabeza por cada lado, y solo hay sitio para una aplicación, la elección natural es la media de ambas log-magnitudes. Dado que el modelo empírico de $ILD_{spectrum}$ es lineal en el producto $\alpha \sin\Theta$, esa media se obtiene sin promediar respuestas: basta evaluar el mismo modelo con
+Queda por determinar qué forma espectral corresponde a $\bar{S}$. Como la ida y vuelta atraviesa una sombra acústica de cabeza por cada lado, y solo hay sitio para una aplicación, la elección natural es la media de ambas log-magnitudes. Dado que el modelo empírico de $ILD_{spectrum}$: 
+
+```math
+ILD_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1) \cdot \sin(\Theta)
+```
+
+es lineal en el producto $\alpha \sin\Theta$, esa media se obtiene sin promediar respuestas: basta evaluar el mismo modelo con
 
 ```math
 \bar{\kappa} = \tfrac{1}{2} \left( \alpha_l \sin\Theta_l + \alpha_r \sin\Theta_r \right)

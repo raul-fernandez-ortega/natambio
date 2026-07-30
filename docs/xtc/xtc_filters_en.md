@@ -90,10 +90,12 @@ always understanding division as convolution by the inverse impulse responses. F
 
 $$ F_{r}^{cross} = \sum_{i=1}^{N} \frac {-H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}}$$
 $$ F_{l}^{cross} = \sum_{i=1}^{N} \frac {-H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}}$$
-$$ F_{r}^{direct} = \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}}$$
-$$ F_{l}^{direct} = \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}}$$
+$$ F_{r}^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}}$$
+$$ F_{l}^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}}$$
 
 where the exponent $i$ denotes $i$ successive convolutions of the same filter, and where the function $H_{xy}$ appears in the denominator when its inverse is being referred to.
+
+It is worth looking closely at which direct path normalises each cross filter, since this is an easy point to get wrong. Evaluating $F_{r}^{cross}$ at $i=1$ recovers $-H_{lr}/H_{rr}$, which is exactly the filter $F_{r1}$ obtained above: the numerator is the crossed path of the loudspeaker **whose leakage is being cancelled** — the left one — whereas the denominator is the direct path of the loudspeaker **that radiates the anti-signal** — the right one. The rule is that the anti-signal has to reach the contaminated ear, and the only direct path that gets there is that of the loudspeaker on that same side. This is why the two pairs of subscripts do not carry the same exponent: the one accompanying the numerator goes to $i$ and the other to $i-1$.
 
 If we assume — something reasonable in symmetric (or near-symmetric) environments — that $H_{lr} = H_{rl} = H_{cross}$ and $H_{ll} = H_{rr} = H_{direct}$, the equations finally become:
 

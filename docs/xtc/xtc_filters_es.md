@@ -89,10 +89,12 @@ Siempre entendiendo por división la convolución por las impulsivas inversas. S
 
 $$ F_{r}^{cross} = \sum_{i=1}^{N} \frac {-H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}}$$
 $$ F_{l}^{cross} = \sum_{i=1}^{N} \frac {-H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}}$$
-$$ F_{r}^{direct} = \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}}$$
-$$ F_{l}^{direct} = \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}}$$
+$$ F_{r}^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}}$$
+$$ F_{l}^{direct} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}}$$
 
 Donde la potencia $i$ indica $i$ convoluciones sucesivas de un mismo filtro, y donde la función $H_{xy}$ aparecerá en el denominador cuando se está haciendo referencia a su inversa.
+
+Conviene fijarse en qué camino directo normaliza a cada filtro cruzado, porque es un punto fácil de confundir. Evaluando $F_{r}^{cross}$ en $i=1$ se recupera $-H_{lr}/H_{rr}$, que es exactamente el filtro $F_{r1}$ obtenido más arriba: el numerador es el camino cruzado del altavoz **cuya fuga se cancela** —el izquierdo—, mientras el denominador es el camino directo del altavoz **que radia la antiseñal** —el derecho—. La regla es que la antiseñal ha de llegar al oído contaminado, y el único camino directo que llega allí es el del altavoz de ese mismo lado. Por eso los dos pares de subíndices no van al mismo exponente: el que acompaña al numerador va a $i$ y el otro a $i-1$.
 
 Si se asume, algo lógico en entornos simétricos (o próximos a la simetría), que $H_{lr} = H_{rl} = H_{cross}$ y que $H_{ll} = H_{rr} = H_{direct}$, las ecuaciones finalmente quedan como:
 

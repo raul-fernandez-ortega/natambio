@@ -79,19 +79,7 @@ The matrix to be inverted through the recursive development shows two difference
 
 Note that the model does not change. The only difference with respect to the symmetric case is that the system goes from using a single function $G$ to using two distinct functions, $G_{l}$ and $G_{r}$, one per loudspeaker.
 
-Continuing with the approach of [Design of a convolution-based stereo crosstalk canceller (XTC) for NatAmbio](xtc_filters_en.md#final-design-development), both $G_{l}$ and $G_{r}$ can be expressed as dependent on:
-
-```math
-G_{l} = \delta \left ( \text{ITD}_{l}, \text{ILD}_{l} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{l} \right), \text{ILD}_{avg} \left ( \Theta_{l} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{l}, f \right )
-```
-
-```math
-G_{r} = \delta \left ( \text{ITD}_{r}, \text{ILD}_{r} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{r} \right), \text{ILD}_{avg} \left ( \Theta_{r} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{r}, f \right )
-```
-
-The parametrization of each of these functions can follow the same model developed in the main XTC note for NatAmbio.
-
-As for the matrix $\mathbf{H}$, we can further decompose it into:
+The matrix $\mathbf{H}$ can be further decomposed into:
 
 ```math
 \mathbf{H} = H_{ll} \begin{bmatrix} 1 & G_{r} \\ G_{l} & 1 \end{bmatrix} \cdot \begin{bmatrix} 1 & 0 \\ 0 & b \end{bmatrix} = H_{ll} \cdot \mathbf{M} \cdot \mathbf{D}
@@ -121,7 +109,48 @@ so that $\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}$: each ear 
 
 ## Application in NatAmbio
 
-As already shown in the main note on XTC for NatAmbio, inverting the matrix $\mathbf{M}$ is equivalent to its recursive solution. Applying the same recursive development described in the main note to the general case $G_l \neq G_r$ gives:
+As already shown in the main note on XTC for NatAmbio, inverting the matrix $\mathbf{M}$ is equivalent to its recursive solution. It is worth going through the development in detail, because it is there that it is decided which function $G$ ends up in each cross filter.
+
+The inverse of a $2\times2$ matrix in the convolution algebra is obtained just as in the scalar case, since convolution is commutative:
+
+```math
+\mathbf{M}^{-1} = \frac{1}{\det \mathbf{M}} \begin{bmatrix} \delta & -G_{r} \\ -G_{l} & \delta \end{bmatrix},
+\qquad \det \mathbf{M} = \delta - G_{l} \ast G_{r}
+```
+
+The determinant is precisely $\delta - P$, with $P = G_{l} \ast G_{r}$: the round-trip operator is not an auxiliary definition introduced for convenience, but the object that appears of its own accord when inverting $\mathbf{M}$, which is why the convergence condition falls on it and not on each $G$ separately.
+
+As long as $\left| P \right| < 1$, the inverse of the determinant admits a geometric series expansion, which truncated to $N$ terms is:
+
+```math
+\left( \delta - P \right)^{-1} = \sum_{i=0}^{\infty} P^{i} \simeq \delta + \sum_{i=1}^{N} P^{i}
+```
+
+Substituting, the filtering matrix becomes:
+
+```math
+\mathbf{M}^{-1} \simeq \left( \delta + \sum_{i=1}^{N} P^{i} \right) \ast \begin{bmatrix} \delta & -G_{r} \\ -G_{l} & \delta \end{bmatrix}
+= \begin{bmatrix} F^{direct} & F^{cross}_{l} \\ F^{cross}_{r} & F^{direct} \end{bmatrix}
+```
+
+The two diagonal elements are the same development, with no crossed factor to tell them apart, and give the direct filter. The two off-diagonal elements each carry **their own $G$ as a common factor**, inherited from the corresponding cofactor, and give the two cross filters. Written element by element in terms of the acoustic paths:
+
+```math
+\begin{aligned}
+F^{direct}_{l} &= \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i} \\
+F^{direct}_{r} &= \delta + \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i}} {H_{rr}^{i} \ast H_{ll}^{i}} = \delta + \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i} = \delta + \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i} \\
+F^{cross}_{l} &= - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1} = - G_{r} \ast \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i-1} \\
+F^{cross}_{r} &= - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
+\end{aligned}
+```
+
+The two direct filters are equal by commutativity of convolution, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, and from here on are written without a subscript. Note that **in the cross filters the exponents of the denominator are crossed with respect to those of the numerator**: in $F^{cross}_{l}$ the path $H_{rl}$ appears raised to $i$ and normalised by $H_{rr}^{i}$ — that is, in the form $G_{r}^{i}$ — while the other pair stays at $i-1$. This is an easy point to get wrong, and the check is the first-order term: at $i=1$ the filter must reduce to $-G_{r} = -H_{rl}/H_{rr}$, and not to $-H_{rl}/H_{ll}$, which would be $-b \ast G_{r}$ and would introduce the balance inside $\mathbf{M}^{-1}$, precisely where the model does not want it.
+
+**Relation to the expressions of the main note.** [Design of a convolution-based stereo crosstalk canceller (XTC) for NatAmbio](xtc_filters_en.md#problem-analysis-and-resolution) writes these same four filters in their complete form, with the balance included implicitly, since there the cancellation is solved directly on the acoustic paths without factoring out $\mathbf{D}$. Its cross filters end up normalised by the direct path of the loudspeaker that **radiates** the anti-signal — $F^{cross}_{r}$ evaluated at $i=1$ is $-H_{lr}/H_{rr}$ there — whereas here the elements of $\mathbf{M}^{-1}$ normalise each $G$ by the direct path of its **own** loudspeaker — $-G_{l} = -H_{lr}/H_{ll}$. The two expressions differ by exactly the factor $b$ that $\mathbf{D}^{-1}$ supplies afterwards, so they describe the same filtering; under the symmetry hypothesis of the main note, $b = \delta$ and they agree term by term. When comparing the two notes it is worth keeping in mind which of the two normalisations is being read, because the subscripts of the denominators are not the same.
+
+The truncation criterion is that no filter should exceed the temporal extent $N(\tau_{l} + \tau_{r})$ of the direct one: since the factor $G$ already contributes half a rung of delay, the series accompanying the cross filter is cut one order earlier, so that its last tap falls at $(N-1)(\tau_{l}+\tau_{r}) + \tau_{x}$ and stays within that same extent. This is also what the Horner recurrence delivers naturally, at no additional cost.
+
+In compact form, with $P$ as the round-trip operator:
 
 ```math
 F^{direct} = \delta + \sum_{i=1}^{N} P^i
@@ -135,25 +164,90 @@ F^{cross}_l = - {G_{r}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{r}} \ast \left( \del
 F^{cross}_r = - {G_{l}} \ast \sum_{i=1}^{N} P^{i-1} = - {G_{l}} \ast \left( \delta + \sum_{i=1}^{N-1} P^{i} \right)
 ```
 
-where $P$ is the round-trip operator, that is, one complete rung of the recursive ladder. By definition it is the product of the two normalised crossed functions:
+The round-trip operator that has appeared as the determinant admits a direct acoustic reading:
 
 ```math
 P = G_{l} \ast G_{r}
 ```
 
-which is exactly the path described by one rung of the recursion: the signal leaves the left loudspeaker towards the right ear — factor $G_{l}$ — and comes back from the right loudspeaker towards the left ear — factor $G_{r}$. It is also the product on which the convergence condition is stated, and the object, symmetric under the exchange of channels, on which both direct filters depend.
+it is exactly the path described by one rung of the recursion: the signal leaves the left loudspeaker towards the right ear — factor $G_{l}$ — and comes back from the right loudspeaker towards the left ear — factor $G_{r}$. It is also the product on which the convergence condition is stated, and the object, symmetric under the exchange of channels, on which both direct filters depend.
+
+### Correspondence between filters, inputs and loudspeakers
+
+Writing $\mathbf{x} = (x_{l}, x_{r})$ for the pair of programme signals and $\mathbf{s} = (s_{l}, s_{r})$ for the pair delivered to the loudspeakers, we have $\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}$, so that **each row of the filtering matrix corresponds to a loudspeaker** and each column to an input:
+
+```math
+s_{l} = F^{direct} \ast x_{l} + F^{cross}_{l} \ast x_{r}
+```
+
+```math
+s_{r} = \frac{1}{b} \left( F^{direct} \ast x_{r} + F^{cross}_{r} \ast x_{l} \right)
+```
+
+| Filter | Feeds loudspeaker | Takes input | Contains | First tap at | Level of first tap |
+|---|---|---|---|---|---|
+| $F^{cross}_{l}$ | left | right | $G_{r}$ | $\text{ITD}_{r}$ | $-\text{ILD}_{r}$ |
+| $F^{cross}_{r}$ | right | left | $G_{l}$ | $\text{ITD}_{l}$ | $-\text{ILD}_{l}$ |
+
+Everything in the left cross branch is "right" — the input, the function $G$, the ITD and the ILD — except the loudspeaker that radiates it. The reason is physical and not a writing convention: the leakage to be cancelled at the left ear is that of the **right** loudspeaker, described by $G_{r}$; but the anti-signal that cancels it has to reach that same left ear, and the only direct path that gets there is that of the **left** loudspeaker. Hence the crossing: the subscript of the filter names the loudspeaker that radiates, the subscript of the $G$ it contains names the loudspeaker whose leakage it cancels, and they are always opposite.
+
+This can be checked on the contribution to the left ear of the signal $x_{r}$, which is the one that should not arrive there. The right loudspeaker contributes $s_{r}$ through its crossed path $H_{rl}$ and the left one contributes $s_{l}$ through its direct path $H_{ll}$:
+
+```math
+e_{l} \big|_{x_{r}} = \frac{x_{r}}{\delta - P} \ast \left( \frac{H_{rl}}{b} - G_{r} \ast H_{ll} \right) = 0
+```
+
+since $G_{r} \ast H_{ll} = \left( H_{rl}/H_{rr} \right) \ast H_{ll} = H_{rl}/b$. The cancellation is exact, and it is so **only with the factor $1/b$ in place**: it is the same result as in the section on balance adjustment, seen term by term instead of in matrix form.
 
 ### Decomposition of the round-trip operator
 
-The expression $P = G_{l} \ast G_{r}$ is what gives the development its meaning, but it is not what goes directly into code. In the step towards implementation each function $G$ is separated into its broadband part and its spectral shape, $G_x = g_x \ast S_x$, and the convention established in the main note comes into play — [application of the ILD spectrum within the series](xtc_filters_en.md#application-of-the-ild-spectrum-within-the-series): the spectrum is applied only once per rung, whereas the delay and the broadband attenuation do follow the full power law. The round-trip operator is then generated as
+The expression $P = G_{l} \ast G_{r}$ is what gives the development its meaning, but it is not what goes directly into code.
+
+Recall that, as was done in the formulation of [Design of a convolution-based stereo crosstalk canceller (XTC) for NatAmbio](xtc_filters_en.md#final-design-development), both $G_{l}$ and $G_{r}$ can be expressed as dependent on:
+
+```math
+G_{l} = \delta \left ( \text{ITD}_{l}, \text{ILD}_{l} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{l} \right), \text{ILD}_{avg} \left ( \Theta_{l} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{l}, f \right )
+```
+
+```math
+G_{r} = \delta \left ( \text{ITD}_{r}, \text{ILD}_{r} \right ) = \delta \left ( \text{ITD} \left ( \Theta_{r} \right), \text{ILD}_{avg} \left ( \Theta_{r} \right ) \right ) \ast \text{ILD}_{spectrum} \left ( \Theta_{r}, f \right )
+```
+
+The parametrization of each of these functions can follow the same model developed in the main XTC note for NatAmbio, so that in the step towards implementation each function $G$ is separated into its broadband part and its spectral shape:
+
+$$G_x = g_x \ast S_x$$
+
+$$g_x = \delta \left ( \text{ITD} \left ( \Theta_{x} \right ), \text{ILD}_{avg} \left ( \Theta_{x} \right ) \right)$$
+
+$$S_x = \text{ILD}_{spectrum} \left ( \Theta_{x}, f \right )$$
+
+and the convention established in the main note comes into play — [application of the ILD spectrum within the series](xtc_filters_en.md#application-of-the-ild-spectrum-within-the-series): the spectrum is applied only once per rung, whereas the delay and the broadband attenuation do follow the full power law. The round-trip operator is then generated as
 
 ```math
 P = g_l \ast g_r \ast \bar{S}
 ```
 
-that is: the delays of both sides add, the attenuations multiply, and where the product $G_{l} \ast G_{r}$ would accumulate $S_l \ast S_r$ the spectrum intervenes only once, through an averaged shape $\bar{S}$. With this, term $i$ of the direct filter is $(g_l g_r)^i \ast \bar{S}^i$ and term $i$ of each cross filter is $g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}$, so that the number of applications of the spectrum is $i$ in every case, with the same index $i$ numbering the same rung in the direct filter and in the cross ones.
+that is: the delays of both sides add, the attenuations multiply, and where the product $G_{l} \ast G_{r}$ would accumulate $S_l \ast S_r$ the spectrum intervenes only once, through an averaged shape $\bar{S}$. With this, term $i$ of the direct filter is:
 
-It remains to determine which spectral shape corresponds to $\bar{S}$. Since the round trip crosses one head shadow on each side, and there is room for only one application, the natural choice is the mean of both log-magnitudes. Given that the empirical model of $ILD_{spectrum}$ is linear in the product $\alpha \sin\Theta$, that mean is obtained without averaging any responses: it suffices to evaluate the same model with
+```math
+(g_l g_r)^i \ast \bar{S}^i
+```
+
+and term $i$ of each cross filter:
+
+```math
+g_r (g_l g_r)^{i-1} \ast S_r \ast \bar{S}^{i-1}
+```
+
+so that the number of applications of the spectrum is $i$ in every case, with the same index $i$ numbering the same rung in the direct filter and in the cross ones.
+
+It remains to determine which spectral shape corresponds to $\bar{S}$. Since the round trip crosses one head shadow on each side, and there is room for only one application, the natural choice is the mean of both log-magnitudes. Given that the empirical model of $ILD_{spectrum}$:
+
+```math
+ILD_{spectrum}(f) = \alpha \cdot 10 \cdot log_{10}(f/1000 + 1) \cdot \sin(\Theta)
+```
+
+is linear in the product $\alpha \sin\Theta$, that mean is obtained without averaging any responses: it suffices to evaluate the same model with
 
 ```math
 \bar{\kappa} = \tfrac{1}{2} \left( \alpha_l \sin\Theta_l + \alpha_r \sin\Theta_r \right)
