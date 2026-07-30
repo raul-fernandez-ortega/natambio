@@ -3,7 +3,7 @@
 **Author:** Raúl Fernández Ortega  
 **Date:** July 2026
 
-This technical note extends the design of XTC filters for conventional stereo environments to layouts in which, for whatever reason, the desired symmetry in loudspeaker placement does not hold.
+This technical note extends the design of XTC filters for conventional stereo environments to layouts in which, for whatever reason, the desired symmetry does not hold. The asymmetry may lie in loudspeaker placement, but also — and this is probably the more frequent case — in the acoustic environment of an otherwise symmetric placement: a wall close to one side only, different furniture to left and right. As the validation section shows, what the model requires is not that the geometry be asymmetric, but that the crossed paths be.
 
 ## Notation
 
@@ -19,7 +19,7 @@ This technical note extends the design of XTC filters for conventional stereo en
 | $P = G_l \ast G_r$ | Round-trip operator: one complete rung of the ladder (when implemented, $g_l \ast g_r \ast \bar{S}$) |
 | $\mathbf{H}$ | Acoustic transfer matrix of the asymmetric system |
 | $\mathbf{M}$ | Normalised relative coupling matrix (asymmetric counterpart of $\mathbf{C}_G$) |
-| $\mathbf{D}$ | Diagonal balance matrix, $\mathbf{D} = \operatorname{diag}(1,\ b)$ |
+| $\mathbf{D}$ | Diagonal balance matrix, $\mathbf{D} = \mathrm{diag}(1, b)$ |
 | $\mathbf{F}_{XTC}$ | XTC filtering matrix (direct and cross filters) |
 | $\Theta_l,\ \Theta_r$ | Incidence azimuth of each loudspeaker |
 | $\delta$ | Unit impulse (neutral element of convolution) |
@@ -183,7 +183,7 @@ Since $\mathbf{D}^{-1}$ pre-multiplies $\mathbf{M}^{-1}$, it scales a whole row 
 
 ### Attenuate, never amplify
 
-The strict factor is $1/b$ on the right channel which, if $b<1$, means a boost and with it a loss of headroom and a risk of clipping. Multiplying the whole filtering matrix by $b$ is, however, equivalent as far as cancellation is concerned — only the ratio between the two gains matters — and yields $\operatorname{diag}(b,\ 1)$, that is, an attenuation of the left channel. The practical rule is therefore to **attenuate the channel that arrives louder at the listening position and leave the other one untouched**, never the other way round.
+The strict factor is $1/b$ on the right channel which, if $b<1$, means a boost and with it a loss of headroom and a risk of clipping. Multiplying the whole filtering matrix by $b$ is, however, equivalent as far as cancellation is concerned — only the ratio between the two gains matters — and yields $\mathrm{diag}(b, 1)$, that is, an attenuation of the left channel. The practical rule is therefore to **attenuate the channel that arrives louder at the listening position and leave the other one untouched**, never the other way round.
 
 ### Proposed procedure
 
@@ -230,6 +230,36 @@ As in the symmetric case, the mathematical convergence of the series does not by
 The same protection as in the symmetric model is therefore applied: XTC action is bounded below **200 Hz**, attenuating the level with a **6 dB/octave** roll-off. It is built into the $ILD_{spectrum}$ model itself, so it affects $S_l$, $S_r$ and $\bar{S}$ alike, and therefore both cross filters and the corrective terms of the direct one. The $\delta$ component of the direct filter is unaffected, so that at low frequency the direct filter tends to unity and the system converges smoothly to unprocessed stereo.
 
 Measured on the filters actually generated for an example asymmetric layout (left 180 µs / 10 dB / 20°, right 140 µs / 8 dB / 15°, 4096 taps at 48 kHz), both cross filters show a slope of about 6 dB/octave below 200 Hz while the direct filter approaches 0 dB. The low-frequency behaviour is therefore the same as in the symmetric case.
+
+## Listening validation
+
+The model has been tested on a real system, with a result worth documenting both for what it confirms and for what it reframes.
+
+### The case
+
+Loudspeakers in a symmetric layout — same ITD and same azimuth on both sides — but with the two crossed paths clearly different: tuning by ear converges to $\text{ILD}_l = 21$ dB and $\text{ILD}_r = 12$ dB, nine decibels apart. The balance resulting from the procedure described above is 0 dB; with only 1 dB of attenuation on the right channel the mono image already shifted perceptibly to the left.
+
+### A null balance is consistent with the model
+
+$b = H_{rr}/H_{ll}$ is the ratio of the **direct** paths, whereas the ILDs parametrise the **crossed** ones: they are independent quantities. With the DRC stage levelling both direct paths against a common target, $b \approx 1$ is to be expected however different the crosstalk may be on each side. In this system the asymmetry lives entirely in $\mathbf{M}$ and not at all in $\mathbf{D}$, which is the opposite limiting case to the one that motivates the balance section. Incidentally, the sensitivity observed — 1 dB clearly audible on a mono image — confirms that the listening procedure comfortably resolves the tolerance target that justifies the cancellation-ceiling table.
+
+### Why the symmetric compromise was expensive
+
+Before the asymmetric model was available, the system ran with a single ILD of 16 dB, a compromise value. With 12 dB on both sides one of them behaved excellently — the virtual scene opened beyond 70° of azimuth — while the other collapsed, failing to reach 40°.
+
+The relevant observation is that **the failure is not symmetric**. Falling short of full cancellation merely narrows the scene; overshooting destroys it, because the corrective signal exceeds the actual crosstalk and the residual, inverted and shifted in time, introduces a localisation cue that corresponds to no source at all. A single parameter is therefore held hostage by the worse of the two sides: it cannot be as aggressive as the good side allows without breaking the other. The 16 dB compromise was not splitting the error evenly; it was giving up most of the attainable width on one side in order to avoid collapse on the other. With the two ILDs independent, the scene turned out not only wider but **stable**, which is the signature of a cancellation correctly matched in both time and level.
+
+This is, in practice, the strongest argument for the asymmetric model, and it is independent of the balance: even with $b = 1$ exactly, a single $G$ forces one to aim low.
+
+### Likely origin, and the ceiling it implies
+
+The listener's hypothesis, consistent with the geometry of the room, is that the difference comes from early reflections, different to left and right because of the room boundaries and the furniture. The mechanism is plausible on signal-margin grounds: the direct path is the strongest arrival at the ipsilateral ear and a reflection several decibels below it barely perturbs it, whereas the crossed path arrives already attenuated by the head shadow, so a reflection reaching the contralateral ear without suffering that shadow can rival it in level. The same room asymmetry alters $G_l$ and $G_r$ far more than it alters $H_{ll}$ and $H_{rr}$ — and what little it does alter in the latter is corrected by the DRC.
+
+This bounds what can be expected. A reflection is a temporal phenomenon and the $ILD_{avg}$ parameter can only absorb it as level: the model cancels a single delayed copy and cannot cancel a second arrival at a different delay. The value that tuning by ear converges to is then a compromise between cancelling the direct crosstalk and not worsening the residual against the reflection, and the ceiling this imposes lies not in the parameters but in the room. Consistently with this, the improvement reported over the symmetric compromise is described as real but moderate: in such a system the next step up is not finer XTC tuning but treating the first reflection point.
+
+### Scope of this validation
+
+This is a single system and a subjective adjustment, with no instrumental verification of the reflection hypothesis — which would be confirmed by measuring the binaural response at the listening position and comparing the first arrivals of each crossed path. What is established is that the asymmetric model covers a use case the original motivation of this note did not contemplate: not asymmetry of placement, but asymmetry of the acoustic environment with the loudspeakers symmetrically placed.
 
 ## Reduction to the symmetric case
 

@@ -3,7 +3,7 @@
 **Autor:** Raúl Fernández Ortega  
 **Fecha:** julio de 2026
 
-En la presente nota técnica se amplía el diseño de filtros XTC para entornos estéreo convencionales al caso de disposiciones en las que, por el motivo que sea, no se cumple la deseada simetría en la ubicación de los altavoces.
+En la presente nota técnica se amplía el diseño de filtros XTC para entornos estéreo convencionales al caso de disposiciones en las que, por el motivo que sea, no se cumple la deseada simetría. La asimetría puede estar en la ubicación de los altavoces, pero también —y es un caso probablemente más frecuente— en el entorno acústico de una colocación por lo demás simétrica: una pared cercana a un solo lado, mobiliario distinto a izquierda y derecha. Como se verá en el apartado de validación, lo que el modelo necesita no es que la geometría sea asimétrica, sino que lo sean los caminos cruzados.
 
 ## Notación
 
@@ -19,7 +19,7 @@ En la presente nota técnica se amplía el diseño de filtros XTC para entornos 
 | $P = G_l \ast G_r$ | Operador de ida y vuelta: un escalón completo de la escalera (al implementarlo, $g_l \ast g_r \ast \bar{S}$) |
 | $\mathbf{H}$ | Matriz de transferencia acústica del sistema asimétrico |
 | $\mathbf{M}$ | Matriz de acoplamiento relativo normalizado (equivalente asimétrico de $\mathbf{C}_G$) |
-| $\mathbf{D}$ | Matriz diagonal de balance, $\mathbf{D} = \operatorname{diag}(1,\ b)$ |
+| $\mathbf{D}$ | Matriz diagonal de balance, $\mathbf{D} = \mathrm{diag}(1, b)$ |
 | $\mathbf{F}_{XTC}$ | Matriz de filtrado XTC (filtros directos y cruzados) |
 | $\Theta_l,\ \Theta_r$ | Azimut de incidencia de cada altavoz |
 | $\delta$ | Impulso unitario (elemento neutro de la convolución) |
@@ -183,7 +183,7 @@ Como $\mathbf{D}^{-1}$ premultiplica a $\mathbf{M}^{-1}$, escala una fila comple
 
 ### Atenuar, nunca amplificar
 
-El factor estricto es $1/b$ sobre el canal derecho, que si $b<1$ supone un realce y, con él, un consumo de margen dinámico y riesgo de saturación. Ahora bien, multiplicar toda la matriz de filtrado por $b$ es equivalente en lo que respecta a la cancelación —solo importa el cociente entre ambas ganancias— y da $\operatorname{diag}(b,\ 1)$, es decir, una atenuación del canal izquierdo. Por tanto, la regla práctica es **atenuar el canal que llega más fuerte al punto de escucha y dejar el otro sin tocar**, nunca al revés.
+El factor estricto es $1/b$ sobre el canal derecho, que si $b<1$ supone un realce y, con él, un consumo de margen dinámico y riesgo de saturación. Ahora bien, multiplicar toda la matriz de filtrado por $b$ es equivalente en lo que respecta a la cancelación —solo importa el cociente entre ambas ganancias— y da $\mathrm{diag}(b, 1)$, es decir, una atenuación del canal izquierdo. Por tanto, la regla práctica es **atenuar el canal que llega más fuerte al punto de escucha y dejar el otro sin tocar**, nunca al revés.
 
 ### Procedimiento propuesto
 
@@ -230,6 +230,36 @@ Como en el caso simétrico, la convergencia matemática de la serie no garantiza
 Por ello se aplica exactamente la misma protección que en el modelo simétrico: la acción XTC se acota por debajo de **200 Hz**, atenuando el nivel con una rampa de bajada de **6 dB/octava**. Está incorporada al propio modelo de $ILD_{spectrum}$, de manera que afecta por igual a $S_l$, $S_r$ y $\bar{S}$, y por tanto a los dos filtros cruzados y a los términos correctores del directo. La componente $\delta$ del filtro directo no se ve afectada, con lo que en baja frecuencia el filtro directo tiende a la unidad y el sistema converge suavemente a estéreo sin procesar.
 
 Sobre los filtros efectivamente generados para una disposición asimétrica de ejemplo (izquierda 180 µs / 10 dB / 20°, derecha 140 µs / 8 dB / 15°, 4096 muestras a 48 kHz) se mide, en ambos filtros cruzados, una pendiente de unos 6 dB/octava por debajo de 200 Hz, mientras el filtro directo se aproxima a 0 dB. El comportamiento en graves es, por tanto, el mismo que el del caso simétrico.
+
+## Validación por escucha
+
+El modelo se ha contrastado sobre un sistema real, con un resultado que conviene documentar tanto por lo que confirma como por lo que reencuadra.
+
+### El caso
+
+Altavoces en disposición simétrica —mismo ITD y mismo azimut en ambos lados— pero con los dos caminos cruzados netamente distintos: el ajuste de oído converge a $\text{ILD}_l = 21$ dB y $\text{ILD}_r = 12$ dB, nueve decibelios de diferencia. El balance resultante del procedimiento descrito más arriba es de 0 dB; con solo 1 dB de atenuación en el canal derecho la imagen mono ya se desplazaba perceptiblemente hacia la izquierda.
+
+### El balance nulo es coherente con el modelo
+
+$b = H_{rr}/H_{ll}$ es el cociente de los caminos **directos**, mientras que los ILD parametrizan los **cruzados**: son magnitudes independientes. Con la etapa DRC nivelando ambos directos contra un objetivo común, $b \approx 1$ es lo esperable por mucho que la diafonía sea distinta a cada lado. En este sistema la asimetría vive íntegramente en $\mathbf{M}$ y nada en $\mathbf{D}$, que es el caso límite opuesto al que motiva el apartado del balance. De paso, la sensibilidad observada —1 dB claramente audible sobre imagen mono— confirma que el procedimiento de escucha resuelve con holgura el objetivo de tolerancia que justifica la tabla del techo de cancelación.
+
+### Por qué el compromiso simétrico salía caro
+
+Antes de disponer del modelo asimétrico el sistema funcionaba con un único ILD de 16 dB, valor de compromiso. Con 12 dB en ambos lados uno de ellos se comportaba de forma excelente —la escena virtual abría más allá de 70° de azimut— mientras el otro colapsaba, sin llegar a abrir 40°.
+
+La observación relevante es que **el fallo no es simétrico**. Quedarse corto en la cancelación se limita a estrechar la escena; pasarse la destruye, porque la señal correctora excede a la diafonía real y el residuo, invertido y desplazado en el tiempo, introduce una pista de localización que no corresponde a ninguna fuente. Un parámetro único queda por tanto sujeto al peor de los dos lados: no puede ser tan agresivo como admite el lado bueno sin romper el contrario. El compromiso a 16 dB no repartía el error a partes iguales, sino que renunciaba a la mayor parte de la anchura alcanzable en un lado para evitar el colapso en el otro. Con los dos ILD independientes la escena resultó no solo más amplia sino **estable**, que es la firma de una cancelación bien ajustada en tiempo y en nivel.
+
+Este es, en la práctica, el argumento más fuerte a favor del modelo asimétrico, y es independiente del balance: aun con $b = 1$ exacto, un único $G$ obliga a tirar por lo bajo.
+
+### Origen probable y techo asociado
+
+La hipótesis del oyente, coherente con la geometría de su sala, es que la diferencia procede de las reflexiones tempranas, distintas a izquierda y derecha por los límites del recinto y el mobiliario. El mecanismo es plausible por una razón de margen: el camino directo es la llegada más fuerte al oído ipsilateral y una reflexión varios decibelios por debajo apenas lo perturba, mientras que el camino cruzado llega ya atenuado por la sombra de la cabeza, de modo que una reflexión que alcanza el oído contralateral sin sufrir esa sombra puede rivalizar con él en nivel. La misma asimetría de sala altera $G_l$ y $G_r$ mucho más de lo que altera $H_{ll}$ y $H_{rr}$ —y lo poco que altera a estos últimos lo corrige el DRC.
+
+Ello acota lo que cabe esperar. Una reflexión es un fenómeno temporal y el parámetro $ILD_{avg}$ solo puede absorberla como nivel: el modelo cancela una única copia retardada y no puede cancelar una segunda llegada a un retardo distinto. El valor al que converge el ajuste de oído es entonces un compromiso entre cancelar la diafonía directa y no empeorar el residuo frente a la reflexión, y el techo que ello impone no está en los parámetros sino en la sala. Congruentemente, la mejora reportada frente al ajuste simétrico de compromiso se describe como real pero moderada: en un sistema así, el siguiente escalón de mejora no es afinar el XTC sino tratar el punto de primera reflexión.
+
+### Alcance de esta validación
+
+Se trata de un único sistema y de un ajuste subjetivo, sin verificación instrumental de la hipótesis de las reflexiones —que se confirmaría midiendo la respuesta binaural en el punto de escucha y comparando las primeras llegadas de cada camino cruzado. Lo que sí queda establecido es que el modelo asimétrico cubre un caso de uso que la motivación original de esta nota no contemplaba: no la asimetría de colocación, sino la de entorno acústico con los altavoces colocados simétricamente.
 
 ## Reducción al caso simétrico
 

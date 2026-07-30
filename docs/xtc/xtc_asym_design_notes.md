@@ -14,7 +14,7 @@ Con $\mathbf{H} = H_{ll}\,\mathbf{M}\,\mathbf{D}$, donde
 
 ```math
 \mathbf{M} = \begin{bmatrix} 1 & G_{r} \\ G_{l} & 1 \end{bmatrix}, \qquad
-\mathbf{D} = \operatorname{diag}(1,\ b), \qquad P = g_l \ast g_r \ast \bar{S}
+\mathbf{D} = \mathrm{diag}(1, b), \qquad P = g_l \ast g_r \ast \bar{S}
 ```
 
 los filtros son:
@@ -274,7 +274,7 @@ tolerancia.
    `input_left`, pero ambos alimentan `output_right`. Es $\mathbf{D}^{-1}$ escalando la fila del
    altavoz.
 2. **Siempre atenuar, nunca amplificar.** El factor estricto es $1/b$ en el derecho, pero
-   multiplicar toda la matriz por $b$ es equivalente y da $\operatorname{diag}(b,1)$: atenuar el
+   multiplicar toda la matriz por $b$ es equivalente y da $\mathrm{diag}(b, 1)$: atenuar el
    izquierdo. Instrucción al usuario: `<gain>` **negativo** en los dos convol del canal que llega
    más fuerte, el otro a 0 dB. Nunca positivo, que solo gasta headroom.
 3. **Cómo ajustarlo:** con una señal mono reproducida en estéreo, atenuar hasta que la imagen quede
@@ -321,7 +321,8 @@ tolerancia.
       verificada sobre los filtros generados.
 - [x] Versión inglesa de la nota asimétrica: [xtc_no_simetrico_en.md](xtc_no_simetrico_en.md),
       enlazada desde [docs/README.md](../README.md).
-- [ ] Escucha real en un sistema asimétrico: nada de esto se ha validado de oído todavía.
+- [x] Escucha real en un sistema asimétrico (2026-07-29). Resultado en §8; recogido en la nota
+      técnica (es/en) como apartado «Validación por escucha».
 
 **Huecos de documentación detectados de paso** (ajenos a este trabajo)
 
@@ -335,6 +336,45 @@ tolerancia.
       (`dual_system_nae_loudness_drc_xtc.xml`, `multi_out_drc_xtc_bypass.xml`,
       `nae_xtc_drc_vs_bypass.xml`). Corregido el 2026-07-29: separadores con `=` y la opción
       larga de `jack_snapshot` reformulada. Los 26 samples validan con `xmllint`.
+
+---
+
+## 8. Resultado de la primera escucha (2026-07-29)
+
+Sistema del autor. **Altavoces colocados simétricamente** —mismo ITD y mismo azimut en los dos
+sub-bloques—, con la asimetría exclusivamente en el nivel del cruzado: $\text{ILD}_l = 21$ dB,
+$\text{ILD}_r = 12$ dB. Balance resultante **0 dB** (1 dB de atenuación en R ya desplazaba la imagen
+mono hacia L).
+
+**Lo que confirma:**
+
+- $b \approx 1$ con $G_l \neq G_r$ es el caso límite opuesto al de §6, y es coherente: $b$ es de los
+  directos, que el DRC nivela; los ILD son de los cruzados. Que el balance saliera a 0 dB no
+  invalida nada, y la resolución de 1 dB observada valida el objetivo de tolerancia de §6.
+- La rama asimétrica se usó en producción sin tocar enrutado ni convolver, como se preveía en §4.
+
+**Lo que no estaba previsto — el argumento fuerte del modelo:** el fallo del ILD **no es simétrico**.
+Con 16 dB simétricos de compromiso, bajar a 12 dB abría un lado más allá de 70° de azimut y
+colapsaba el otro por debajo de 40°. Sobrecancelar destruye la escena (el residuo invertido es una
+pista de localización espuria); subcancelar solo la estrecha. Un único $G$ queda por tanto sujeto al
+peor lado y hay que tirar por lo bajo — **aun con $b = 1$ exacto**. Toda la justificación previa
+giraba en torno a $G_l \neq G_r$ y al balance; este efecto de "el compromiso no reparte, sacrifica"
+es el que más se nota de oído. Resultado: escena no solo más amplia sino **estable**.
+
+**Techo identificado:** la hipótesis del oyente es que la diferencia viene de reflexiones tempranas
+distintas a cada lado (geometría de sala y mobiliario). Encaja por margen de señal —el cruzado llega
+con sombra de cabeza y una reflexión que evita esa sombra lo rivaliza en nivel, cosa que al directo
+no le pasa—, pero implica que $ILD_{avg}$ está absorbiendo como nivel algo que es temporal. El
+modelo cancela una copia retardada, no dos a retardos distintos: de ahí que la mejora sea real pero
+moderada. Sin verificar instrumentalmente; la prueba sería una medida binaural en el punto de
+escucha comparando las primeras llegadas de cada cruzado.
+
+**Consecuencia para la documentación:** la motivación de la nota técnica ("no se cumple la simetría
+en la ubicación de los altavoces") se quedaba corta. El primer caso real de uso es colocación
+simétrica en sala acústicamente asimétrica, que probablemente sea el caso frecuente. Ampliada la
+introducción en ambos idiomas.
+
+---
 
 **Ya verificado, no hace falta tocar:** los avisos sobre ganancias en sweeps
 ([como_medir_respuestas_impulsivas.md](../como_medir_respuestas_impulsivas.md): modo `CALIBRATE=1`,
