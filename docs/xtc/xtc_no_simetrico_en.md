@@ -133,7 +133,59 @@ Substituting, the filtering matrix becomes:
 = \begin{bmatrix} F^{direct} & F^{cross}_{l} \\ F^{cross}_{r} & F^{direct} \end{bmatrix}
 ```
 
-The two diagonal elements are the same development, with no crossed factor to tell them apart, and give the direct filter. The two off-diagonal elements each carry **their own $G$ as a common factor**, inherited from the corresponding cofactor, and give the two cross filters. Written element by element in terms of the acoustic paths:
+The two diagonal elements are the same development, with no crossed factor to tell them apart, and give the direct filter. The two off-diagonal elements each carry **their own $G$ as a common factor**, inherited from the corresponding cofactor, and give the two cross filters.
+
+**Step-by-step development of one cross filter.** It is worth going through one of them slowly, since this is where it is easy to lose track of the indices. Take element $(1,2)$ of $\mathbf{M}^{-1}$, which by the correspondence of the next section is the one feeding the left loudspeaker:
+
+```math
+F^{cross}_{l} = \frac{1}{\det \mathbf{M}} \ast \left( -G_{r} \right) = \left( \delta - P \right)^{-1} \ast \left( -G_{r} \right)
+```
+
+Substituting the determinant by its series expansion:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \sum_{i=0}^{\infty} P^{i}
+```
+
+Truncating the series — one order earlier than the direct filter, by the criterion justified below — and writing out the first few terms:
+
+```math
+F^{cross}_{l} \simeq -G_{r} \ast \left( \delta + P + P^{2} + \dots + P^{N-1} \right)
+```
+
+**This is where the $\delta$ appears**, and it is the only place where it is seen written out: it is the term $P^{0}$ of the series, the same one that in the direct filter is taken outside the summation. Reindexing now so that the summation starts at $i=1$ — so that the index numbers the same rung as in the direct filter — the exponent becomes $i-1$ and the $\delta$ is absorbed as its first term:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \sum_{i=1}^{N} P^{i-1}
+```
+
+Substituting $P = G_{l} \ast G_{r}$ into each term:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \delta - G_{r} \ast \left( G_{l} \ast G_{r} \right) - G_{r} \ast \left( G_{l} \ast G_{r} \right)^{2} - \dots
+```
+
+that is, grouping powers:
+
+```math
+F^{cross}_{l} = -G_{r} - G_{l} \ast G_{r}^{2} - G_{l}^{2} \ast G_{r}^{3} - \dots
+```
+
+from which the general term can be read off, with $G_{r}$ always one order ahead of $G_{l}$:
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1}
+```
+
+And undoing the normalisation, with $G_{l} = H_{lr}/H_{ll}$ and $G_{r} = H_{rl}/H_{rr}$:
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}}
+```
+
+The other cross filter comes from element $(2,1)$, which carries $-G_{l}$ instead of $-G_{r}$, and its development is identical with the roles of $G_{l}$ and $G_{r}$ exchanged.
+
+Gathering the four elements, written also in terms of the acoustic paths:
 
 ```math
 F^{direct}_{l} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i}

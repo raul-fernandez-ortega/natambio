@@ -133,7 +133,59 @@ Sustituyendo, la matriz de filtrado queda:
 = \begin{bmatrix} F^{direct} & F^{cross}_{l} \\ F^{cross}_{r} & F^{direct} \end{bmatrix}
 ```
 
-Los dos elementos de la diagonal son el mismo desarrollo, sin factor cruzado que los distinga, y dan el filtro directo. Los dos elementos de fuera de la diagonal llevan cada uno **su propia $G$ como factor común**, heredada del cofactor correspondiente, y dan los dos filtros cruzados. Escritos elemento a elemento en función de los caminos acústicos:
+Los dos elementos de la diagonal son el mismo desarrollo, sin factor cruzado que los distinga, y dan el filtro directo. Los dos elementos de fuera de la diagonal llevan cada uno **su propia $G$ como factor común**, heredada del cofactor correspondiente, y dan los dos filtros cruzados.
+
+**Desarrollo detallado de un filtro cruzado.** Conviene recorrer uno de ellos paso a paso, porque es donde resulta fácil perder la pista de los índices. Se toma el elemento $(1,2)$ de $\mathbf{M}^{-1}$, que según la correspondencia del apartado siguiente es el que alimenta al altavoz izquierdo:
+
+```math
+F^{cross}_{l} = \frac{1}{\det \mathbf{M}} \ast \left( -G_{r} \right) = \left( \delta - P \right)^{-1} \ast \left( -G_{r} \right)
+```
+
+Sustituyendo el determinante por su desarrollo en serie:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \sum_{i=0}^{\infty} P^{i}
+```
+
+Truncando la serie —un orden antes que el directo, por el criterio que se justifica más abajo— y escribiendo los primeros sumandos:
+
+```math
+F^{cross}_{l} \simeq -G_{r} \ast \left( \delta + P + P^{2} + \dots + P^{N-1} \right)
+```
+
+**Aquí es donde aparece el $\delta$**, y es el único sitio donde se ve escrito: es el término $P^{0}$ de la serie, el mismo que en el filtro directo se saca fuera del sumatorio. Reindexando ahora para que el sumatorio empiece en $i=1$ —de modo que el índice numere el mismo escalón que en el directo— el exponente pasa a ser $i-1$ y el $\delta$ queda absorbido como su primer sumando:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \sum_{i=1}^{N} P^{i-1}
+```
+
+Sustituyendo $P = G_{l} \ast G_{r}$ en cada sumando:
+
+```math
+F^{cross}_{l} = -G_{r} \ast \delta - G_{r} \ast \left( G_{l} \ast G_{r} \right) - G_{r} \ast \left( G_{l} \ast G_{r} \right)^{2} - \dots
+```
+
+es decir, agrupando potencias:
+
+```math
+F^{cross}_{l} = -G_{r} - G_{l} \ast G_{r}^{2} - G_{l}^{2} \ast G_{r}^{3} - \dots
+```
+
+de donde se lee el término general, con $G_{r}$ siempre un orden por delante de $G_{l}$:
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} G_{r}^{i} \ast G_{l}^{i-1}
+```
+
+Y deshaciendo la normalización, con $G_{l} = H_{lr}/H_{ll}$ y $G_{r} = H_{rl}/H_{rr}$:
+
+```math
+F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i} \ast H_{ll}^{i-1}}
+```
+
+El otro cruzado sale del elemento $(2,1)$, que lleva $-G_{l}$ en lugar de $-G_{r}$, y su desarrollo es idéntico intercambiando los papeles de $G_{l}$ y $G_{r}$.
+
+Recogiendo los cuatro elementos, y escritos también en función de los caminos acústicos:
 
 ```math
 F^{direct}_{l} = \delta + \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i}} {H_{ll}^{i} \ast H_{rr}^{i}} = \delta + \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i} = \delta + \sum_{i=1}^{N} \left( G_{l} \ast G_{r} \right)^{i}
