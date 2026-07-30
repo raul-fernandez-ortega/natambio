@@ -236,7 +236,7 @@ P = g_l \ast g_r \ast \bar{S}
 
 esto es: los retardos de ambos lados se suman, las atenuaciones se multiplican, y allí donde el producto $G_{l} \ast G_{r}$ acumularía $S_l \ast S_r$ el espectro interviene una única vez, a través de una forma promedio $\bar{S}$. Con ello el término $i$ del filtro directo vale: 
 ```math
-(g_l g_r)^i \ast \bar{S}^i 
+(g_l g_r)^i \ast \bar{S}^i
 ```
 y el término $i$ de cada cruzado:
 ```math
@@ -360,6 +360,48 @@ Se trata de un único sistema y de un ajuste subjetivo, sin verificación instru
 
 ## Reducción al caso simétrico
 
-Es simple obtener, a partir de las ecuaciones del modelo asimétrico, las ecuaciones principales de la nota técnica XTC sin más que hacer $g_l = g_r = g$ y $S_l = S_r = \bar{S} = S$, con lo que $P = g^2 \ast S$ y las expresiones se reducen término a término, para un mismo $N$, a las del caso simétrico: $F^{direct} = \delta + \sum_{i=1}^{N} P^{i}$ y $F^{cross} = -G \ast \sum_{i=1}^{N} P^{i-1}$, cuyo término $i$ vale $g^{2i} \ast S^{i}$ y $g^{2i-1} \ast S^{i}$ respectivamente. Esta equivalencia es la que comprueba el test `make check` de `lib/`, que exige que el generador asimétrico reproduzca al simétrico cuando ambos lados llevan los mismos parámetros.
+Es simple obtener, a partir de las ecuaciones del modelo asimétrico, las ecuaciones principales de la nota técnica XTC sin más que hacer:
+
+```math
+g_l = g_r = g
+```
+
+y
+
+```math
+S_l = S_r = \bar{S} = S
+```
+
+con lo que
+
+```math
+P = g^2 \ast S
+```
+
+y las expresiones se reducen término a término, para un mismo $N$, a las del caso simétrico:
+
+```math
+F^{direct} = \delta + \sum_{i=1}^{N} P^{i}
+```
+
+y
+
+```math
+F^{cross} = -G \ast \sum_{i=1}^{N} P^{i-1}
+```
+
+cuyo término $i$ vale
+
+```math
+g^{2i} \ast S^{i}
+```
+
+y
+
+```math
+g^{2i-1} \ast S^{i}
+```
+
+respectivamente. Esta equivalencia es la que comprueba el test `make check` de `lib/`, que exige que el generador asimétrico reproduzca al simétrico cuando ambos lados llevan los mismos parámetros.
 
 Aunque el modelo lo incluya, es razonable esperar que la implementación XTC en entornos asimétricos no alcance el mismo nivel de rendimiento que un sistema equivalente dispuesto simétricamente, por lo que siempre será recomendable disponer de una solución estéreo si no estándar, sí al menos simétrica.

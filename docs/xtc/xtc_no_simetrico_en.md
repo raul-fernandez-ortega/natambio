@@ -364,6 +364,48 @@ This is a single system and a subjective adjustment, with no instrumental verifi
 
 ## Reduction to the symmetric case
 
-The main equations of the XTC technical note are readily obtained from those of the asymmetric model by simply setting $g_l = g_r = g$ and $S_l = S_r = \bar{S} = S$, which gives $P = g^2 \ast S$ and reduces the expressions term by term, for the same $N$, to those of the symmetric case: $F^{direct} = \delta + \sum_{i=1}^{N} P^{i}$ and $F^{cross} = -G \ast \sum_{i=1}^{N} P^{i-1}$, whose term $i$ is $g^{2i} \ast S^{i}$ and $g^{2i-1} \ast S^{i}$ respectively. This equivalence is what the `make check` test in `lib/` verifies, requiring the asymmetric generator to reproduce the symmetric one when both sides carry the same parameters.
+The main equations of the XTC technical note are readily obtained from those of the asymmetric model by simply setting:
+
+```math
+g_l = g_r = g
+```
+
+and
+
+```math
+S_l = S_r = \bar{S} = S
+```
+
+which gives
+
+```math
+P = g^2 \ast S
+```
+
+and reduces the expressions term by term, for the same $N$, to those of the symmetric case:
+
+```math
+F^{direct} = \delta + \sum_{i=1}^{N} P^{i}
+```
+
+and
+
+```math
+F^{cross} = -G \ast \sum_{i=1}^{N} P^{i-1}
+```
+
+whose term $i$ is
+
+```math
+g^{2i} \ast S^{i}
+```
+
+and
+
+```math
+g^{2i-1} \ast S^{i}
+```
+
+respectively. This equivalence is what the `make check` test in `lib/` verifies, requiring the asymmetric generator to reproduce the symmetric one when both sides carry the same parameters.
 
 Although the model covers it, an XTC implementation in asymmetric environments cannot reasonably be expected to reach the performance of an equivalent symmetric layout, so it will always be advisable to arrange a stereo setup that is, if not standard, at least symmetric.
