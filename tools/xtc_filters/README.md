@@ -38,6 +38,9 @@ Parameters are given in a TOML file. Four annotated examples ship here:
 | `xtc_asym_geometry.toml` | asymmetric speaker placement |
 | `xtc_asym_room.toml` | symmetric placement in an acoustically asymmetric room |
 
+Installed from the Debian packages, these land in
+`/usr/share/doc/natambio-tools/examples/`.
+
 The schema uses the same key names for a side in both tools, so `[xtc]`,
 `[left]` and `[right]` are interchangeable blocks:
 

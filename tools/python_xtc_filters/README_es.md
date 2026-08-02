@@ -67,6 +67,9 @@ divergir:
 | [`../xtc_filters/xtc_asym_geometry.toml`](../xtc_filters/xtc_asym_geometry.toml) | colocación asimétrica de los altavoces |
 | [`../xtc_filters/xtc_asym_room.toml`](../xtc_filters/xtc_asym_room.toml) | colocación simétrica en una sala acústicamente asimétrica |
 
+Instalados desde los paquetes Debian, quedan en
+`/usr/share/doc/natambio-drc/examples/`.
+
 ```toml
 sample_rate = 48000
 filter_len  = 4096

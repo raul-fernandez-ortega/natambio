@@ -46,7 +46,12 @@ Description: offline FIR filter generators for NatAmbio (C tools)
  Command-line helpers that reuse NatAmbio's shared filter-design code to
  produce filters offline, outside the real-time JACK client:
  .
-  * natambio-xtc-filters  -- XTC (crosstalk cancellation) FIR pair generator.
+  * natambio-xtc-filters      -- XTC (crosstalk cancellation) FIR pair
+    generator for symmetric loudspeaker layouts.
+  * natambio-xtc-filters-asym -- XTC FIR generator for asymmetric layouts,
+    producing one direct filter and one cross filter per channel.
+ .
+ Both take their parameters from TOML configuration files.
  .
  This package contains the compiled C/C++ tools.
 
@@ -70,7 +75,7 @@ Depends:
  python3-scipy,
  python3-soundfile
 Recommends: natambio-tools
-Description: offline Python toolkit for NatAmbio (DRC measurement + offline NAE)
+Description: offline Python toolkit for NatAmbio (DRC, NAE and XTC design)
  Standalone Python utilities shipped with NatAmbio. They do not require a
  running JACK server and are exposed as namespaced commands:
  .
@@ -81,6 +86,10 @@ Description: offline Python toolkit for NatAmbio (DRC measurement + offline NAE)
   * natambio-check-capture-- clipping / level / SNR check of a capture.
   * natambio-wav2raw / natambio-raw2wav -- WAV <-> float32 raw conversion.
   * natambio-nae          -- offline NAE (ambient extraction) over a WAV file.
+  * natambio-xtc-filters-py / natambio-xtc-filters-asym-py -- pure-Python XTC
+    FIR generators, symmetric and asymmetric. Same pipeline and same TOML
+    configuration files as the C tools in natambio-tools, without needing the
+    C toolchain.
  .
  The scripts and their reference data (target curves, DRC configs, microphone
  calibration files) are installed under /usr/share/natambio/.

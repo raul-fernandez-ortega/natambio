@@ -1,0 +1,4 @@
+tools/xtc_filters/xtc_sym_default.toml
+tools/xtc_filters/xtc_sym_wide.toml
+tools/xtc_filters/xtc_asym_geometry.toml
+tools/xtc_filters/xtc_asym_room.toml

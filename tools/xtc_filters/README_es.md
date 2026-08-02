@@ -41,6 +41,9 @@ comentados:
 | `xtc_asym_geometry.toml` | colocación asimétrica de los altavoces |
 | `xtc_asym_room.toml` | colocación simétrica en una sala acústicamente asimétrica |
 
+Instalados desde los paquetes Debian, quedan en
+`/usr/share/doc/natambio-tools/examples/`.
+
 El esquema usa los mismos nombres de clave para un lado en las dos herramientas,
 de modo que `[xtc]`, `[left]` y `[right]` son bloques intercambiables:
 

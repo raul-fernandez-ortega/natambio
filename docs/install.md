@@ -179,7 +179,7 @@ install what you need:
 | `natambio` | any | The real-time JACK client `/usr/bin/natambio` and example configs in `/usr/share/natambio/examples/`. | `jackd2 \| jackd` (recommended) |
 | `natambio-tools` | any | Offline C FIR generators: `/usr/bin/natambio-xtc-filters` and `/usr/bin/natambio-xtc-filters-asym`. | — |
 | `natambio-ladspa` | any | LADSPA plugin `…/ladspa/ladspa_nae_natambio.so` (the NAE engine for any LADSPA host). | — |
-| `natambio-drc` | all | Python measurement/DRC toolkit + offline NAE: the `natambio-*` Python launchers and their data under `/usr/share/natambio/`. | `python3`, `python3-numpy`, `python3-scipy`, `python3-soundfile` |
+| `natambio-drc` | all | Python measurement/DRC toolkit, offline NAE and the pure-Python XTC generators: the `natambio-*` Python launchers and their data under `/usr/share/natambio/`. | `python3`, `python3-numpy`, `python3-scipy`, `python3-soundfile` |
 
 `natambio` suggests `natambio-tools` and `natambio-drc`; install the latter if you
 are going to measure the room and generate DRC filters.
@@ -237,6 +237,9 @@ The packages install under the system prefix `/usr`:
 | `/usr/bin/natambio-pca4drc`, `-sweepgen`, `-fft-convolve`, `-check-capture`, `-wav2raw`, `-raw2wav`, `-nae` | `natambio-drc` |
 | `/usr/share/natambio/python_pca4drc/` (scripts, `config.drc`, measurement XMLs, `target/`, `config/`, `mic/`) | `natambio-drc` |
 | `/usr/share/natambio/python_nae_natambio/` | `natambio-drc` |
+| `/usr/bin/natambio-xtc-filters-py`, `-asym-py` | `natambio-drc` |
+| `/usr/share/natambio/python_xtc_filters/` | `natambio-drc` |
+| `/usr/share/doc/natambio-tools/examples/*.toml` (also under `natambio-drc`) | both |
 
 When using the measurement toolkit installed this way, point `TOOLS_DIR` at
 `/usr/share/natambio/python_pca4drc` and run from a writable working directory;

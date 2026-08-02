@@ -65,6 +65,9 @@ duplicated here, so the two cannot drift apart:
 | [`../xtc_filters/xtc_asym_geometry.toml`](../xtc_filters/xtc_asym_geometry.toml) | asymmetric speaker placement |
 | [`../xtc_filters/xtc_asym_room.toml`](../xtc_filters/xtc_asym_room.toml) | symmetric placement in an acoustically asymmetric room |
 
+Installed from the Debian packages, these land in
+`/usr/share/doc/natambio-drc/examples/`.
+
 ```toml
 sample_rate = 48000
 filter_len  = 4096
