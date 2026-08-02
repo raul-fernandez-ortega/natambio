@@ -1,0 +1,46 @@
+# -----------------------------------------------------------------------------
+# NatAmbio -- asymmetric XTC generator, asymmetric speaker placement.
+#
+# The case the asymmetric model was originally written for: the two speakers sit
+# at different angles and distances from the listening position, so each one has
+# its own ITD and its own azimuth.
+#
+#     natambio-xtc-filters-asym -c xtc_asym_geometry.toml
+#
+# Produces three filters: one direct (shared by both channels, since the two
+# direct filters of the model are identical) and one cross filter per channel.
+#
+# Note which side feeds which speaker: the cross filter that feeds the LEFT
+# speaker is built from the RIGHT side's parameters, because it cancels the
+# right speaker's leakage into the left ear and the only direct path reaching
+# that ear is the left speaker's. The tool handles this; it matters when reading
+# the output, since <prefix>_cross_left.wav carries the right side's ITD.
+# -----------------------------------------------------------------------------
+
+sample_rate = 48000
+
+# The ladder now extends over N*(itd_left + itd_right), so what has to fit is
+# the SUM of both ITDs, not the larger of the two.
+filter_len = 4096
+
+[left]
+itd_us = 180
+ild_db = 10.0
+ild_alpha = 1.8
+azimuth_deg = 20
+
+[right]
+itd_us = 160
+ild_db = 9.0
+ild_alpha = 1.8
+azimuth_deg = 17
+
+[output]
+directory = "filters"
+prefix = "XTC_asym_geometry"
+
+# Remember the balance. These coefficients are M^-1: the level trim between
+# channels is NOT in them. Apply it downstream as a gain on the two convolutions
+# feeding the same output, attenuating the channel that arrives louder and never
+# amplifying the other. Left unadjusted, it caps cancellation at 20*log10|1-b|:
+# a 1 dB error puts the ceiling near -19 dB, a 3 dB error near -11 dB.

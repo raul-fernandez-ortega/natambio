@@ -1,0 +1,34 @@
+# -----------------------------------------------------------------------------
+# NatAmbio -- symmetric XTC generator, wide-image configuration.
+#
+# More aggressive than the default: a lower ild_db makes the cancellation
+# stronger and the virtual scene wider. This is the direction to explore when
+# the image feels narrow, and the direction to back off from at the first sign
+# of the image collapsing or of tonal coloration.
+#
+#     natambio-xtc-filters -c xtc_sym_wide.toml
+#
+# The failure is not symmetric: falling short only narrows the scene, whereas
+# over-cancelling destroys it, because the corrective signal exceeds the actual
+# crosstalk. Approach the setting from above -- start at the default 14 dB and
+# come down -- rather than from below.
+# -----------------------------------------------------------------------------
+
+sample_rate = 48000
+
+# 8192 rather than 4096: the ladder is the same length in time, but the extra
+# headroom keeps the top rungs from being truncated at a longer ITD.
+filter_len = 8192
+
+[xtc]
+itd_us = 190
+
+# 12 dB instead of 14: about 2 dB more cancellation per step.
+ild_db = 12.0
+
+ild_alpha = 2.2
+azimuth_deg = 25
+
+[output]
+directory = "filters"
+prefix = "XTC_wide"

@@ -1,0 +1,54 @@
+# -----------------------------------------------------------------------------
+# NatAmbio -- asymmetric XTC generator, symmetric placement in an asymmetric room.
+#
+# The case the model was NOT originally written for, and which turns out to be
+# the more frequent one: the speakers are placed symmetrically -- same ITD, same
+# azimuth on both sides -- but the crossed paths differ, because early
+# reflections are not the same to left and right (a wall close to one side only,
+# different furniture). The crossed path is where a room asymmetry shows up:
+# the direct path is the strongest arrival at its own ear and a reflection
+# several dB down barely perturbs it, whereas the crossed path arrives already
+# attenuated by the head shadow, so a reflection that skips that shadow can
+# rival it in level.
+#
+#     natambio-xtc-filters-asym -c xtc_asym_room.toml
+#
+# The numbers below are the ones from the first real listening validation of the
+# model, recorded in the technical note: same geometry on both sides, 9 dB apart
+# in crossed-path level. With a single symmetric ILD the tuning is held hostage
+# by the worse side -- at 12 dB one side opened past 70 degrees of azimuth while
+# the other collapsed below 40, and the 16 dB compromise gave up most of the
+# width on the good side to keep the other from collapsing.
+# -----------------------------------------------------------------------------
+
+sample_rate = 48000
+filter_len = 4096
+
+[left]
+itd_us = 170
+# 21 dB: a high value, i.e. a gentle cancellation on this side.
+ild_db = 21.0
+ild_alpha = 2.0
+azimuth_deg = 20
+
+[right]
+itd_us = 170
+# 12 dB: nearly twice the correction of the left side, for the same geometry.
+ild_db = 12.0
+ild_alpha = 2.0
+azimuth_deg = 20
+
+[output]
+directory = "filters"
+prefix = "XTC_asym_room"
+
+# In this configuration the balance came out at 0 dB, which is what the model
+# predicts and not a coincidence: b is the ratio of the DIRECT paths, which the
+# DRC stage levels against a common target, while the ILDs describe the CROSSED
+# paths. All the asymmetry lives in M and none in D. Check it anyway -- play
+# mono and confirm the image sits centred.
+#
+# Ceiling to expect: a reflection is a temporal phenomenon and ild_db can only
+# absorb it as level, so tuning these two numbers buys a real but bounded
+# improvement. Beyond it, the next step is treating the first reflection point,
+# not refining the filter.

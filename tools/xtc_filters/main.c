@@ -4,72 +4,75 @@
  * Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
  */
 
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 
-#include <sndfile.h>
-
+#include "wav_out.h"
+#include "xtc_conf.h"
 #include "xtc.h"
 
 static void usage(const char *prog) {
     fprintf(stderr,
-        "Usage: %s -t ITD(microsec) -l ILD(dB positive) -a ILD_alpha(0-3) "
-        "-z azimuth(degrees) -r SampleRate -f FilterLength(samples)\n", prog);
-}
-
-/* Not static: process() in xtc.c also calls it (forward-declared there). */
-int write_wav(const char *path, const double *data, int n, int sample_rate) {
-    SF_INFO info;
-    memset(&info, 0, sizeof(info));
-    info.samplerate = sample_rate;
-    info.channels   = 1;
-    info.format     = SF_FORMAT_WAV | SF_FORMAT_FLOAT;   /* 32-bit IEEE float */
-
-    SNDFILE *f = sf_open(path, SFM_WRITE, &info);
-    if (!f) {
-        fprintf(stderr, "Error opening %s: %s\n", path, sf_strerror(NULL));
-        return -1;
-    }
-    sf_count_t written = sf_write_double(f, data, (sf_count_t)n);
-    sf_close(f);
-    if (written != (sf_count_t)n) {
-        fprintf(stderr, "Short write to %s: %ld/%d\n", path, (long)written, n);
-        return -2;
-    }
-    return 0;
+        "Usage: %s [-c config.toml] [-t ITD(microsec)] [-l ILD(dB positive)]\n"
+        "          [-a ILD_alpha(0-3)] [-z azimuth(degrees)] [-r SampleRate]\n"
+        "          [-f FilterLength(samples)]\n"
+        "\n"
+        "  -c FILE  read parameters from a TOML file (see xtc_sym_*.toml).\n"
+        "           Flags given after -c override the file, so a stored\n"
+        "           configuration can be reused with one value changed.\n"
+        "\n"
+        "Defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096\n", prog);
 }
 
 /* save_xtc_wavs — writes the two final XTC filters to disk.
- * Named identically to ambio_filters_scipy.py (contract with new_ambio_filter.sh):
+ *
+ * With no output.prefix configured the historical filename contract is kept
+ * verbatim, since it is what the surrounding scripts and the published
+ * documentation expect:
  *   XTC_{AZ:02}_deg_ITD_{ITD_us}_micsec_ILD_{ILD:.1f}_dB_a_{ALPHA:.1f}_{direct|cross}.wav
+ * A prefix replaces the whole descriptive part with <prefix>_{direct,cross}.wav,
+ * which is the sensible choice once the parameters live in a TOML file that is
+ * itself the record of the design.
  */
-static int save_xtc_wavs(const double *direct, const double *cross,
-                          int itd_us, double ild_db, double ild_alpha,
-                          int azimuth_deg, int sample_rate, int filter_len) {
-    char path[512];
-    snprintf(path, sizeof(path),
-             "filters/XTC_%02d_deg_ITD_%d_micsec_ILD_%.1f_dB_a_%.1f_direct.wav",
-             azimuth_deg, itd_us, ild_db, ild_alpha);
-    int rc1 = write_wav(path, direct, filter_len, sample_rate);
-    snprintf(path, sizeof(path),
-             "filters/XTC_%02d_deg_ITD_%d_micsec_ILD_%.1f_dB_a_%.1f_cross.wav",
-             azimuth_deg, itd_us, ild_db, ild_alpha);
-    int rc2 = write_wav(path, cross, filter_len, sample_rate);
-    return (rc1 != 0) ? rc1 : rc2;
+static int save_xtc_wavs(const xtc_conf_sym *cfg,
+                         const double *direct, const double *cross) {
+    char base[XTC_CONF_PATHMAX];
+    char path[XTC_CONF_PATHMAX * 2];
+
+    if (cfg->prefix[0] != '\0') {
+        int n = snprintf(base, sizeof(base), "%s", cfg->prefix);
+        if (n < 0 || (size_t)n >= sizeof(base)) return -1;
+    } else {
+        int n = snprintf(base, sizeof(base),
+                         "XTC_%02d_deg_ITD_%d_micsec_ILD_%.1f_dB_a_%.1f",
+                         cfg->xtc.azimuth_deg, cfg->xtc.itd_us,
+                         cfg->xtc.ild_db, cfg->xtc.ild_alpha);
+        if (n < 0 || (size_t)n >= sizeof(base)) {
+            fprintf(stderr, "Generated filename too long\n");
+            return -1;
+        }
+    }
+
+    if (make_wav_path(path, sizeof(path), cfg->directory, base, "_direct.wav") != 0)
+        return -1;
+    int rc = write_wav(path, direct, cfg->filter_len, cfg->sample_rate);
+    if (rc != 0) return rc;
+
+    if (make_wav_path(path, sizeof(path), cfg->directory, base, "_cross.wav") != 0)
+        return -1;
+    return write_wav(path, cross, cfg->filter_len, cfg->sample_rate);
 }
 
 int main(int argc, char **argv) {
-    /* Default values identical to the Python script */
-    int    itd_us      = 170;
-    double ild_db      = 14.0;
-    double ild_alpha   = 2.0;
-    int    azimuth     = 20;
-    int    sample_rate = 48000;
-    int    filter_len  = 4096;
+    /* Defaults identical to the Python counterpart. */
+    xtc_conf_sym cfg = {
+        .sample_rate = 48000,
+        .filter_len  = 4096,
+        .xtc = { .itd_us = 170, .ild_db = 14.0, .ild_alpha = 2.0, .azimuth_deg = 20 },
+        .directory = "filters",
+        .prefix    = "",
+    };
 
     if (argc < 2) {
         usage(argv[0]);
@@ -77,11 +80,16 @@ int main(int argc, char **argv) {
     }
 
     /* Same flag-then-value parser as the Python script (avoids GNU getopt to
-     * preserve the exact semantics of the original script). */
+     * preserve the exact semantics of the original script), with -c added.
+     * The file is loaded where it appears in the command line, so flags placed
+     * after it win and flags placed before it do not. */
     const char *nextarg = "";
+    char err[512];
+
     for (int i = 1; i < argc; i++) {
         const char *a = argv[i];
-        if      (strcmp(a, "-t") == 0) nextarg = "ITD";
+        if      (strcmp(a, "-c") == 0) nextarg = "CONFIG";
+        else if (strcmp(a, "-t") == 0) nextarg = "ITD";
         else if (strcmp(a, "-l") == 0) nextarg = "ILD";
         else if (strcmp(a, "-a") == 0) nextarg = "FACTOR";
         else if (strcmp(a, "-z") == 0) nextarg = "AZIMUTH";
@@ -91,35 +99,38 @@ int main(int argc, char **argv) {
             usage(argv[0]);
             return 0;
         } else if (a[0] != '-') {
-            if      (strcmp(nextarg, "ITD")       == 0) itd_us      = atoi(a);
-            else if (strcmp(nextarg, "ILD")       == 0) ild_db      = atof(a);
-            else if (strcmp(nextarg, "AZIMUTH")   == 0) azimuth     = atoi(a);
-            else if (strcmp(nextarg, "FACTOR")    == 0) ild_alpha   = atof(a);
-            else if (strcmp(nextarg, "SRATE")     == 0) sample_rate = atoi(a);
-            else if (strcmp(nextarg, "FILTERLEN") == 0) filter_len  = atoi(a);
+            if      (strcmp(nextarg, "ITD")       == 0) cfg.xtc.itd_us      = atoi(a);
+            else if (strcmp(nextarg, "ILD")       == 0) cfg.xtc.ild_db      = atof(a);
+            else if (strcmp(nextarg, "AZIMUTH")   == 0) cfg.xtc.azimuth_deg = atoi(a);
+            else if (strcmp(nextarg, "FACTOR")    == 0) cfg.xtc.ild_alpha   = atof(a);
+            else if (strcmp(nextarg, "SRATE")     == 0) cfg.sample_rate     = atoi(a);
+            else if (strcmp(nextarg, "FILTERLEN") == 0) cfg.filter_len      = atoi(a);
+            else if (strcmp(nextarg, "CONFIG")    == 0) {
+                if (xtc_conf_load_sym(a, &cfg, err, sizeof(err)) != 0) {
+                    fprintf(stderr, "xtc: %s: %s\n", a, err);
+                    return 4;
+                }
+            }
         }
     }
 
-    if (mkdir("filters", 0755) != 0 && errno != EEXIST) {
-        fprintf(stderr, "Cannot create filters/: %s\n", strerror(errno));
-        return 2;
-    }
+    if (make_output_dir(cfg.directory) != 0) return 2;
 
-    /* Los buffers de salida XTC viven en main; process los rellena,
-     * save_xtc_wavs los persiste, y main los libera. */
-    double *direct = calloc((size_t)filter_len, sizeof(double));
-    double *cross  = calloc((size_t)filter_len, sizeof(double));
+    /* The XTC output buffers live in main; process() fills them,
+     * save_xtc_wavs persists them, and main frees them. */
+    double *direct = calloc((size_t)cfg.filter_len, sizeof(double));
+    double *cross  = calloc((size_t)cfg.filter_len, sizeof(double));
     if (!direct || !cross) {
         fprintf(stderr, "Memory allocation failed for XTC buffers\n");
         free(direct); free(cross);
         return 3;
     }
 
-    int rc = process(itd_us, ild_db, ild_alpha, azimuth, sample_rate, filter_len,
+    int rc = process(cfg.xtc.itd_us, cfg.xtc.ild_db, cfg.xtc.ild_alpha,
+                     cfg.xtc.azimuth_deg, cfg.sample_rate, cfg.filter_len,
                      direct, cross);
     if (rc == 0) {
-        rc = save_xtc_wavs(direct, cross, itd_us, ild_db, ild_alpha,
-                            azimuth, sample_rate, filter_len);
+        rc = save_xtc_wavs(&cfg, direct, cross);
     }
 
     free(direct);

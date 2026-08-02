@@ -1,0 +1,42 @@
+# -----------------------------------------------------------------------------
+# NatAmbio -- symmetric XTC generator, default configuration.
+#
+# Reproduces the built-in defaults of natambio-xtc-filters, i.e. exactly what
+# the tool produces when invoked with no parameters at all. Good starting point
+# for a conventional stereo layout: two speakers at the same angle, listener on
+# the axis of symmetry.
+#
+#     natambio-xtc-filters -c xtc_sym_default.toml
+#
+# Read by the C tool and, unchanged, by tools/python_xtc_filters/xtc_filters.py.
+# -----------------------------------------------------------------------------
+
+sample_rate = 48000
+
+# Filter length in taps. Must comfortably exceed 16 * itd_us converted to
+# samples, or the top of the recursion ladder is truncated and cancellation
+# comes out incomplete; the tool warns when that happens.
+filter_len = 4096
+
+[xtc]
+# Inter-aural time difference, microseconds. Sets the spacing of the ladder.
+itd_us = 170
+
+# Inter-aural level difference per step, positive dB. Lower values mean a more
+# aggressive cancellation: wider image, but over-cancelling collapses it.
+ild_db = 14.0
+
+# Scale factor of the empirical ILD spectrum model. Trades spatial effect
+# against tonal coloration; tune by ear.
+ild_alpha = 2.0
+
+# Half-angle between the two speakers as seen from the listening position.
+azimuth_deg = 20
+
+[output]
+directory = "filters"
+
+# With no prefix the historical descriptive filenames are used:
+#   XTC_20_deg_ITD_170_micsec_ILD_14.0_dB_a_2.0_{direct,cross}.wav
+# Set one to get <prefix>_{direct,cross}.wav instead.
+# prefix = "living_room"

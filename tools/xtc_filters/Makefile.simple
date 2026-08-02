@@ -1,18 +1,25 @@
 # --------------------------------------------------------------------------------
 #
-#  xtc_filters -- standalone XTC (crosstalk-cancellation) FIR generator.
+#  xtc_filters -- standalone XTC (crosstalk-cancellation) FIR generators.
 #
-#  Writes the direct/cross XTC filter pair as WAV files under ./filters, using
-#  the project's shared filter-design code in ../../lib (xtc.c, dsp.c,
-#  binaural_cues.c) -- the same units natambio links. Only main.c is specific to
-#  this tool.
+#  Builds two tools:
+#
+#      xtc_filters       symmetric layout: one direct + one cross filter
+#      xtc_filters_asym  asymmetric layout: one direct (shared) + two cross filters
+#
+#  Both write their filters as WAV files under ./filters, using the project's
+#  shared filter-design code in ../../lib (xtc.c, xtc_asym.c, dsp.c,
+#  binaural_cues.c) -- the same units natambio links. Only the mains and the
+#  local support units (toml_min.c, xtc_conf.c, wav_out.c) are specific here.
 #
 #  Usage (standalone, no autotools):
 #      make -f Makefile.simple
 #      ./xtc_filters -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
+#      ./xtc_filters -c xtc_sym_default.toml
+#      ./xtc_filters_asym -c xtc_asym_geometry.toml
 #
 #  Set DEBUG=1 to also dump the intermediate ILD_*.wav / MP_ILD_*.wav filters
-#  (xtc.c emits them via write_wav, which main.c provides):
+#  (xtc.c emits them via write_wav, which wav_out.c provides):
 #      make -f Makefile.simple DEBUG=1
 #
 # --------------------------------------------------------------------------------
@@ -33,26 +40,34 @@ ifeq ($(DEBUG),1)
 CFLAGS  += -DDEBUG
 endif
 
-TARGET   = xtc_filters
-# main.o is local; xtc/dsp/binaural_cues come from $(LIBDIR) via VPATH.
-OBJS     = main.o xtc.o dsp.o binaural_cues.o
+TARGETS  = xtc_filters xtc_filters_asym
+
+# Local support units, linked into both tools.
+COMMON   = toml_min.o xtc_conf.o wav_out.o
+
+# xtc.o/xtc_asym.o, dsp.o and binaural_cues.o come from $(LIBDIR) via VPATH.
+SYM_OBJS  = main.o      $(COMMON) xtc.o      dsp.o binaural_cues.o
+ASYM_OBJS = main_asym.o $(COMMON) xtc_asym.o dsp.o binaural_cues.o
 
 .PHONY: all install uninstall clean
 
-all:	$(TARGET)
+all:	$(TARGETS)
 
 %.o : %.c
 	$(CC) $(CFLAGS) $(INC) -c $< -o $@
 
-$(TARGET): $(OBJS)
-	$(CC) -o $@ $(OBJS) $(LDLIBS)
+xtc_filters: $(SYM_OBJS)
+	$(CC) -o $@ $(SYM_OBJS) $(LDLIBS)
+
+xtc_filters_asym: $(ASYM_OBJS)
+	$(CC) -o $@ $(ASYM_OBJS) $(LDLIBS)
 
 install: all
 	install -d $(DESTDIR)$(BINDIR)
-	install -m 755 $(TARGET) $(DESTDIR)$(BINDIR)
+	install -m 755 $(TARGETS) $(DESTDIR)$(BINDIR)
 
 uninstall:
-	rm -f $(DESTDIR)$(BINDIR)/$(TARGET)
+	for t in $(TARGETS); do rm -f $(DESTDIR)$(BINDIR)/$$t; done
 
 clean:
-	/bin/rm -f *~ *.o *.d $(TARGET)
+	/bin/rm -f *~ *.o *.d $(TARGETS)
