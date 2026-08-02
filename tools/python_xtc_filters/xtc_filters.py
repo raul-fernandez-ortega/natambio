@@ -23,13 +23,21 @@ tail and drifted the magnitude ~0.2 dB — amplified to ~5 % through the 16 chai
 XTC convolutions). Output filters are therefore equivalent to the C tool's.
 
 Usage:
+    python3 xtc_filters.py -c config.toml
     python3 xtc_filters.py -t ITD_us -l ILD_dB -a ILD_alpha \\
                            -z azimuth_deg -r sample_rate -f filter_len
     # defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
 
-Output (in ./filters/):
+Parameters can come from a TOML file (-c) or from flags, and the two combine:
+the file is read where it appears in the command line, so flags after it win.
+The TOML files are the very same ones the C tools read — see
+../xtc_filters/xtc_sym_default.toml and ../xtc_filters/xtc_sym_wide.toml.
+
+Output (in ./filters/, or output.directory):
     XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_direct.wav
     XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_cross.wav
+    # or <output.prefix>_direct.wav / <output.prefix>_cross.wav when a prefix
+    # is configured
 
 Set DEBUG = True (or pass -d) to also dump the intermediate, peak-normalised
 filters/ILD_<az>_deg.wav and filters/MP_ILD_<az>_deg.wav, mirroring the C tool's
@@ -44,8 +52,12 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import fftconvolve, firwin2
 
+import xtc_conf
+
 # --- Model / pipeline constants (identical to lib/xtc.c) --------------------
 DEBUG = False
+# Where the DEBUG dumps go; main() points it at output.directory.
+OUTPUT_DIR = "filters"
 DB_OCT = 6.0              # LF extrapolation slope below FLIM
 FLIM = 200.0             # LF/HF crossover of the ILD model
 NSTEPS = 32               # XTC recursion steps
@@ -215,9 +227,9 @@ def process(itd_us, ild_db, ild_alpha, azimuth_deg, sample_rate, filter_len):
     if DEBUG:
         peak_l = np.max(np.abs(h_linear))
         peak_m = np.max(np.abs(h_min))
-        sf.write("filters/ILD_%d_deg.wav" % azimuth_deg,
+        sf.write(os.path.join(OUTPUT_DIR, "ILD_%d_deg.wav" % azimuth_deg),
                  h_linear / peak_l if peak_l > 0 else h_linear, sample_rate, subtype="FLOAT")
-        sf.write("filters/MP_ILD_%d_deg.wav" % azimuth_deg,
+        sf.write(os.path.join(OUTPUT_DIR, "MP_ILD_%d_deg.wav" % azimuth_deg),
                  h_min / peak_m if peak_m > 0 else h_min, sample_rate, subtype="FLOAT")
 
     # L2 normalisation before entering the XTC recursion
@@ -232,39 +244,60 @@ def process(itd_us, ild_db, ild_alpha, azimuth_deg, sample_rate, filter_len):
     return get_xtc(filter_len, ild_db, itd_samples, h_min)
 
 
-def save_xtc_wavs(direct, cross, itd_us, ild_db, ild_alpha,
-                  azimuth_deg, sample_rate):
-    """Write the two final XTC filters — same filename contract as lib main.c."""
-    base = ("filters/XTC_%02d_deg_ITD_%d_micsec_ILD_%.1f_dB_a_%.1f"
-            % (azimuth_deg, itd_us, ild_db, ild_alpha))
-    sf.write(base + "_direct.wav", direct, sample_rate, subtype="FLOAT")
-    sf.write(base + "_cross.wav", cross, sample_rate, subtype="FLOAT")
+def save_xtc_wavs(cfg, direct, cross):
+    """Write the two final XTC filters.
+
+    With no output.prefix the historical descriptive filename contract is kept
+    verbatim, since it is what the surrounding scripts and the documentation
+    expect. A prefix replaces the whole descriptive part, which is the sensible
+    choice once the parameters live in a TOML file that is itself the record of
+    the design.
+    """
+    side = cfg["xtc"]
+    if cfg["prefix"]:
+        stem = cfg["prefix"]
+    else:
+        stem = ("XTC_%02d_deg_ITD_%d_micsec_ILD_%.1f_dB_a_%.1f"
+                % (side["azimuth_deg"], side["itd_us"],
+                   side["ild_db"], side["ild_alpha"]))
+    base = os.path.join(cfg["directory"], stem)
+    sf.write(base + "_direct.wav", direct, cfg["sample_rate"], subtype="FLOAT")
+    sf.write(base + "_cross.wav", cross, cfg["sample_rate"], subtype="FLOAT")
 
 
-USAGE = ("Usage: python3 xtc_filters.py -t ITD(microsec) -l ILD(dB positive) "
-         "-a ILD_alpha(0-3) -z azimuth(degrees) -r SampleRate "
-         "-f FilterLength(samples) [-d]")
+USAGE = ("Usage: python3 xtc_filters.py [-c config.toml] [-t ITD(microsec)] "
+         "[-l ILD(dB positive)] [-a ILD_alpha(0-3)] [-z azimuth(degrees)] "
+         "[-r SampleRate] [-f FilterLength(samples)] [-d]\n"
+         "  -c FILE  read parameters from a TOML file; flags given after it "
+         "override the file.")
+
+
+def default_config():
+    """Defaults identical to the C tool."""
+    return {
+        "sample_rate": 48000,
+        "filter_len": 4096,
+        "xtc": {"itd_us": 170, "ild_db": 14.0, "ild_alpha": 2.0, "azimuth_deg": 20},
+        "directory": "filters",
+        "prefix": "",
+    }
 
 
 def main():
-    global DEBUG
-    # Defaults identical to the C tool.
-    itd_us = 170
-    ild_db = 14.0
-    ild_alpha = 2.0
-    azimuth = 20
-    sample_rate = 48000
-    filter_len = 4096
+    global DEBUG, OUTPUT_DIR
+    cfg = default_config()
 
     args = sys.argv[1:]
     if not args:
         print(USAGE)
         sys.exit(1)
 
-    # Same flag-then-value parser as the C tool / original script.
+    # Same flag-then-value parser as the C tool / original script, with -c added.
     nextarg = ""
     for a in args:
-        if a == "-t":
+        if a == "-c":
+            nextarg = "CONFIG"
+        elif a == "-t":
             nextarg = "ITD"
         elif a == "-l":
             nextarg = "ILD"
@@ -283,28 +316,37 @@ def main():
             sys.exit(0)
         elif a[0] != "-":
             if nextarg == "ITD":
-                itd_us = int(a)
+                cfg["xtc"]["itd_us"] = int(a)
             elif nextarg == "ILD":
-                ild_db = float(a)
+                cfg["xtc"]["ild_db"] = float(a)
             elif nextarg == "AZIMUTH":
-                azimuth = int(a)
+                cfg["xtc"]["azimuth_deg"] = int(a)
             elif nextarg == "FACTOR":
-                ild_alpha = float(a)
+                cfg["xtc"]["ild_alpha"] = float(a)
             elif nextarg == "SRATE":
-                sample_rate = int(a)
+                cfg["sample_rate"] = int(a)
             elif nextarg == "FILTERLEN":
-                filter_len = int(a)
+                cfg["filter_len"] = int(a)
+            elif nextarg == "CONFIG":
+                try:
+                    xtc_conf.load_sym(a, cfg)
+                except xtc_conf.ConfError as e:
+                    sys.stderr.write("xtc: %s: %s\n" % (a, e))
+                    sys.exit(4)
 
-    os.makedirs("filters", exist_ok=True)
+    OUTPUT_DIR = cfg["directory"]
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    side = cfg["xtc"]
     try:
-        direct, cross = process(itd_us, ild_db, ild_alpha, azimuth,
-                                sample_rate, filter_len)
+        direct, cross = process(side["itd_us"], side["ild_db"], side["ild_alpha"],
+                                side["azimuth_deg"], cfg["sample_rate"],
+                                cfg["filter_len"])
     except ValueError as e:
         sys.stderr.write("xtc: %s\n" % e)
         sys.exit(2)
 
-    save_xtc_wavs(direct, cross, itd_us, ild_db, ild_alpha, azimuth, sample_rate)
+    save_xtc_wavs(cfg, direct, cross)
 
 
 if __name__ == "__main__":

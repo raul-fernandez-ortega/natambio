@@ -1,5 +1,10 @@
-# Dependencias de python_xtc_filters (generador XTC offline).
+# Dependencias de python_xtc_filters (generadores XTC offline, simetrico y asimetrico).
 # Instalar con:  pip install -r requirements.txt
 numpy
 scipy
 soundfile
+
+# Lectura de los ficheros TOML de parametros. En Python 3.11 o posterior no hace
+# falta: tomllib forma parte de la biblioteca estandar y los scripts la usan
+# directamente. Esta linea solo cubre interpretes anteriores.
+tomli; python_version < "3.11"
