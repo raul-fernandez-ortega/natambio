@@ -1,17 +1,23 @@
 # python_xtc_filters
 
-Generador en Python puro de filtros FIR **XTC** (cancelación de crosstalk).
-Escribe el par de filtros *direct* y *cross* como WAV float de 32 bits en
-`./filters/`.
+Generadores en Python puro de filtros FIR **XTC** (cancelación de diafonía), en
+dos variantes:
 
-Es la contrapartida en Python de la herramienta en C
-[`tools/xtc_filters`](../xtc_filters), que enlaza el código de diseño de filtros
-compartido en `../../lib` (`xtc.c` → `dsp.c` → `binaural_cues.c`). Este script
-reimplementa esa misma tubería en NumPy/SciPy para poder ejecutarse sin compilar
-la cadena de herramientas C — útil para experimentar, enseñar y contrastar la
-salida de la versión C.
+| Script | Disposición | Filtros que escribe |
+|---|---|---|
+| `xtc_filters.py` | simétrica | directo + cruzado |
+| `xtc_filters_asym.py` | asimétrica | directo (compartido) + cruzado izquierdo + cruzado derecho |
 
-Es un port fiel de la **herramienta en C**, no del antiguo
+Ambos escriben WAV float de 32 bits en `./filters/`.
+
+Son las contrapartidas en Python de las herramientas en C de
+[`tools/xtc_filters`](../xtc_filters), que enlazan el código de diseño de filtros
+compartido en `../../lib` (`xtc.c` / `xtc_asym.c` → `dsp.c` →
+`binaural_cues.c`). Los scripts reimplementan esa misma tubería en NumPy/SciPy
+para poder ejecutarse sin compilar la cadena de herramientas C — útil para
+experimentar, enseñar y contrastar la salida de la versión C.
+
+Son un port fiel de las **herramientas en C**, no del antiguo
 `~/ambio_filters/ambio_filters_scipy.py`. La única diferencia sustancial con ese
 script antiguo está en el paso de fase mínima: aquí (igual que en `lib/dsp.c`) el
 cepstrum homomórfico se calcula sobre una rejilla sobremuestreada ×8, lo que
@@ -21,15 +27,21 @@ amplificada a ~5 % a través de las 16 convoluciones encadenadas del XTC). Los
 filtros de salida son por tanto equivalentes a los de la versión C, y usan el
 mismo contrato de nombre de archivo.
 
+`xtc_filters_asym.py` importa las primitivas de DSP (modelo ILD, fase mínima,
+constantes) de `xtc_filters.py` en lugar de copiarlas. La versión C sí las
+duplica en `xtc_asym.c`, pero únicamente porque `lib/xtc.c` está replicado por
+ports de terceros y tiene que permanecer estable byte a byte; aquí no existe esa
+restricción.
+
 ## Plataforma
 
-El script es multiplataforma: depende sólo de `numpy`, `scipy` y `soundfile`
-(todos con wheels para Windows, macOS y Linux) y no usa ninguna llamada
-específica de POSIX, así que se ejecuta sin cambios en **GNU/Linux y Microsoft
-Windows** (y macOS). En Windows se invoca directamente con
-`python xtc_filters.py ...` — el paso `make install` de autotools y el lanzador
-`natambio-xtc-filters-py` son sólo de Unix, pero son comodidades de empaquetado,
-no requisitos.
+Los scripts son multiplataforma: dependen sólo de `numpy`, `scipy` y `soundfile`
+(todos con wheels para Windows, macOS y Linux) más `tomllib` de la biblioteca
+estándar, y no usan ninguna llamada específica de POSIX, así que se ejecutan sin
+cambios en **GNU/Linux y Microsoft Windows** (y macOS). En Windows se invocan
+directamente con `python xtc_filters.py ...` — el paso `make install` de
+autotools y los lanzadores `natambio-xtc-filters-py` son sólo de Unix, pero son
+comodidades de empaquetado, no requisitos.
 
 ## Requisitos
 
@@ -37,23 +49,90 @@ no requisitos.
 pip install -r requirements.txt   # numpy, scipy, soundfile
 ```
 
+La lectura de TOML usa `tomllib` de la biblioteca estándar en **Python 3.11 o
+posterior**, de modo que ahí no hace falta nada más. En intérpretes anteriores
+`requirements.txt` instala `tomli`, al que los scripts recurren automáticamente.
+
+## Ficheros de configuración
+
+Los parámetros vienen de un fichero TOML, que se pasa con `-c`. El formato es
+exactamente el de las herramientas en C, y los ejemplos comentados viven junto a
+ellas en lugar de duplicarse aquí, para que las dos versiones no puedan
+divergir:
+
+| Fichero | Qué muestra |
+|---|---|
+| [`../xtc_filters/xtc_sym_default.toml`](../xtc_filters/xtc_sym_default.toml) | simétrico, reproduciendo los valores por defecto |
+| [`../xtc_filters/xtc_sym_wide.toml`](../xtc_filters/xtc_sym_wide.toml) | simétrico, ajustado para una imagen más amplia |
+| [`../xtc_filters/xtc_asym_geometry.toml`](../xtc_filters/xtc_asym_geometry.toml) | colocación asimétrica de los altavoces |
+| [`../xtc_filters/xtc_asym_room.toml`](../xtc_filters/xtc_asym_room.toml) | colocación simétrica en una sala acústicamente asimétrica |
+
+```toml
+sample_rate = 48000
+filter_len  = 4096
+
+[xtc]                 # [left] y [right] en el script asimétrico
+itd_us      = 170
+ild_db      = 14.0
+ild_alpha   = 2.0
+azimuth_deg = 20
+
+[output]
+directory = "filters"
+prefix    = "mi_sala" # opcional
+```
+
+Igual que en las herramientas C, una clave desconocida es un error y no una línea
+ignorada en silencio, así que una errata como `ild_alfa` falla en lugar de dejar
+`ild_alpha` en su valor por defecto.
+
 ## Uso
 
+Simétrico, por TOML, por flags, o ambos:
+
 ```sh
-python3 xtc_filters.py -t ITD_us -l ILD_dB -a ILD_alpha -z azimut_grados -r sample_rate -f filter_len
+python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml
+python3 xtc_filters.py -t ITD_us -l ILD_dB -a ILD_alpha -z azimut_grados -r frec_muestreo -f longitud
+python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml -l 12   # el fichero, con un valor cambiado
 # por defecto: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
-# -d : vuelca además los filtros intermedios filters/ILD_<az>_deg.wav y MP_ILD_<az>_deg.wav
+# -d : vuelca además los filtros intermedios ILD_<az>_deg.wav y MP_ILD_<az>_deg.wav
 ```
 
-Instalado mediante el build de autotools (`make install`), está también
-disponible como el lanzador `natambio-xtc-filters-py`.
+`-c` se lee en el punto de la línea de comandos donde aparece, de modo que los
+flags colocados **después** sobrescriben el fichero y los colocados antes no.
 
-Salida (en `./filters/`):
+Asimétrico, solo por TOML, por la misma razón que en la herramienta C: ocho
+números en una línea de comandos, la mitad de ellos distinguiéndose de la otra
+mitad por una sola letra, es exactamente la forma de error que produce un filtro
+verosímil para la geometría equivocada.
+
+```sh
+python3 xtc_filters_asym.py -c ../xtc_filters/xtc_asym_geometry.toml
+```
+
+Instalados mediante el build de autotools (`make install`), están también
+disponibles como los lanzadores `natambio-xtc-filters-py` y
+`natambio-xtc-filters-asym-py`.
+
+## Salida
 
 ```
-XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_direct.wav
+XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_direct.wav   # simétrico, sin prefijo
 XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_cross.wav
+<prefijo>_direct.wav                                             # con prefijo
+<prefijo>_cross.wav                                              # simétrico
+<prefijo>_cross_left.wav                                         # asimétrico
+<prefijo>_cross_right.wav                                        # asimétrico
 ```
+
+El script asimétrico escribe **tres** filtros, no cuatro: los dos filtros
+directos del modelo son idénticos, ya que dependen únicamente del operador de
+ida y vuelta *P = G_l ∗ G_r*, que es simétrico bajo intercambio de canales.
+
+Atención a qué lado alimenta a qué altavoz. `<prefijo>_cross_left.wav` alimenta
+el altavoz **izquierdo** pero se construye con los parámetros del lado
+**derecho**, porque cancela la fuga del altavoz derecho hacia el oído izquierdo y
+el único camino directo que llega a ese oído es el del altavoz izquierdo.
 
 ## Tubería
 
@@ -64,10 +143,35 @@ XTC_<az>_deg_ITD_<itd>_micsec_ILD_<ild>_dB_a_<alpha>_cross.wav
    rejilla densa `1 + 2^ceil(log2(filter_len))`, normalizado en RMS.
 3. **Fase mínima** con el cepstrum homomórfico sobremuestreado ×8, normalizado
    en RMS.
-4. **Normalización L2** y la **recursión XTC** (`get_xtc`): 32 pasos alternos
-   direct/cross, cada uno convolucionado con el filtro ILD de fase mínima y
-   truncado a `filter_len`.
+4. **Normalización L2** y la **recursión XTC**: 32 pasos alternos directo/cruzado
+   en el caso simétrico, 16 escalones de ida y vuelta en el asimétrico —el mismo
+   número de términos—, cada uno convolucionado con el filtro ILD de fase mínima
+   y truncado a `filter_len`.
 
-Los mismos filtros pueden generarse dentro del proceso de `natambio` mediante un
-bloque `<xtc>` (ver `docs/README.CONFIG`); esta herramienta los produce offline
-como archivos WAV.
+En el caso asimétrico el paso 3 se ejecuta tres veces: un filtro por lado, más el
+filtro de ida y vuelta, cuya log-magnitud es la media de las de ambos lados. Como
+el modelo de ILD es lineal en `alpha·sin(theta)`, esa media se obtiene evaluando
+el mismo modelo en `theta = pi/2` con la media de los dos productos, sin
+promediar respuestas. Con ambos lados iguales colapsa en el filtro de un lado,
+que es lo que hace que el generador asimétrico se reduzca al simétrico.
+
+## El balance, en el caso asimétrico
+
+Estos coeficientes son **M⁻¹**: el ajuste de nivel entre canales no se hornea en
+ellos deliberadamente. Hay que aplicarlo después, como ganancia sobre las dos
+convoluciones que alimentan la misma salida, atenuando el canal que llega más
+fuerte y sin amplificar nunca el otro. Sin ajustar, la cancelación queda acotada
+en torno a 20·log₁₀|1−b|: un error de 1 dB sitúa el techo cerca de −19 dB. El
+procedimiento de escucha está en el apartado del balance de
+[`docs/xtc/xtc_no_simetrico_es.md`](../../docs/xtc/xtc_no_simetrico_es.md).
+
+## Relacionado
+
+- Los mismos filtros los puede generar `natambio` en proceso mediante bloques
+  `<xtc>` y `<xtc_asym>` (ver `docs/README.CONFIG`); estos scripts los producen
+  offline como ficheros WAV.
+- Las herramientas en C: [`../xtc_filters`](../xtc_filters).
+- El modelo: [`docs/xtc/xtc_filters_es.md`](../../docs/xtc/xtc_filters_es.md)
+  (simétrico) y
+  [`docs/xtc/xtc_no_simetrico_es.md`](../../docs/xtc/xtc_no_simetrico_es.md)
+  (asimétrico).

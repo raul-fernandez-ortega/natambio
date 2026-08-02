@@ -95,7 +95,7 @@ using the ALSA backend do not require rtirq.
 - `src/` — JACK application `natambio` (C++).
 - `lib/` — shared filter-design code in plain C (`dsp.c`, `xtc.c`,
   `binaural_cues.c`, `loudness.c`), packaged as `libnatdsp.a`.
-- `tools/xtc_filters/` — offline XTC FIR generator.
+- `tools/xtc_filters/` — offline XTC FIR generators, symmetric and asymmetric.
 - `tools/ladspa_nae_natambio/` — LADSPA plugin for the PCA-based NAE engine.
 - `tools/python_nae_natambio/` — Python offline NAE implementation.
 - `tools/python_pca4drc/` — Python utilities for DRC and measurements.
@@ -142,7 +142,7 @@ sudo make install
 
 This builds `natambio` along with the tools from `tools/` and installs:
 
-- `natambio` and `natambio-xtc-filters` into `$(bindir)`.
+- `natambio`, `natambio-xtc-filters` and `natambio-xtc-filters-asym` into `$(bindir)`.
 - the LADSPA plugin into `$(libdir)/ladspa/`.
 - the Python toolkits into `$(datadir)/natambio/python_pca4drc/` and
   `$(datadir)/natambio/python_nae_natambio/`, plus thin `$(bindir)` launchers
@@ -160,7 +160,7 @@ toolkit location. Undo an install with `sudo make uninstall`.
 
 ```sh
 cd src && make -f Makefile.simple
-cd tools/xtc_filters && make -f Makefile.simple
+cd tools/xtc_filters && make -f Makefile.simple   # builds both generators
 cd tools/ladspa_nae_natambio && make -f Makefile.simple
 ```
 
@@ -177,7 +177,7 @@ install what you need:
 | Package | Arch | Contents | Key depends |
 |---|---|---|---|
 | `natambio` | any | The real-time JACK client `/usr/bin/natambio` and example configs in `/usr/share/natambio/examples/`. | `jackd2 \| jackd` (recommended) |
-| `natambio-tools` | any | Offline C FIR generators: `/usr/bin/natambio-xtc-filters`. | — |
+| `natambio-tools` | any | Offline C FIR generators: `/usr/bin/natambio-xtc-filters` and `/usr/bin/natambio-xtc-filters-asym`. | — |
 | `natambio-ladspa` | any | LADSPA plugin `…/ladspa/ladspa_nae_natambio.so` (the NAE engine for any LADSPA host). | — |
 | `natambio-drc` | all | Python measurement/DRC toolkit + offline NAE: the `natambio-*` Python launchers and their data under `/usr/share/natambio/`. | `python3`, `python3-numpy`, `python3-scipy`, `python3-soundfile` |
 
@@ -232,6 +232,7 @@ The packages install under the system prefix `/usr`:
 | `/usr/bin/natambio` | `natambio` |
 | `/usr/share/natambio/examples/*.xml` | `natambio` |
 | `/usr/bin/natambio-xtc-filters` | `natambio-tools` |
+| `/usr/bin/natambio-xtc-filters-asym` | `natambio-tools` |
 | `/usr/lib/<triplet>/ladspa/ladspa_nae_natambio.so` | `natambio-ladspa` |
 | `/usr/bin/natambio-pca4drc`, `-sweepgen`, `-fft-convolve`, `-check-capture`, `-wav2raw`, `-raw2wav`, `-nae` | `natambio-drc` |
 | `/usr/share/natambio/python_pca4drc/` (scripts, `config.drc`, measurement XMLs, `target/`, `config/`, `mic/`) | `natambio-drc` |
@@ -271,7 +272,8 @@ Example configurations are available in `docs/config_samples/`.
 
 ## Auxiliary tools
 
-- `tools/xtc_filters/` — standalone offline XTC FIR generator.
+- `tools/xtc_filters/` — standalone offline XTC FIR generators (symmetric and
+  asymmetric), configured through TOML files.
 - `tools/ladspa_nae_natambio/` — LADSPA plugin for the NAE PCA engine.
 - `tools/python_nae_natambio/` — offline Python NAE implementation.
 - `tools/python_pca4drc/` — Python measurement and DRC utilities.
