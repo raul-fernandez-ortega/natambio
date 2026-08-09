@@ -197,7 +197,7 @@ For this reason, a simple, monotonic empirical fit governed by two parameters ha
 \text{ILD}_{spectrum}(\Theta, f) = \alpha \cdot 10 \cdot \log_{10}(f/1000 + 1) \cdot \sin(\Theta)
 ```
 
-Expressed in dB, the fit grows monotonically with frequency; that is, the magnitude of the cross path decays monotonically, with no peaks or notches. The azimuth $\Theta$ governs the overall magnitude of the tilt —through $\sin\Theta$— and the parameter $\alpha$ governs its slope. From the study of the averages of the different public HRTF databases it follows that, for $\Theta$ between 10° and 30°, the appropriate value is $\alpha \approx 1.5$ to $2.0$.
+Expressed in dB, the fit grows monotonically with frequency; that is, the magnitude of the cross path decays monotonically, with no peaks or notches. The azimuth $\Theta$ governs the overall magnitude of the tilt (through $\sin\Theta$) and the parameter $\alpha$ governs its slope. From the study of the averages of the different public HRTF databases it follows that, for $\Theta$ between 10° and 30°, the appropriate value is $\alpha \approx 1.5$ to $2.0$.
 
 All the results obtained from the study of the publicly available HRTF databases show that the $\text{ITD}$ and the broadband value $`\text{ILD}_{avg}`$ present a relatively low dispersion between individuals, especially at the small azimuths customary in stereo reproduction. However, this stability does not imply that the spectral distribution of the ILD is equally stable. Plotting $`\text{ILD}_{spectrum}(f)`$ reveals a much more irregular structure, with local maxima and minima whose position and amplitude vary between databases and individuals. Hence the decomposition of $G$ proposed for NatAmbio XTC:
 
@@ -215,9 +215,9 @@ $\text{ITD}$ and $`\text{ILD}_{avg}`$ are user-configurable. The user can employ
 
 As for $`\text{ILD}_{spectrum}`$, NatAmbio integrates the proposed empirical formula, and both $\Theta$ and $\alpha$ are user-adjustable.
 
-This makes it possible to generate XTC in NatAmbio with a simple model, with four parameters —$\text{ITD}$, $`\text{ILD}_{avg}`$, $\Theta$ and $\alpha$— and a proposal of initial values, while leaving enough freedom for fine tuning.
+This makes it possible to generate XTC in NatAmbio with a simple model, with four parameters —ITD, average ILD, azimuth Θ and α— and a proposal of initial values, while leaving enough freedom for fine tuning.
 
-In this way, NatAmbio XTC provides an adjustment model that can operate with a sound system in which the loudspeakers are separated from each other by up to 60° (that is, azimuth $\Theta = 30°$). At larger angles the inter-individual variability of $\text{ITD}$ and $`\text{ILD}_{avg}`$ increases, while the $`\text{ILD}_{spectrum}`$ approximation exhibits an increasingly steep slope. To date there is no experience with loudspeaker separations greater than 60°.
+In this way, NatAmbio XTC provides an adjustment model that can operate with a sound system in which the loudspeakers are separated from each other by up to 60° (that is, azimuth $\Theta = 30^{\circ}$). At larger angles the inter-individual variability of $\text{ITD}$ and $`\text{ILD}_{avg}`$ increases, while the $`\text{ILD}_{spectrum}`$ approximation exhibits an increasingly steep slope. To date there is no experience with loudspeaker separations greater than 60°.
 
 Finally, NatAmbio implements the spectral component of the $G$ model with minimum-phase filters. The motivation is not to reproduce the full phase of a measured HRTF, but to keep the time representation of the magnitude $`\text{ILD}_{spectrum}(f)`$ as compact as possible, while the physically relevant delay is incorporated explicitly through the $\text{ITD}$.
 
@@ -255,7 +255,7 @@ then with 2 dB its magnitude is approximately $|G| \approx 0.79$, whereas with 1
 
 In the tests carried out with NatAmbio, this mathematical dependence also matches subjective perception: as the $`\text{ILD}_{avg}`$ used in the model is increased, the tonal changes associated with the cancellation decrease.
 
-If only the reduction of the energy required for cancellation were considered, it might seem that increasing the azimuth indefinitely would always be favourable and that, therefore, the best loudspeaker arrangement would be $\Theta = 90°$. In this respect it is worth recalling an important perceptual characteristic of a properly adjusted XTC: the virtual central image can be considerably better defined than in conventional stereo reproduction, because the contribution of acoustic crosstalk is reduced. However, this advantage also depends on the geometry: as the azimuth of the loudspeakers is increased excessively, keeping a stable and precise central image becomes progressively more difficult.
+If only the reduction of the energy required for cancellation were considered, it might seem that increasing the azimuth indefinitely would always be favourable and that, therefore, the best loudspeaker arrangement would be $\Theta = 90^{\circ}$. In this respect it is worth recalling an important perceptual characteristic of a properly adjusted XTC: the virtual central image can be considerably better defined than in conventional stereo reproduction, because the contribution of acoustic crosstalk is reduced. However, this advantage also depends on the geometry: as the azimuth of the loudspeakers is increased excessively, keeping a stable and precise central image becomes progressively more difficult.
 
 In summary, NatAmbio aims to be a practical solution with a wide application range. It does not seek to optimize in isolation the maximum soundstage width, the maximum central focus or the minimum coloration, but rather to find a compromise region in which width, focus, tonal stability and geometric tolerance are simultaneously satisfactory. This makes it possible to retain great installation flexibility using configurations and equipment customary in domestic audio systems.
 
