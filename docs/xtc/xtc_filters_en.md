@@ -38,13 +38,13 @@ One of the most frequently repeated criticisms of existing XTC algorithms is tha
 | $\ast$ | Convolution operator |
 | $\Theta$ | Angle of incidence (half-angle between loudspeakers; total separation $2\Theta$) |
 | $\text{ITD}$ | Interaural Time Difference |
-| $\text{ILD}_{dB}$ | Interaural Level Difference in dB |
-| $a = 10^{-\text{ILD}_{dB}/20}$ | Linear attenuation factor associated with the ILD |
+| $`\text{ILD}_{dB}`$ | Interaural Level Difference in dB |
+| $`a = 10^{-\text{ILD}_{dB}/20}`$ | Linear attenuation factor associated with the ILD |
 | $\alpha$ | Exponent of the spectral ILD model |
 | $N$ | Number of terms (iterations) in the summation |
 | $\mathbf{H}$ | Acoustic transfer matrix of the symmetric system |
 | $\mathbf{C}_G$ | Normalized relative coupling matrix |
-| $\mathbf{F}_{XTC}$ | XTC filtering matrix (direct and cross filters) |
+| $`\mathbf{F}_{XTC}`$ | XTC filtering matrix (direct and cross filters) |
 | $\mathbf{A}$ | Cross coupling matrix ($\mathbf{C}_G=\mathbf{I}+\mathbf{A}$) |
 | $\mathbf{I}$ | Identity matrix |
 | $E$ | Equalization / room-correction filter (DRC) |
@@ -117,7 +117,7 @@ These two expressions are the exact result of the algebra of successive cancella
 
 The series converge as long as $|G| < 1$, a condition that holds naturally in the mathematical model: the cross signal has a lower level than the direct signal due to the acoustic shadow created by the listener's head. In acoustic terms this is equivalent to the energy of the cross path being lower than that of the direct path.
 
-Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays with the broadband attenuation raised to $2i-1$, its contribution drops to negligible levels within a few steps. As a reference, with an attenuation of $0.32$ per step (the average value of the example in the final section, $ILD_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so $N=3$–$4$ is sufficient in practice.
+Although, strictly speaking, the number of terms in the summation should be infinite, since each term decays with the broadband attenuation raised to $2i-1$, its contribution drops to negligible levels within a few steps. As a reference, with an attenuation of $0.32$ per step (the average value of the example in the final section, $ILD_{dB}=10$ dB), each increment of $i$ reduces the term by about 20 dB: term $i=4$ is already on the order of $-70$ dB, so N = 3–4 is sufficient in practice.
 
 It is worth emphasizing that, although the *design process* is recursive, the filter finally realized is **FIR** (not recursive at run time): the recurrence is resolved and truncated at design time, generating a finite-length impulse response. Note also that $F^{direct}\neq\delta$: what remains unchanged is the direct *acoustic path* $H_{direct}$, but the signal delivered to the direct-side loudspeaker does incorporate the correction terms $\sum G^{2i}$, needed to cancel the crosstalk that the cross emissions themselves reintroduce into the direct ear.
 
@@ -279,7 +279,7 @@ Azimuth at 30°:
 <div align="center"><img src="images/ILD_normalized_az30.png"/></div>
 <br>
 
-Seeking the least coloration, any peak or notch in the shape of $\text{ILD}_{spectrum}(f)$ must be avoided, since the placement of these peaks in the spectrum varies greatly with the listener's anatomy. Therefore, individual developments are avoided and general approximations are chosen.
+Seeking the least coloration, any peak or notch in the shape of $`\text{ILD}_{spectrum}(f)`$ must be avoided, since the placement of these peaks in the spectrum varies greatly with the listener's anatomy. Therefore, individual developments are avoided and general approximations are chosen.
 
 A parametric model of $ILD(\Theta,f)$ (Akeroyd et al., 2021, fitted to the data of Shaw and Vaillancourt, 1985) was evaluated as a starting point, but its high-frequency upturn does not fit well the average of the public HRTF models studied. For this reason, a simpler and monotonic empirical fitting equation has been developed, of the following form:
 

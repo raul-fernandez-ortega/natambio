@@ -37,13 +37,13 @@ Una de las críticas más repetidas a los algoritmos XTC existentes es que mejor
 | $\ast$ | Operador convolución |
 | $\Theta$ | Azimut de incidencia (semiángulo entre altavoces; separación total $2\Theta$) |
 | $\text{ITD}$ | Diferencia interaural de tiempo (*Interaural Time Difference*) |
-| $\text{ILD}_{dB}$ | Diferencia interaural de nivel en dB (*Interaural Level Difference*) |
-| $a = 10^{-\text{ILD}_{dB}/20}$ | Factor de atenuación lineal asociado al ILD |
+| $`\text{ILD}_{dB}`$ | Diferencia interaural de nivel en dB (*Interaural Level Difference*) |
+| $`a = 10^{-\text{ILD}_{dB}/20}`$ | Factor de atenuación lineal asociado al ILD |
 | $\alpha$ | Exponente del modelo espectral de ILD |
 | $N$ | Número de términos (iteraciones) del sumatorio |
 | $\mathbf{H}$ | Matriz de transferencia acústica del sistema simétrico |
 | $\mathbf{C}_G$ | Matriz de acoplamiento relativo normalizado |
-| $\mathbf{F}_{XTC}$ | Matriz de filtrado XTC (filtros directo y cruzado) |
+| $`\mathbf{F}_{XTC}`$ | Matriz de filtrado XTC (filtros directo y cruzado) |
 | $\mathbf{A}$ | Matriz de acoplamiento cruzado ($\mathbf{C}_G=\mathbf{I}+\mathbf{A}$) |
 | $\mathbf{I}$ | Matriz identidad |
 | $E$ | Filtro de ecualización / corrección de sala (DRC) |
@@ -116,7 +116,7 @@ Estas dos expresiones son el resultado exacto del álgebra de las cancelaciones 
 
 Las series convergen siempre y cuando $|G| < 1$, condición que se cumple de forma natural en el modelo matemático: la señal cruzada presenta menor nivel que la señal directa debido a la sombra acústica generada por la cabeza del oyente. Definido en términos acústicos esto equivale a que la energía del camino cruzado sea inferior a la del camino directo.
 
-Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae con la atenuación de banda ancha elevada a $2i-1$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con una atenuación de $0.32$ por paso (el valor medio del ejemplo de la última sección, $ILD_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que $N=3$–$4$ resulta suficiente en la práctica.
+Aunque, en sentido estricto, el número de términos del sumatorio debería ser infinito, dado que cada término decae con la atenuación de banda ancha elevada a $2i-1$, en pocos pasos su contribución cae a niveles despreciables. A modo de referencia, con una atenuación de $0.32$ por paso (el valor medio del ejemplo de la última sección, $ILD_{dB}=10$ dB), cada incremento de $i$ reduce el término en unos 20 dB: el término $i=4$ se sitúa ya del orden de $-70$ dB, de modo que N = 3–4 resulta suficiente en la práctica.
 
 Conviene subrayar que, aunque el *proceso de diseño* es recursivo, el filtro finalmente realizado es **FIR** (no recursivo en ejecución): la recurrencia se resuelve y se trunca en tiempo de diseño, generando una respuesta impulsiva de longitud finita. Nótese también que $F^{direct}\neq\delta$: lo que permanece inalterado es el *camino acústico* directo $H_{direct}$, pero la señal entregada al altavoz del lado directo sí incorpora los términos de corrección $\sum G^{2i}$, necesarios para cancelar la diafonía que las propias emisiones cruzadas reintroducen en el oído directo.
 

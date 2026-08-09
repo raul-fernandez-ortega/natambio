@@ -20,7 +20,7 @@ En la presente nota técnica se amplía el diseño de filtros XTC para entornos 
 | $\mathbf{H}$ | Matriz de transferencia acústica del sistema asimétrico |
 | $\mathbf{M}$ | Matriz de acoplamiento relativo normalizado (equivalente asimétrico de $\mathbf{C}_G$) |
 | $\mathbf{D}$ | Matriz diagonal de balance, $\mathbf{D} = \mathrm{diag}(1, b)$ |
-| $\mathbf{F}_{XTC}$ | Matriz de filtrado XTC (filtros directos y cruzados) |
+| $`\mathbf{F}_{XTC}`$ | Matriz de filtrado XTC (filtros directos y cruzados) |
 | $\Theta_l,\ \Theta_r$ | Azimut de incidencia de cada altavoz |
 | $\delta$ | Impulso unitario (elemento neutro de la convolución) |
 | $\ast$ | Operador convolución |
@@ -105,7 +105,7 @@ Coherentemente con la separación entre XTC y DRC de la nota principal, NatAmbio
 \mathbf{F}_{XTC} = \mathbf{D}^{-1} \cdot \mathbf{M}^{-1} = \frac{1}{1 - G_{l} G_{r}} \begin{bmatrix} 1 & -G_{r} \\ -G_{l}/b & 1/b \end{bmatrix}
 ```
 
-de modo que $\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}$: cada oído recibe únicamente la señal que le corresponde, con el mismo nivel en ambos, y a través de los caminos directos naturales, que permanecen intactos.
+de modo que $`\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}`$: cada oído recibe únicamente la señal que le corresponde, con el mismo nivel en ambos, y a través de los caminos directos naturales, que permanecen intactos.
 
 ## Aplicación en NatAmbio
 
@@ -203,9 +203,9 @@ F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i
 F^{cross}_{r} = - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
 ```
 
-Los dos filtros directos son iguales por conmutatividad de la convolución, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, y en adelante se denotan sin subíndice. Nótese que **en los cruzados los exponentes del denominador van cruzados respecto a los del numerador**: en $F^{cross}_{l}$ el camino $H_{rl}$ aparece elevado a $i$ y normalizado por $H_{rr}^{i}$ —esto es, forma $G_{r}^{i}$—, mientras el otro par queda a $i-1$. Es un punto fácil de equivocar, y la comprobación es el término de primer orden: con $i=1$ el filtro debe reducirse a $-G_{r} = -H_{rl}/H_{rr}$, y no a $-H_{rl}/H_{ll}$, que sería $-b \ast G_{r}$ e introduciría el balance dentro de $\mathbf{M}^{-1}$, precisamente donde el modelo no lo quiere.
+Los dos filtros directos son iguales por conmutatividad de la convolución, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, y en adelante se denotan sin subíndice. Nótese que **en los cruzados los exponentes del denominador van cruzados respecto a los del numerador**: en $`F^{cross}_{l}`$ el camino $H_{rl}$ aparece elevado a $i$ y normalizado por $H_{rr}^{i}$ —esto es, forma $G_{r}^{i}$—, mientras el otro par queda a $i-1$. Es un punto fácil de equivocar, y la comprobación es el término de primer orden: con $i=1$ el filtro debe reducirse a $-G_{r} = -H_{rl}/H_{rr}$, y no a $-H_{rl}/H_{ll}$, que sería $-b \ast G_{r}$ e introduciría el balance dentro de $\mathbf{M}^{-1}$, precisamente donde el modelo no lo quiere.
 
-**Relación con las expresiones de la nota principal.** [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc_filters_es.md#an%C3%A1lisis-del-problema-y-resoluci%C3%B3n) escribe estos mismos cuatro filtros en su forma completa, con el balance incluido de manera implícita, ya que allí la cancelación se resuelve directamente sobre los caminos acústicos sin factorizar $\mathbf{D}$. Sus filtros cruzados quedan normalizados por el camino directo del altavoz que **radia** la antiseñal —$F^{cross}_{r}$ evaluado en $i=1$ vale allí $-H_{lr}/H_{rr}$—, mientras que aquí los elementos de $\mathbf{M}^{-1}$ normalizan cada $G$ por el camino directo de su **propio** altavoz —$-G_{l} = -H_{lr}/H_{ll}$—. Las dos expresiones difieren exactamente en el factor $b$ que $\mathbf{D}^{-1}$ aporta después, de modo que describen el mismo filtrado; bajo la hipótesis de simetría de la nota principal, $b = \delta$ y coinciden término a término. Al comparar ambas notas conviene tener presente cuál de las dos normalizaciones se está leyendo, porque los subíndices de los denominadores no son los mismos.
+**Relación con las expresiones de la nota principal.** [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc_filters_es.md#an%C3%A1lisis-del-problema-y-resoluci%C3%B3n) escribe estos mismos cuatro filtros en su forma completa, con el balance incluido de manera implícita, ya que allí la cancelación se resuelve directamente sobre los caminos acústicos sin factorizar $\mathbf{D}$. Sus filtros cruzados quedan normalizados por el camino directo del altavoz que **radia** la antiseñal —allí $`F^{cross}_{r}`$ evaluado en $i=1$ vale $-H_{lr}/H_{rr}$—, mientras que aquí los elementos de $\mathbf{M}^{-1}$ normalizan cada $G$ por el camino directo de su **propio** altavoz —aquí $-G_{l} = -H_{lr}/H_{ll}$—. Las dos expresiones difieren exactamente en el factor $b$ que $\mathbf{D}^{-1}$ aporta después, de modo que describen el mismo filtrado; bajo la hipótesis de simetría de la nota principal, $b = \delta$ y coinciden término a término. Al comparar ambas notas conviene tener presente cuál de las dos normalizaciones se está leyendo, porque los subíndices de los denominadores no son los mismos.
 
 El criterio de truncamiento es que ningún filtro exceda la extensión temporal $N(\tau_{l} + \tau_{r})$ del directo: como el factor $G$ ya aporta un medio escalón de retardo, la serie que acompaña al cruzado se corta un orden antes, con lo que su último tap cae en $(N-1)(\tau_{l}+\tau_{r}) + \tau_{x}$ y queda dentro de esa misma extensión. Es también lo que la recurrencia de Horner entrega de forma natural, sin cálculo adicional.
 
@@ -233,7 +233,7 @@ es exactamente el trayecto que describe un escalón de la recursión: la señal 
 
 ### Correspondencia entre filtros, entradas y altavoces
 
-Llamando $\mathbf{x} = (x_{l}, x_{r})$ al par de señales de programa y $\mathbf{s} = (s_{l}, s_{r})$ al par entregado a los altavoces, se tiene $\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}$, de modo que **cada fila de la matriz de filtrado corresponde a un altavoz** y cada columna a una entrada:
+Llamando $\mathbf{x} = (x_{l}, x_{r})$ al par de señales de programa y $\mathbf{s} = (s_{l}, s_{r})$ al par entregado a los altavoces, se tiene $`\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}`$, de modo que **cada fila de la matriz de filtrado corresponde a un altavoz** y cada columna a una entrada:
 
 ```math
 s_{l} = F^{direct} \ast x_{l} + F^{cross}_{l} \ast x_{r}
@@ -245,8 +245,8 @@ s_{r} = \frac{1}{b} \left( F^{direct} \ast x_{r} + F^{cross}_{r} \ast x_{l} \rig
 
 | Filtro | Alimenta al altavoz | Toma la entrada | Contiene | Primer tap en | Nivel del primer tap |
 |---|---|---|---|---|---|
-| $F^{cross}_{l}$ | izquierdo | derecha | $G_{r}$ | $\text{ITD}_{r}$ | $-\text{ILD}_{r}$ |
-| $F^{cross}_{r}$ | derecho | izquierda | $G_{l}$ | $\text{ITD}_{l}$ | $-\text{ILD}_{l}$ |
+| $`F^{cross}_{l}`$ | izquierdo | derecha | $G_{r}$ | $`\text{ITD}_{r}`$ | $`-\text{ILD}_{r}`$ |
+| $`F^{cross}_{r}`$ | derecho | izquierda | $G_{l}$ | $`\text{ITD}_{l}`$ | $`-\text{ILD}_{l}`$ |
 
 Todo en la rama cruzada izquierda es "derecho" —la entrada, la función $G$, el ITD y el ILD— excepto el altavoz que la radia. La razón es física y no una convención de escritura: la fuga que hay que cancelar en el oído izquierdo es la del altavoz **derecho**, descrita por $G_{r}$; pero la antiseñal que la cancela tiene que llegar a ese mismo oído izquierdo, y el único camino directo que llega allí es el del altavoz **izquierdo**. De ahí el cruce: el subíndice del filtro nombra el altavoz que radia, el subíndice de la $G$ que contiene nombra el altavoz cuya fuga cancela, y son siempre opuestos.
 
@@ -352,7 +352,7 @@ Podría pensarse que un balance mal ajustado degrada solo el equilibrio tonal o 
 \mathbf{H} \cdot \mathbf{M}^{-1} = \frac{H_{ll}}{1-P} \begin{bmatrix} 1-bP & G_r(b-1) \\ G_l(1-b) & b-P \end{bmatrix}
 ```
 
-Los términos cruzados **no se anulan**: quedan proporcionales a $(b-1)$. Dicho de otro modo, el balance forma parte de la cancelación, no es un añadido posterior a ella. Esto es perfectamente coherente con lo dicho antes —$b$ está fuera del *bucle recursivo* y no afecta a la convergencia—, pero estar fuera del bucle no lo hace opcional.
+Los términos cruzados **no se anulan**: quedan proporcionales a $(b-1)$. Dicho de otro modo, el balance forma parte de la cancelación, no es un añadido posterior a ella. Esto es perfectamente coherente con lo dicho antes —el balance $b$ está fuera del *bucle recursivo* y no afecta a la convergencia—, pero estar fuera del bucle no lo hace opcional.
 
 ### Techo de cancelación
 

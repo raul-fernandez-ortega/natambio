@@ -20,7 +20,7 @@ This technical note extends the design of XTC filters for conventional stereo en
 | $\mathbf{H}$ | Acoustic transfer matrix of the asymmetric system |
 | $\mathbf{M}$ | Normalised relative coupling matrix (asymmetric counterpart of $\mathbf{C}_G$) |
 | $\mathbf{D}$ | Diagonal balance matrix, $\mathbf{D} = \mathrm{diag}(1, b)$ |
-| $\mathbf{F}_{XTC}$ | XTC filtering matrix (direct and cross filters) |
+| $`\mathbf{F}_{XTC}`$ | XTC filtering matrix (direct and cross filters) |
 | $\Theta_l,\ \Theta_r$ | Incidence azimuth of each loudspeaker |
 | $\delta$ | Unit impulse (neutral element of convolution) |
 | $\ast$ | Convolution operator |
@@ -105,7 +105,7 @@ Consistently with the separation between XTC and DRC of the main note, NatAmbio 
 \mathbf{F}_{XTC} = \mathbf{D}^{-1} \cdot \mathbf{M}^{-1} = \frac{1}{1 - G_{l} G_{r}} \begin{bmatrix} 1 & -G_{r} \\ -G_{l}/b & 1/b \end{bmatrix}
 ```
 
-so that $\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}$: each ear receives only the signal intended for it, at the same level in both, and through the natural direct paths, which remain intact.
+so that $`\mathbf{H} \cdot \mathbf{F}_{XTC} = H_{ll} \cdot \mathbf{I}`$: each ear receives only the signal intended for it, at the same level in both, and through the natural direct paths, which remain intact.
 
 ## Application in NatAmbio
 
@@ -203,9 +203,9 @@ F^{cross}_{l} = - \sum_{i=1}^{N} \frac {H_{rl}^{i} \ast H_{lr}^{i-1}} {H_{rr}^{i
 F^{cross}_{r} = - \sum_{i=1}^{N} \frac {H_{lr}^{i} \ast H_{rl}^{i-1}} {H_{ll}^{i} \ast H_{rr}^{i-1}} = - \sum_{i=1}^{N} G_{l}^{i} \ast G_{r}^{i-1} = - G_{l} \ast \sum_{i=1}^{N} \left( G_{r} \ast G_{l} \right)^{i-1}
 ```
 
-The two direct filters are equal by commutativity of convolution, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, and from here on are written without a subscript. Note that **in the cross filters the exponents of the denominator are crossed with respect to those of the numerator**: in $F^{cross}_{l}$ the path $H_{rl}$ appears raised to $i$ and normalised by $H_{rr}^{i}$ — that is, in the form $G_{r}^{i}$ — while the other pair stays at $i-1$. This is an easy point to get wrong, and the check is the first-order term: at $i=1$ the filter must reduce to $-G_{r} = -H_{rl}/H_{rr}$, and not to $-H_{rl}/H_{ll}$, which would be $-b \ast G_{r}$ and would introduce the balance inside $\mathbf{M}^{-1}$, precisely where the model does not want it.
+The two direct filters are equal by commutativity of convolution, $\left( G_{l} \ast G_{r} \right)^{i} = \left( G_{r} \ast G_{l} \right)^{i}$, and from here on are written without a subscript. Note that **in the cross filters the exponents of the denominator are crossed with respect to those of the numerator**: in $`F^{cross}_{l}`$ the path $H_{rl}$ appears raised to $i$ and normalised by $H_{rr}^{i}$ — that is, in the form $G_{r}^{i}$ — while the other pair stays at $i-1$. This is an easy point to get wrong, and the check is the first-order term: at $i=1$ the filter must reduce to $-G_{r} = -H_{rl}/H_{rr}$, and not to $-H_{rl}/H_{ll}$, which would be $-b \ast G_{r}$ and would introduce the balance inside $\mathbf{M}^{-1}$, precisely where the model does not want it.
 
-**Relation to the expressions of the main note.** [Design of a convolution-based stereo crosstalk canceller (XTC) for NatAmbio](xtc_filters_en.md#problem-analysis-and-resolution) writes these same four filters in their complete form, with the balance included implicitly, since there the cancellation is solved directly on the acoustic paths without factoring out $\mathbf{D}$. Its cross filters end up normalised by the direct path of the loudspeaker that **radiates** the anti-signal — $F^{cross}_{r}$ evaluated at $i=1$ is $-H_{lr}/H_{rr}$ there — whereas here the elements of $\mathbf{M}^{-1}$ normalise each $G$ by the direct path of its **own** loudspeaker — $-G_{l} = -H_{lr}/H_{ll}$. The two expressions differ by exactly the factor $b$ that $\mathbf{D}^{-1}$ supplies afterwards, so they describe the same filtering; under the symmetry hypothesis of the main note, $b = \delta$ and they agree term by term. When comparing the two notes it is worth keeping in mind which of the two normalisations is being read, because the subscripts of the denominators are not the same.
+**Relation to the expressions of the main note.** [Design of a convolution-based stereo crosstalk canceller (XTC) for NatAmbio](xtc_filters_en.md#problem-analysis-and-resolution) writes these same four filters in their complete form, with the balance included implicitly, since there the cancellation is solved directly on the acoustic paths without factoring out $\mathbf{D}$. Its cross filters end up normalised by the direct path of the loudspeaker that **radiates** the anti-signal — $`F^{cross}_{r}`$ evaluated at $i=1$ is $-H_{lr}/H_{rr}$ there — whereas here the elements of $\mathbf{M}^{-1}$ normalise each $G$ by the direct path of its **own** loudspeaker — $-G_{l} = -H_{lr}/H_{ll}$. The two expressions differ by exactly the factor $b$ that $\mathbf{D}^{-1}$ supplies afterwards, so they describe the same filtering; under the symmetry hypothesis of the main note, $b = \delta$ and they agree term by term. When comparing the two notes it is worth keeping in mind which of the two normalisations is being read, because the subscripts of the denominators are not the same.
 
 The truncation criterion is that no filter should exceed the temporal extent $N(\tau_{l} + \tau_{r})$ of the direct one: since the factor $G$ already contributes half a rung of delay, the series accompanying the cross filter is cut one order earlier, so that its last tap falls at $(N-1)(\tau_{l}+\tau_{r}) + \tau_{x}$ and stays within that same extent. This is also what the Horner recurrence delivers naturally, at no additional cost.
 
@@ -233,7 +233,7 @@ it is exactly the path described by one rung of the recursion: the signal leaves
 
 ### Correspondence between filters, inputs and loudspeakers
 
-Writing $\mathbf{x} = (x_{l}, x_{r})$ for the pair of programme signals and $\mathbf{s} = (s_{l}, s_{r})$ for the pair delivered to the loudspeakers, we have $\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}$, so that **each row of the filtering matrix corresponds to a loudspeaker** and each column to an input:
+Writing $\mathbf{x} = (x_{l}, x_{r})$ for the pair of programme signals and $\mathbf{s} = (s_{l}, s_{r})$ for the pair delivered to the loudspeakers, we have $`\mathbf{s} = \mathbf{F}_{XTC} \ast \mathbf{x}`$, so that **each row of the filtering matrix corresponds to a loudspeaker** and each column to an input:
 
 ```math
 s_{l} = F^{direct} \ast x_{l} + F^{cross}_{l} \ast x_{r}
@@ -245,8 +245,8 @@ s_{r} = \frac{1}{b} \left( F^{direct} \ast x_{r} + F^{cross}_{r} \ast x_{l} \rig
 
 | Filter | Feeds loudspeaker | Takes input | Contains | First tap at | Level of first tap |
 |---|---|---|---|---|---|
-| $F^{cross}_{l}$ | left | right | $G_{r}$ | $\text{ITD}_{r}$ | $-\text{ILD}_{r}$ |
-| $F^{cross}_{r}$ | right | left | $G_{l}$ | $\text{ITD}_{l}$ | $-\text{ILD}_{l}$ |
+| $`F^{cross}_{l}`$ | left | right | $G_{r}$ | $`\text{ITD}_{r}`$ | $`-\text{ILD}_{r}`$ |
+| $`F^{cross}_{r}`$ | right | left | $G_{l}$ | $`\text{ITD}_{l}`$ | $`-\text{ILD}_{l}`$ |
 
 Everything in the left cross branch is "right" — the input, the function $G$, the ITD and the ILD — except the loudspeaker that radiates it. The reason is physical and not a writing convention: the leakage to be cancelled at the left ear is that of the **right** loudspeaker, described by $G_{r}$; but the anti-signal that cancels it has to reach that same left ear, and the only direct path that gets there is that of the **left** loudspeaker. Hence the crossing: the subscript of the filter names the loudspeaker that radiates, the subscript of the $G$ it contains names the loudspeaker whose leakage it cancels, and they are always opposite.
 

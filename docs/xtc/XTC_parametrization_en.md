@@ -277,7 +277,7 @@ Carrying out a detailed study of the impact of early reflections on crosstalk, t
 
 With the $G$ model of NatAmbio XTC developed and its implementation explained, it is time to propose a practical method for determining and adjusting the four parameters involved: $\text{ITD}$, $`\text{ILD}_{avg}`$, $\Theta$ and $\alpha$.
 
-First, the actual azimuth $\Theta$ of the sound system must be measured. It is important to stress that this azimuth is half the total opening angle between the loudspeakers as seen from the listener. For instance, a standard stereo layout with 60° of opening corresponds to an azimuth $\Theta = 30°$.
+First, the actual azimuth $\Theta$ of the sound system must be measured. It is important to stress that this azimuth is half the total opening angle between the loudspeakers as seen from the listener. For instance, a standard stereo layout with 60° of opening corresponds to an azimuth $\Theta = 30^{\circ}$.
 
 Once that physical measurement is available, the proposed regressions provide first values for $\text{ITD}$ and $`\text{ILD}_{avg}`$. For the empirical formula of $`\text{ILD}_{spectrum}(f)`$, one can start from the measured $\Theta$ and an $\alpha$ of 1.8.
 

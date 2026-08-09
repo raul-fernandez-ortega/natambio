@@ -277,7 +277,7 @@ Sería muy complejo realizar un estudio detallado del impacto de las reflexiones
 
 Desarrollado el modelo de $G$ en NatAmbio XTC y explicada su implementación, es el momento de proponer un método práctico para determinar y ajustar los cuatro parámetros implicados: $\text{ITD}$, $`\text{ILD}_{avg}`$, $\Theta$ y $\alpha$.
 
-En primer lugar es necesario medir el azimut $\Theta$ real del sistema de sonido. Es importante destacar que este azimut corresponde a la mitad del ángulo total de apertura entre los altavoces respecto al oyente. Por ejemplo, una disposición estéreo estándar con 60° de apertura corresponde a un azimut $\Theta = 30°$.
+En primer lugar es necesario medir el azimut $\Theta$ real del sistema de sonido. Es importante destacar que este azimut corresponde a la mitad del ángulo total de apertura entre los altavoces respecto al oyente. Por ejemplo, una disposición estéreo estándar con 60° de apertura corresponde a un azimut $\Theta = 30^{\circ}$.
 
 Obtenida esa medida física, mediante las regresiones propuestas se pueden definir unos primeros valores de $\text{ITD}$ e $`\text{ILD}_{avg}`$. Y para la fórmula empírica de $`\text{ILD}_{spectrum}(f)`$ se puede partir del $\Theta$ medido y de un $\alpha$ de 1.8.
 

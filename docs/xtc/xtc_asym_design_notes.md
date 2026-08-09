@@ -25,7 +25,7 @@ F^{cross}_l = - G_{r} \ast \sum_{i=1}^{N} P^{i-1}, \qquad
 F^{cross}_r = - G_{l} \ast \sum_{i=1}^{N} P^{i-1}
 ```
 
-y el filtrado completo es $\mathbf{F}_{XTC} = \mathbf{D}^{-1}\mathbf{M}^{-1}$ (el orden importa:
+y el filtrado completo es $`\mathbf{F}_{XTC} = \mathbf{D}^{-1}\mathbf{M}^{-1}`$ (el orden importa:
 $\mathbf{D}^{-1}$ **premultiplica**, porque escala la fila del altavoz).
 
 **Los dos filtros directos son el mismo**, ya que solo dependen de $P$, que es simétrico bajo
