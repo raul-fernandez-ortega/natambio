@@ -40,9 +40,9 @@
 | $f$ | Frequency |
 | $\Theta$ | Angle of incidence (half-angle between loudspeakers; total separation $2\Theta$) |
 | $\text{ITD}$ | Interaural Time Difference, in µs |
-| $\text{ILD}_{avg}$ | Broadband value of the ILD, in dB (called $\text{ILD}_{dB}$ in the main note) |
-| $a = 10^{-\text{ILD}_{avg}/20}$ | Linear attenuation factor associated with the ILD |
-| $\text{ILD}_{spectrum}(\Theta, f)$ | Spectral shape of the ILD, normalized so as not to contribute level |
+| $`\text{ILD}_{avg}`$ | Broadband value of the ILD, in dB (called $`\text{ILD}_{dB}`$ in the main note) |
+| $`a = 10^{-\text{ILD}_{avg}/20}`$ | Linear attenuation factor associated with the ILD |
+| $`\text{ILD}_{spectrum}(\Theta, f)`$ | Spectral shape of the ILD, normalized so as not to contribute level |
 | $\alpha$ | Slope parameter of the spectral ILD model |
 
 ## The operator $G$
@@ -119,9 +119,9 @@ The motivation behind this decomposition is as follows:
 
 - The **ITD** represents the time difference in the arrival of sound at the ipsilateral and the contralateral ear. In NatAmbio it is assumed to be a parameter constant with frequency, although in reality it does vary with it.
 
-- The **ILD** represents the level difference between the signal perceived by the ipsilateral ear and the one perceived by the contralateral ear. It is also frequency-dependent, as is the ITD. In the NatAmbio model the ILD is decomposed into a broadband average value, $\text{ILD}_{avg}$, and a spectral curve, $\text{ILD}_{spectrum}$, assuming that the frequency dependence of the ILD is more significant than that of the ITD.
+- The **ILD** represents the level difference between the signal perceived by the ipsilateral ear and the one perceived by the contralateral ear. It is also frequency-dependent, as is the ITD. In the NatAmbio model the ILD is decomposed into a broadband average value, $`\text{ILD}_{avg}`$, and a spectral curve, $`\text{ILD}_{spectrum}`$, assuming that the frequency dependence of the ILD is more significant than that of the ITD.
 
-An analysis of some of the most popular HRTF databases shows that neither the ITD nor the $\text{ILD}_{avg}$ vary greatly from one individual to another[^1].
+An analysis of some of the most popular HRTF databases shows that neither the ITD nor the $`\text{ILD}_{avg}`$ vary greatly from one individual to another[^1].
 
 **BiLi** — [https://sofacoustics.org/data/database/bili%20(dtf)](https://sofacoustics.org/data/database/bili%20(dtf))
 
@@ -157,13 +157,13 @@ Basic information on all these HRTF databases is collected at [https://www.sofac
 
 The error bars represent the estimated standard deviation associated with each average. They can be seen to show fairly limited dispersion.
 
-A first estimate of $\text{ITD}$ and $\text{ILD}_{avg}$ is easily obtained by regression:
+A first estimate of $\text{ITD}$ and $`\text{ILD}_{avg}`$ is easily obtained by regression:
 
 ![Average ITD versus azimuth for the five databases](images/ITD_vs_azimuth.png)
 
 ![Average broadband ILD versus azimuth for the five databases](images/ILD_vs_azimuth.png)
 
-A noticeable difference can be seen between the $\text{ILD}_{avg}$ values given by RIEC and those of the other databases analysed. This discrepancy would deserve a study of its causes, but there is no intention of analysing it in detail in this note.
+A noticeable difference can be seen between the $`\text{ILD}_{avg}`$ values given by RIEC and those of the other databases analysed. This discrepancy would deserve a study of its causes, but there is no intention of analysing it in detail in this note.
 
 The equations proposed in the NatAmbio XTC regression model are:
 
@@ -175,7 +175,7 @@ The equations proposed in the NatAmbio XTC regression model are:
 \text{ILD}_{avg} = -0.10 + 0.407 \cdot \Theta - 0.0025 \cdot \Theta^{2}
 ```
 
-with $\Theta$ in degrees in both cases, $\text{ITD}$ in µs and $\text{ILD}_{avg}$ in dB.
+with $\Theta$ in degrees in both cases, $\text{ITD}$ in µs and $`\text{ILD}_{avg}`$ in dB.
 
 As for the spectral shape of the ILD, the models show irregular curves, with peaks and notches that are most likely due to anatomical factors:
 
@@ -189,7 +189,7 @@ As for the spectral shape of the ILD, the models show irregular curves, with pea
 
 ![Normalized ILD versus frequency, 90° azimuth](images/ILD_normalized_az90.png)
 
-The risk of including these peaks and notches in the model of $\text{ILD}_{spectrum}(\Theta, f)$ for NatAmbio is that they may produce brightness or whistling during listening, since they may well not correspond to those of the actual listener in each case.
+The risk of including these peaks and notches in the model of $`\text{ILD}_{spectrum}(\Theta, f)`$ for NatAmbio is that they may produce brightness or whistling during listening, since they may well not correspond to those of the actual listener in each case.
 
 For this reason, a simple, monotonic empirical fit governed by two parameters has been adopted:
 
@@ -199,27 +199,27 @@ For this reason, a simple, monotonic empirical fit governed by two parameters ha
 
 Expressed in dB, the fit grows monotonically with frequency; that is, the magnitude of the cross path decays monotonically, with no peaks or notches. The azimuth $\Theta$ governs the overall magnitude of the tilt —through $\sin\Theta$— and the parameter $\alpha$ governs its slope. From the study of the averages of the different public HRTF databases it follows that, for $\Theta$ between 10° and 30°, the appropriate value is $\alpha \approx 1.5$ to $2.0$.
 
-All the results obtained from the study of the publicly available HRTF databases show that the $\text{ITD}$ and the broadband value $\text{ILD}_{avg}$ present a relatively low dispersion between individuals, especially at the small azimuths customary in stereo reproduction. However, this stability does not imply that the spectral distribution of the ILD is equally stable. Plotting $\text{ILD}_{spectrum}(f)$ reveals a much more irregular structure, with local maxima and minima whose position and amplitude vary between databases and individuals. Hence the decomposition of $G$ proposed for NatAmbio XTC:
+All the results obtained from the study of the publicly available HRTF databases show that the $\text{ITD}$ and the broadband value $`\text{ILD}_{avg}`$ present a relatively low dispersion between individuals, especially at the small azimuths customary in stereo reproduction. However, this stability does not imply that the spectral distribution of the ILD is equally stable. Plotting $`\text{ILD}_{spectrum}(f)`$ reveals a much more irregular structure, with local maxima and minima whose position and amplitude vary between databases and individuals. Hence the decomposition of $G$ proposed for NatAmbio XTC:
 
 ```math
 G \approx \delta \left( \text{ITD}(\Theta),\ \text{ILD}_{avg}(\Theta) \right) \ast \text{ILD}_{spectrum}(\Theta, f)
 ```
 
-That is: $\text{ITD}$ and $\text{ILD}_{avg}$ admit a low-dimensional model, whereas $\text{ILD}_{spectrum}$ needs to be regularized, because reproducing its individual details without knowing the individual introduces false precision.
+That is: $\text{ITD}$ and $`\text{ILD}_{avg}`$ admit a low-dimensional model, whereas $`\text{ILD}_{spectrum}`$ needs to be regularized, because reproducing its individual details without knowing the individual introduces false precision.
 
 ## Implementation of the $G$ model in NatAmbio XTC
 
-Finally, NatAmbio designs its XTC filters from a model of $G$ with three components: $\text{ITD}$, $\text{ILD}_{avg}$ and $\text{ILD}_{spectrum}$.
+Finally, NatAmbio designs its XTC filters from a model of $G$ with three components: $\text{ITD}$, $`\text{ILD}_{avg}`$ and $`\text{ILD}_{spectrum}`$.
 
-$\text{ITD}$ and $\text{ILD}_{avg}$ are user-configurable. The user can employ the regression approximations to obtain initial values as a function of the azimuth $\Theta$ of their audio system, and can then modify those values according to the listening results obtained, for example with [the test signals generated by the NatAmbio `testing_XTC` scripts](../../tools/testing_XTC/README.md).
+$\text{ITD}$ and $`\text{ILD}_{avg}`$ are user-configurable. The user can employ the regression approximations to obtain initial values as a function of the azimuth $\Theta$ of their audio system, and can then modify those values according to the listening results obtained, for example with [the test signals generated by the NatAmbio `testing_XTC` scripts](../../tools/testing_XTC/README.md).
 
-As for $\text{ILD}_{spectrum}$, NatAmbio integrates the proposed empirical formula, and both $\Theta$ and $\alpha$ are user-adjustable.
+As for $`\text{ILD}_{spectrum}`$, NatAmbio integrates the proposed empirical formula, and both $\Theta$ and $\alpha$ are user-adjustable.
 
-This makes it possible to generate XTC in NatAmbio with a simple model, with four parameters —$\text{ITD}$, $\text{ILD}_{avg}$, $\Theta$ and $\alpha$— and a proposal of initial values, while leaving enough freedom for fine tuning.
+This makes it possible to generate XTC in NatAmbio with a simple model, with four parameters —$\text{ITD}$, $`\text{ILD}_{avg}`$, $\Theta$ and $\alpha$— and a proposal of initial values, while leaving enough freedom for fine tuning.
 
-In this way, NatAmbio XTC provides an adjustment model that can operate with a sound system in which the loudspeakers are separated from each other by up to 60° (that is, azimuth $\Theta = 30°$). At larger angles the inter-individual variability of $\text{ITD}$ and $\text{ILD}_{avg}$ increases, while the $\text{ILD}_{spectrum}$ approximation exhibits an increasingly steep slope. To date there is no experience with loudspeaker separations greater than 60°.
+In this way, NatAmbio XTC provides an adjustment model that can operate with a sound system in which the loudspeakers are separated from each other by up to 60° (that is, azimuth $\Theta = 30°$). At larger angles the inter-individual variability of $\text{ITD}$ and $`\text{ILD}_{avg}`$ increases, while the $`\text{ILD}_{spectrum}`$ approximation exhibits an increasingly steep slope. To date there is no experience with loudspeaker separations greater than 60°.
 
-Finally, NatAmbio implements the spectral component of the $G$ model with minimum-phase filters. The motivation is not to reproduce the full phase of a measured HRTF, but to keep the time representation of the magnitude $\text{ILD}_{spectrum}(f)$ as compact as possible, while the physically relevant delay is incorporated explicitly through the $\text{ITD}$.
+Finally, NatAmbio implements the spectral component of the $G$ model with minimum-phase filters. The motivation is not to reproduce the full phase of a measured HRTF, but to keep the time representation of the magnitude $`\text{ILD}_{spectrum}(f)`$ as compact as possible, while the physically relevant delay is incorporated explicitly through the $\text{ITD}$.
 
 In this way, the response associated with $G$ concentrates its energy from the instant defined by the $\text{ITD}$ onwards, without requiring a symmetric response around that instant and without introducing an additional delay to make the filter causal. This property is especially convenient in a recursive structure, since the successive powers $G^{2}, G^{3}, \dots$ retain a clear temporal interpretation: each higher-order term appears only after the corresponding accumulated delay.
 
@@ -231,11 +231,11 @@ In this sense, the choice of minimum phase should be understood as a design deci
 
 Of all the XTC implementations developed, perhaps the most popular has been [RACE (*Recursive Ambiophonic Crosstalk Elimination*)](https://filmaker.com/papers/RGRM-RACE_rev.pdf) from Ambiophonics. RACE was an IIR filter modelled from recursive cancellations, delayed according to the ITD and attenuated according to the ILD. It was conceived for Ambiodipole configurations, with the loudspeakers placed at small angles with respect to the listener.
 
-From the analysis of the RACE recursive algorithm it can be seen that it includes no model of $\text{ILD}_{spectrum}(f)$. A reasonable consequence of this simplification is that the model should work better the closer the actual acoustic response is to a single delay and a single attenuation, which favours small-azimuth geometries. An analysis of the $\text{ILD}_{spectrum}$ model at 5° azimuth shows why this approximation is especially suitable in that case:
+From the analysis of the RACE recursive algorithm it can be seen that it includes no model of $`\text{ILD}_{spectrum}(f)`$. A reasonable consequence of this simplification is that the model should work better the closer the actual acoustic response is to a single delay and a single attenuation, which favours small-azimuth geometries. An analysis of the $`\text{ILD}_{spectrum}`$ model at 5° azimuth shows why this approximation is especially suitable in that case:
 
 ![Normalized ILD versus frequency, 5° azimuth](images/ILD_normalized_az5.png)
 
-Under these conditions, $\text{ILD}_{spectrum}(f)$ has a maximum variation of barely 1.5 dB. At such small azimuth values the $\text{ITD}$ is approximately 45 µs and the $\text{ILD}_{avg}$ is barely 2 dB —the [original RACE paper](https://filmaker.com/papers/RGRM-RACE_rev.pdf) proposes an $\text{ITD}$ of 60 to 100 µs and an $\text{ILD}_{avg}$ of 2 to 3 dB, which is consistent with a small azimuth.
+Under these conditions, $`\text{ILD}_{spectrum}(f)`$ has a maximum variation of barely 1.5 dB. At such small azimuth values the $\text{ITD}$ is approximately 45 µs and the $`\text{ILD}_{avg}`$ is barely 2 dB —the [original RACE paper](https://filmaker.com/papers/RGRM-RACE_rev.pdf) proposes an $\text{ITD}$ of 60 to 100 µs and an $`\text{ILD}_{avg}`$ of 2 to 3 dB, which is consistent with a small azimuth.
 
 In addition, RACE limits the recursive cancellation to the band between 250 Hz and 5 kHz, leaving lower and higher frequencies out of the cancellation process. The lower limit reduces, among other effects, the problems associated with the high energy of recursive cancellations at low frequencies.
 
@@ -243,7 +243,7 @@ Clearly, from 2006 to 2026 real-time processing capacity has increased enormousl
 
 Is it possible that, even for NatAmbio, the best placement is still at azimuths of 5° or less? Since NatAmbio has been developed in a domestic environment and does not have extensive usage statistics, that hypothesis can currently be neither confirmed nor denied. Nevertheless, there is one consideration worth discussing, although it should not yet be regarded as experimentally validated.
 
-One of the most widespread criticisms of XTC in general, and of RACE in particular, was that although it greatly widened the virtual soundstage, it did so at the cost of some coloration. This complaint may be explained, at least in part, by working with $\text{ILD}_{avg}$ values as low as 2 dB.
+One of the most widespread criticisms of XTC in general, and of RACE in particular, was that although it greatly widened the virtual soundstage, it did so at the cost of some coloration. This complaint may be explained, at least in part, by working with $`\text{ILD}_{avg}`$ values as low as 2 dB.
 
 If the relative cross path has approximate magnitude
 
@@ -251,9 +251,9 @@ If the relative cross path has approximate magnitude
 |G| \approx 10^{-\text{ILD}_{avg}/20}
 ```
 
-then with 2 dB its magnitude is approximately $|G| \approx 0.79$, whereas with 10 dB it is $|G| \approx 0.32$. In a recursive structure this difference is especially significant, since the successive terms of the cancellation contain increasing powers of $G$. By way of illustration, $0.79^{5} \approx 0.31$, whereas $0.32^{5} \approx 0.0034$. Therefore, with low $\text{ILD}_{avg}$ values the delayed terms retain appreciable energy over many more iterations, increasing the depth of the comb filtering and the potential spectral coloration.
+then with 2 dB its magnitude is approximately $|G| \approx 0.79$, whereas with 10 dB it is $|G| \approx 0.32$. In a recursive structure this difference is especially significant, since the successive terms of the cancellation contain increasing powers of $G$. By way of illustration, $0.79^{5} \approx 0.31$, whereas $0.32^{5} \approx 0.0034$. Therefore, with low $`\text{ILD}_{avg}`$ values the delayed terms retain appreciable energy over many more iterations, increasing the depth of the comb filtering and the potential spectral coloration.
 
-In the tests carried out with NatAmbio, this mathematical dependence also matches subjective perception: as the $\text{ILD}_{avg}$ used in the model is increased, the tonal changes associated with the cancellation decrease.
+In the tests carried out with NatAmbio, this mathematical dependence also matches subjective perception: as the $`\text{ILD}_{avg}`$ used in the model is increased, the tonal changes associated with the cancellation decrease.
 
 If only the reduction of the energy required for cancellation were considered, it might seem that increasing the azimuth indefinitely would always be favourable and that, therefore, the best loudspeaker arrangement would be $\Theta = 90°$. In this respect it is worth recalling an important perceptual characteristic of a properly adjusted XTC: the virtual central image can be considerably better defined than in conventional stereo reproduction, because the contribution of acoustic crosstalk is reduced. However, this advantage also depends on the geometry: as the azimuth of the loudspeakers is increased excessively, keeping a stable and precise central image becomes progressively more difficult.
 
@@ -265,35 +265,35 @@ It remains to be determined experimentally whether, even with a more complete XT
 
 One of the main difficulties in achieving an optimal XTC effect is the presence of early acoustic reflections from the room or the surroundings. These reflections reach the listener's ears with different delays, levels and angles of incidence, introducing additional paths that do not match the crosstalk model corresponding to the direct sound. Lateral reflections are especially relevant, since they can introduce cross components that reduce the perceptual effectiveness of the cancellation.
 
-During the design and basic validation tests of NatAmbio XTC it has been observed that the $\text{ILD}_{avg}$ value that yields the best perceptual results tends to be somewhat higher than the one estimated from the HRTF databases analysed —of the order of 4 dB higher, as reported in the [example in the main note](xtc_filters_en.md#example-of-filters-obtained-with-this-new-algorithm). Although this behaviour still requires specific experimental validation, the influence of early reflections is proposed as a possible explanation:
+During the design and basic validation tests of NatAmbio XTC it has been observed that the $`\text{ILD}_{avg}`$ value that yields the best perceptual results tends to be somewhat higher than the one estimated from the HRTF databases analysed —of the order of 4 dB higher, as reported in the [example in the main note](xtc_filters_en.md#example-of-filters-obtained-with-this-new-algorithm). Although this behaviour still requires specific experimental validation, the influence of early reflections is proposed as a possible explanation:
 
-- Low $\text{ILD}_{avg}$ values require cancellation signals of greater energy. These signals do not propagate solely along the acoustic path that is meant to be cancelled; they also generate their own early reflections. Part of the advantage observed when using $\text{ILD}_{avg}$ values higher than those derived directly from HRTFs could come from the reduction of this additional acoustic energy: a less intense cancellation would also produce reflected components of lower energy, reducing the possibility that they interfere with the intended localization.
+- Low $`\text{ILD}_{avg}`$ values require cancellation signals of greater energy. These signals do not propagate solely along the acoustic path that is meant to be cancelled; they also generate their own early reflections. Part of the advantage observed when using $`\text{ILD}_{avg}`$ values higher than those derived directly from HRTFs could come from the reduction of this additional acoustic energy: a less intense cancellation would also produce reflected components of lower energy, reducing the possibility that they interfere with the intended localization.
 
 - For the $\text{ITD}$, by contrast, the values estimated from the HRTF databases used have provided an adequate setting without the need to introduce an equivalent correction. This is consistent with the aim of the model: the delay in NatAmbio XTC is set so that the cancellation signal coincides in time with the crosstalk linked to the direct sound. The crosstalk components associated with early reflections arrive later and with varied delays, so trying to accommodate them by modifying the single $\text{ITD}$ of the model would displace the cancellation with respect to the path that is to be cancelled as the priority.
 
-Carrying out a detailed study of the impact of early reflections on crosstalk, taking into account their different delays, levels and arrival angles at the listener's ears, would be very complex. Instead of trying to incorporate that complexity explicitly into the model, NatAmbio uses the HRTF-derived values as an initial reference and allows $\text{ITD}$ and $\text{ILD}_{avg}$ to be adjusted independently. In the experience gained so far, the computed $\text{ITD}$ constitutes a sufficiently stable temporal reference, while the $\text{ILD}_{avg}$ acts as the main parameter for adapting to the acoustic conditions of the room.
+Carrying out a detailed study of the impact of early reflections on crosstalk, taking into account their different delays, levels and arrival angles at the listener's ears, would be very complex. Instead of trying to incorporate that complexity explicitly into the model, NatAmbio uses the HRTF-derived values as an initial reference and allows $\text{ITD}$ and $`\text{ILD}_{avg}`$ to be adjusted independently. In the experience gained so far, the computed $\text{ITD}$ constitutes a sufficiently stable temporal reference, while the $`\text{ILD}_{avg}`$ acts as the main parameter for adapting to the acoustic conditions of the room.
 
 ## A proposed tuning method for NatAmbio XTC
 
-With the $G$ model of NatAmbio XTC developed and its implementation explained, it is time to propose a practical method for determining and adjusting the four parameters involved: $\text{ITD}$, $\text{ILD}_{avg}$, $\Theta$ and $\alpha$.
+With the $G$ model of NatAmbio XTC developed and its implementation explained, it is time to propose a practical method for determining and adjusting the four parameters involved: $\text{ITD}$, $`\text{ILD}_{avg}`$, $\Theta$ and $\alpha$.
 
 First, the actual azimuth $\Theta$ of the sound system must be measured. It is important to stress that this azimuth is half the total opening angle between the loudspeakers as seen from the listener. For instance, a standard stereo layout with 60° of opening corresponds to an azimuth $\Theta = 30°$.
 
-Once that physical measurement is available, the proposed regressions provide first values for $\text{ITD}$ and $\text{ILD}_{avg}$. For the empirical formula of $\text{ILD}_{spectrum}(f)$, one can start from the measured $\Theta$ and an $\alpha$ of 1.8.
+Once that physical measurement is available, the proposed regressions provide first values for $\text{ITD}$ and $`\text{ILD}_{avg}`$. For the empirical formula of $`\text{ILD}_{spectrum}(f)`$, one can start from the measured $\Theta$ and an $\alpha$ of 1.8.
 
-With the system configured as a starting point, the first step is to adjust the $\text{ILD}_{avg}$. Whether with well-known music or with test signals synthesized by the [`testing_XTC`](../../tools/testing_XTC/README.md) scripts, the goal is to achieve a wide soundstage without introducing perceptible tonal coloration. This adjustment can be made in steps of 1 or 2 dB: the acoustic reality of a domestic audio system is not so sensitive as to require very fine adjustments. Likewise, it is common that, within a margin of roughly $\pm 1$ dB around the optimum, the perceived differences are very subtle or plainly imperceptible.
+With the system configured as a starting point, the first step is to adjust the $`\text{ILD}_{avg}`$. Whether with well-known music or with test signals synthesized by the [`testing_XTC`](../../tools/testing_XTC/README.md) scripts, the goal is to achieve a wide soundstage without introducing perceptible tonal coloration. This adjustment can be made in steps of 1 or 2 dB: the acoustic reality of a domestic audio system is not so sensitive as to require very fine adjustments. Likewise, it is common that, within a margin of roughly $\pm 1$ dB around the optimum, the perceived differences are very subtle or plainly imperceptible.
 
-The adjustment of $\alpha$ is done with music or with some sound signal containing strongly panned high-frequency content (percussion or drums, for example). The goal is to reach a value of $\alpha$ at which the treble is perceived as very lateral, but without a sensation of "brightness" or "halo" in the contralateral channel. This is admittedly a somewhat imprecise description, but when tuning real cases the sensation becomes evident. As with the $\text{ILD}_{avg}$, sensitivity to $\alpha$ is not very high: steps smaller than 0.1–0.2 are not practical, and there is usually an interval around the optimal value in which the differences are very subtle or imperceptible.
+The adjustment of $\alpha$ is done with music or with some sound signal containing strongly panned high-frequency content (percussion or drums, for example). The goal is to reach a value of $\alpha$ at which the treble is perceived as very lateral, but without a sensation of "brightness" or "halo" in the contralateral channel. This is admittedly a somewhat imprecise description, but when tuning real cases the sensation becomes evident. As with the $`\text{ILD}_{avg}`$, sensitivity to $\alpha$ is not very high: steps smaller than 0.1–0.2 are not practical, and there is usually an interval around the optimal value in which the differences are very subtle or imperceptible.
 
 At this point, the sensitivity of the system to small $\text{ITD}$ variations may also be explored, although the main tuning objective has already been achieved.
 
-In systems where the lateral extent of the virtual sound sources is asymmetric, the [asymmetric XTC model](xtc_no_simetrico_en.md) must be used. The model and the parametrization are identical, but two different sets of parameters are used, one per channel. A practical starting proposal in this case is to copy the values obtained in the symmetric adjustment and begin by slightly increasing the $\text{ILD}_{avg}$ of the side that shows the narrower soundstage. This recommendation follows from the hypothesis put forward above: if the asymmetry is related to a greater contribution of early reflections on that side, reducing the cancellation energy may also reduce the excitation of those reflected paths. It should therefore be regarded as an experimental starting point and not as a general rule.
+In systems where the lateral extent of the virtual sound sources is asymmetric, the [asymmetric XTC model](xtc_no_simetrico_en.md) must be used. The model and the parametrization are identical, but two different sets of parameters are used, one per channel. A practical starting proposal in this case is to copy the values obtained in the symmetric adjustment and begin by slightly increasing the $`\text{ILD}_{avg}`$ of the side that shows the narrower soundstage. This recommendation follows from the hypothesis put forward above: if the asymmetry is related to a greater contribution of early reflections on that side, reducing the cancellation energy may also reduce the excitation of those reflected paths. It should therefore be regarded as an experimental starting point and not as a general rule.
 
 Once a satisfactory setting is reached, it is advisable not to prolong the tests unnecessarily. It is preferable to enjoy ordinary music listening for a while and, after a period of acclimatization, return to fine tuning if desired. The goal is not to find a unique mathematical combination of parameters, but a stable operating region in which soundstage width, localization and tonal balance are satisfactory.
 
 ## Notes
 
-[^1]: The $\text{ITD}$ was obtained as the delay applied to the ipsilateral channel that maximizes the correlation between both channels, averaging the values obtained at azimuth $\Theta$ and $180° - \Theta$. The $\text{ILD}_{avg}$ is the ratio between the energies of the two impulse responses. The $\text{ILD}_{spectrum}(f)$ was obtained by convolving the impulse responses with a gammatone filterbank spaced 1 ERB apart (Glasberg and Moore model), averaging over the bandwidth of each ERB step and, finally, taking the ratio between the ipsilateral and the contralateral channel.
+[^1]: The $\text{ITD}$ was obtained as the delay applied to the ipsilateral channel that maximizes the correlation between both channels, averaging the values obtained at azimuth $\Theta$ and $180° - \Theta$. The $`\text{ILD}_{avg}`$ is the ratio between the energies of the two impulse responses. The $`\text{ILD}_{spectrum}(f)`$ was obtained by convolving the impulse responses with a gammatone filterbank spaced 1 ERB apart (Glasberg and Moore model), averaging over the bandwidth of each ERB step and, finally, taking the ratio between the ipsilateral and the contralateral channel.
 
 ## References
 
@@ -303,7 +303,7 @@ Once a satisfactory setting is reached, it is advisable not to prolong the tests
 
 **Auditory models**
 
-2. Glasberg, B. R. & Moore, B. C. J. (1990). Derivation of auditory filter shapes from notched-noise data. *Hearing Research* 47(1–2), 103–138. <https://doi.org/10.1016/0378-5955(90)90170-T> (Gammatone filterbank and ERB scale used in the computation of $\text{ILD}_{spectrum}$.)
+2. Glasberg, B. R. & Moore, B. C. J. (1990). Derivation of auditory filter shapes from notched-noise data. *Hearing Research* 47(1–2), 103–138. <https://doi.org/10.1016/0378-5955(90)90170-T> (Gammatone filterbank and ERB scale used in the computation of $`\text{ILD}_{spectrum}`$.)
 
 **HRTF datasets**
 
