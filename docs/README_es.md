@@ -84,6 +84,7 @@ Finalmente, se recoge una selección comentada de grabaciones especialmente rele
 - [NatAmbio Ambient Extractor (NAE)](nae/nae_es.md): Algoritmo de extracción de las trazas ambientales de una grabación estéreo
 - [Diseño de un cancelador de diafonía estéreo (XTC) por convolución para NatAmbio](xtc/xtc_filters_es.md)
 - [Aplicación de NatAmbio XTC en entornos no simétricos](xtc/xtc_no_simetrico_es.md)
+- [Parametrización del operador G en NatAmbio XTC](xtc/parametrizacion_en_XTC.md): cómo se derivan los cuatro parámetros del XTC a partir de bases de datos HRTF públicas, y cómo ajustarlos por escucha
 - [Aplicación de PCA a las medidas acústicas impulsivas de altavoces](pca4drc/pca4drc_es.md)
 
 ### Documentación de uso de NatAmbio

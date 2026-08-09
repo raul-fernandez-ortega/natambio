@@ -84,6 +84,7 @@ Finally, a commented selection of recordings that proved especially relevant dur
 - [NatAmbio Ambient Extractor (NAE)](nae/nae_en.md): an algorithm for extracting the ambient traces of a stereo recording.
 - [Design of a stereo crosstalk canceller (XTC) by convolution for NatAmbio](xtc/xtc_filters_en.md).
 - [Applying NatAmbio XTC in non-symmetric setups](xtc/xtc_no_simetrico_en.md).
+- [Parametrization of the operator G in NatAmbio XTC](xtc/XTC_parametrization_en.md): how the four XTC parameters are derived from public HRTF databases, and how to tune them by listening.
 - [Application of PCA to impulsive acoustic measurements of loudspeakers](pca4drc/pca4drc_en.md).
 
 ### NatAmbio usage documentation
