@@ -293,7 +293,7 @@ Llegados a un ajuste satisfactorio, es conveniente no prolongar innecesariamente
 
 ## Notas
 
-[^1]: El $\text{ITD}$ se ha obtenido como el retardo aplicado al canal ipsilateral que maximiza la correlación entre ambos canales, promediando los valores obtenidos a azimut $\Theta$ y $180° - \Theta$. El $`\text{ILD}_{avg}`$ es el cociente entre las energías de ambas impulsivas. El $`\text{ILD}_{spectrum}(f)`$ se ha obtenido mediante la convolución de las impulsivas por un banco de filtros gammatone con un salto de 1 ERB entre ellos (modelo de Glasberg y Moore), su promediado por el ancho de banda de cada paso ERB y, finalmente, el cociente entre canal ipsilateral y canal contralateral.
+[^1]: El ITD se ha obtenido como el retardo aplicado al canal ipsilateral que maximiza la correlación entre ambos canales, promediando los valores obtenidos a azimut Θ y 180° − Θ. El ILD promedio es el cociente entre las energías de ambas impulsivas. El espectro de ILD se ha obtenido mediante la convolución de las impulsivas por un banco de filtros gammatone con un salto de 1 ERB entre ellos (modelo de Glasberg y Moore), su promediado por el ancho de banda de cada paso ERB y, finalmente, el cociente entre canal ipsilateral y canal contralateral.
 
 ## Referencias
 

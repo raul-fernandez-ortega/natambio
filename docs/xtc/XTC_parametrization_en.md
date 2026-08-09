@@ -293,7 +293,7 @@ Once a satisfactory setting is reached, it is advisable not to prolong the tests
 
 ## Notes
 
-[^1]: The $\text{ITD}$ was obtained as the delay applied to the ipsilateral channel that maximizes the correlation between both channels, averaging the values obtained at azimuth $\Theta$ and $180° - \Theta$. The $`\text{ILD}_{avg}`$ is the ratio between the energies of the two impulse responses. The $`\text{ILD}_{spectrum}(f)`$ was obtained by convolving the impulse responses with a gammatone filterbank spaced 1 ERB apart (Glasberg and Moore model), averaging over the bandwidth of each ERB step and, finally, taking the ratio between the ipsilateral and the contralateral channel.
+[^1]: The ITD was obtained as the delay applied to the ipsilateral channel that maximizes the correlation between both channels, averaging the values obtained at azimuth Θ and 180° − Θ. The average ILD is the ratio between the energies of the two impulse responses. The ILD spectrum was obtained by convolving the impulse responses with a gammatone filterbank spaced 1 ERB apart (Glasberg and Moore model), averaging over the bandwidth of each ERB step and, finally, taking the ratio between the ipsilateral and the contralateral channel.
 
 ## References
 
