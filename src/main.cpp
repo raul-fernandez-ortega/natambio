@@ -67,21 +67,25 @@ int main(int argc,char *argv[])
 
     if(quiet) 
       n_NatAmbio->setQuiet();
+    /* Every startup failure below exits non-zero: natambio normally runs as a
+       systemd service, and exiting 0 on a failed start reports success to the
+       service manager -- the run then looks fine in systemctl status even though
+       no audio was ever processed. Only the shutdown at the end returns 0. */
     if(!(n_NatAmbio->configXML(config_filename))) {
       delete n_NatAmbio;
-      exit(0);
-      return 0;
-    }  
+      exit(1);
+      return 1;
+    }
     if(!(n_NatAmbio->jackStart())) {
       delete n_NatAmbio;
-      exit(0);
-      return 0;
+      exit(1);
+      return 1;
     }
     if(!(n_NatAmbio->startConvProc())) {
       delete n_NatAmbio;
-      exit(0);
-      return 0;
-    } 
+      exit(1);
+      return 1;
+    }
     n_NatAmbio->connectPorts();
 
     /* start! */
