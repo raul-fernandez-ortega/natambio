@@ -67,8 +67,8 @@ public:
   bool global_init(void);
   bool addInputPort(string port_name);
   bool addOutputPort(string port_name);
-  void ConnectInputPort(string port_name, string dest_name);
-  void ConnectOutputPort(string port_name, string dest_name);
+  bool ConnectInputPort(string port_name, string dest_name);
+  bool ConnectOutputPort(string port_name, string dest_name);
   void addConvChannel(ConvChannel* conv_channel);
   void addNaeChannel(NAE* n_nae);
   bool connectInputConvPort(string port_name, ConvChannel* channel);
@@ -92,8 +92,10 @@ public:
   int synch_start(void);
   void synch_stop(void);
 
-  bool connect_port(string port_name, string dest_name);   
-  bool disconnect_port(string port_name, string dest_name); 
+  // Both return JACK's own status: 0 on success, EEXIST if the connection is
+  // already made (already broken, for disconnect), any other non-zero on failure.
+  int connect_port(string port_name, string dest_name);
+  int disconnect_port(string port_name, string dest_name);
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

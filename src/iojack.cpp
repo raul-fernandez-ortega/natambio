@@ -91,11 +91,13 @@ int ioJack::jack_process_callback(jack_nframes_t n_frames, void *arg)
   return reinterpret_cast<ioJack *>(arg)->na_process_callback(n_frames);
 }
 
+/* Called by libjack from its own C frames (a failed jack_connect() reports here
+   first), so this must not throw: unwinding through C code is undefined, and it
+   would abort the process before the caller could act on the return value it is
+   about to get. Report and let the caller decide. */
 void ioJack::error_callback(const char* msg)
 {
-  string fmsg = "JACK I/O: JACK reported an error: %s";
-  fmsg += msg;
-  throw std::runtime_error(fmsg);
+  std::cerr << "ioJack: JACK reported an error: " << msg << std::endl;
 }
 
 int ioJack::na_process_callback(jack_nframes_t n_frames)
@@ -350,34 +352,57 @@ bool ioJack::addOutputPort(string port_name)
   return true;
 }
 
-void ioJack::ConnectInputPort(string port_name, string dest_name)
+/* An empty <destname> means "register the port but leave it unconnected", which
+   is how a pipe is parked for later patching, so it is not a failure. A
+   connection that already exists is not one either. Anything else is: the
+   configured signal path is not what the XML asked for, and going on would run
+   natambio with a silently broken chain. */
+bool ioJack::ConnectInputPort(string port_name, string dest_name)
 {
   string connect_port_name;
   int connected;
-  if(dest_name.size() > 0) {
-    connect_port_name = (string)client_name + ":" + port_name;
-    connected = connect_port(dest_name, connect_port_name);
-    if(connected == 0) {
-      if(!quiet) 
-	std::cout << "ioJack: Input port connected: " << connect_port_name << "<----->" << dest_name << std::endl;
-    } else if(connected == EEXIST)
-      throw std::runtime_error("JACK I/O: connection already exists "+ connect_port_name + "<----->" + dest_name + " \n");
+  if(dest_name.size() == 0)
+    return true;
+  connect_port_name = (string)client_name + ":" + port_name;
+  connected = connect_port(dest_name, connect_port_name);
+  if(connected == 0) {
+    if(!quiet)
+      std::cout << "ioJack: Input port connected: " << connect_port_name << "<----->" << dest_name << std::endl;
+    return true;
   }
+  if(connected == EEXIST) {
+    if(!quiet)
+      std::cout << "ioJack: Input port already connected: " << connect_port_name << "<----->" << dest_name << std::endl;
+    return true;
+  }
+  std::cerr << "ioJack: could not connect input port " << dest_name << " -----> " << connect_port_name
+	    << " (JACK returned " << connected << "). Check that " << dest_name
+	    << " exists and is a source port (jack_lsp)." << std::endl;
+  return false;
 }
 
-void ioJack::ConnectOutputPort(string port_name, string dest_name)
+bool ioJack::ConnectOutputPort(string port_name, string dest_name)
 {
   string connect_port_name;
   int connected;
-  if(dest_name.size() > 0) {
-    connect_port_name = (string)client_name + ":" + port_name;
-    connected = connect_port(connect_port_name, dest_name);
-    if(connected == 0) {
-      if(!quiet)
-	std::cout << "ioJack: Output port connected: " << connect_port_name << "<----->" << dest_name << std::endl;
-    } else if(connected == EEXIST)
-      throw std::runtime_error("JACK I/O: connection already exists "+ connect_port_name + "<----->" + dest_name + " \n");
+  if(dest_name.size() == 0)
+    return true;
+  connect_port_name = (string)client_name + ":" + port_name;
+  connected = connect_port(connect_port_name, dest_name);
+  if(connected == 0) {
+    if(!quiet)
+      std::cout << "ioJack: Output port connected: " << connect_port_name << "<----->" << dest_name << std::endl;
+    return true;
   }
+  if(connected == EEXIST) {
+    if(!quiet)
+      std::cout << "ioJack: Output port already connected: " << connect_port_name << "<----->" << dest_name << std::endl;
+    return true;
+  }
+  std::cerr << "ioJack: could not connect output port " << connect_port_name << " -----> " << dest_name
+	    << " (JACK returned " << connected << "). Check that " << dest_name
+	    << " exists and is a sink port (jack_lsp)." << std::endl;
+  return false;
 }
 
 void ioJack::addConvChannel(ConvChannel* conv_channel)
@@ -483,26 +508,18 @@ int ioJack::synch_start(void)
   return 0;
 }
 
-bool ioJack::connect_port(string port_name, string dest_name) 
+/* Pass JACK's own status through to the caller: 0 on success, EEXIST when the
+   connection is already made, any other non-zero on failure. The callers need to
+   tell those three apart -- an existing connection is not a problem, a refused
+   one is -- and they could not when this returned a bool and threw on failure. */
+int ioJack::connect_port(string port_name, string dest_name)
 {
-  if (jack_connect(jackclient, port_name.c_str(), dest_name.c_str()) != 0) {
-    string msg = "JACK I/O: Could not connect local port " + port_name + " to " + dest_name + "\n";
-    throw std::runtime_error(msg.c_str());
-    return false;
-  } else {
-    return true;
-  }
+  return jack_connect(jackclient, port_name.c_str(), dest_name.c_str());
 }
 
-bool ioJack::disconnect_port(string port_name, string dest_name) 
+int ioJack::disconnect_port(string port_name, string dest_name)
 {
-  if (jack_disconnect(jackclient, port_name.c_str(), dest_name.c_str()) != 0) {
-    string msg = "JACK I/O: Could not disconnect local port " + port_name + " to " + dest_name + "\n";
-    throw std::runtime_error(msg.c_str());
-    return false;
-  } else {
-    return true;
-  }
+  return jack_disconnect(jackclient, port_name.c_str(), dest_name.c_str());
 }
 
 const char ** ioJack::get_jack_port_connections(string port_name)

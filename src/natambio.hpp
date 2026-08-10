@@ -39,7 +39,7 @@ public:
   int queryJackSampleRate(void);
   bool configXML(string fileName);
   bool jackStart(void);
-  void connectPorts(void);
+  bool connectPorts(void);
   bool startConvProc(void);
   bool startNAE(void);
   NAE *newNAE(struct s_nae *n_nae);

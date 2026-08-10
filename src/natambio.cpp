@@ -463,20 +463,27 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   return n_nae_p;
 }
 
-void NatAmbio::connectPorts(void)
+/* Attempt every connection before giving up, so one run of the log lists all the
+   ports that could not be patched instead of only the first one. */
+bool NatAmbio::connectPorts(void)
 {
+  bool all_connected = true;
+
   for(std::vector<struct jackport*>::iterator it = naConf->jackclient->inports.begin() ; it != naConf->jackclient->inports.end(); ++it) {
     if(!quiet) {
-      
+
       cout << "NatAmbio: connecting input port " << (*it)->name << " to " << (*it)->destname << endl;
     }
-    naJack->ConnectInputPort((*it)->name, (*it)->destname);
+    if(!(naJack->ConnectInputPort((*it)->name, (*it)->destname)))
+      all_connected = false;
   }
   for(std::vector<struct jackport*>::iterator it = naConf->jackclient->outports.begin() ; it != naConf->jackclient->outports.end(); ++it) {
-    if(!quiet) 
+    if(!quiet)
       cout << "NatAmbio: connecting output port " << (*it)->name << " to " << (*it)->destname << endl;
-    naJack->ConnectOutputPort((*it)->name, (*it)->destname);
+    if(!(naJack->ConnectOutputPort((*it)->name, (*it)->destname)))
+      all_connected = false;
   }
+  return all_connected;
 }
 
 bool NatAmbio::convprocCheckStop(void)

@@ -86,7 +86,13 @@ int main(int argc,char *argv[])
       exit(1);
       return 1;
     }
-    n_NatAmbio->connectPorts();
+    if(!(n_NatAmbio->connectPorts())) {
+      fprintf(stderr, "natambio: some JACK connections requested by the configuration "
+	      "could not be made; refusing to run with an incomplete signal path.\n");
+      delete n_NatAmbio;
+      exit(1);
+      return 1;
+    }
 
     /* start! */
     signal(SIGINT, sigint_handler); 
