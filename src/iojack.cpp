@@ -249,6 +249,24 @@ bool ioJack::global_init(void)
     sleep(1);
     return false;
   }
+  // jack_client_open() is called without JackUseExactName, so JACK does not fail
+  // on a duplicate name: it grants a unique variant ("natambio-01") instead. Adopt
+  // the granted name here -- ConnectInputPort()/ConnectOutputPort() build their
+  // "<client>:<port>" strings from client_name, and using the requested name would
+  // make every connection target a client that does not exist. Keeping this in
+  // sync is what allows several natambio instances to run in parallel from the
+  // same XML (one pipe per instance, switched at the JACK graph).
+  const char *granted_name = jack_get_client_name(jackclient);
+  if (granted_name != NULL && strcmp(granted_name, client_name) != 0) {
+    std::cerr << "ioJack: JACK client name \"" << client_name << "\" was already in use; "
+	      << "running as \"" << granted_name << "\"" << std::endl;
+    char *adopted = strdup(granted_name);
+    if (adopted != NULL) {
+      free(client_name);
+      client_name = adopted;
+    }
+  }
+
   sample_rate = (int)jack_get_sample_rate(jackclient);
   fragment_size = jack_get_buffer_size(jackclient);
   if (fragment_size < 32) {
