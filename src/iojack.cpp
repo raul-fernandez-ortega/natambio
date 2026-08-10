@@ -277,8 +277,22 @@ bool ioJack::global_init(void)
     throw std::runtime_error("Fragment size is too large\n");
     return false;
   }
-  if (jack_is_realtime(jackclient) == 0)
-    throw std::runtime_error("JACK I/O: Warning: JACK is not running with SCHED_FIFO or SCHED_RR (realtime).\n");
+  // Realtime JACK is a hard requirement, not a warning: the convolver partitions
+  // and the NAE threads run at the priority JACK hands out, and without SCHED_FIFO
+  // or SCHED_RR they get no scheduling guarantee at all. Report and give up here
+  // rather than throwing -- global_init()'s bool return is handled all the way up
+  // to main(), so the user sees this message instead of an uncaught-exception abort.
+  if (jack_is_realtime(jackclient) == 0) {
+    std::cerr << "ioJack: JACK is running without realtime scheduling (neither SCHED_FIFO\n"
+	      << "        nor SCHED_RR). natambio requires a realtime JACK server and will\n"
+	      << "        not start without one.\n"
+	      << "        Start the server with realtime scheduling enabled, for example:\n"
+	      << "            jackd -R -P 70 -d alsa -d hw:0 -r 48000 -p 256 -n 3\n"
+	      << "        If jackd refuses to go realtime, check that the user may take\n"
+	      << "        realtime priorities (membership of the audio group and the\n"
+	      << "        rtprio/memlock limits in /etc/security/limits.d)." << std::endl;
+    return false;
+  }
 
   priority = jack_client_real_time_priority(jackclient);
   pthread_getschedparam (jack_client_thread_id(jackclient), &policy, &spar);
