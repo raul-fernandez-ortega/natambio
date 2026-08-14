@@ -73,6 +73,8 @@ private:
   double gain_main;
   double gain_amb;
   double gain_main_surround;
+  double pan_scale;  // configured panning rescale of C1, [-1, 1]
+  double pan_side;   // 1 + 2*pan_scale, the factor actually applied
   int covsteps;
   double *comps;
   CovMatrix covM;
@@ -107,6 +109,7 @@ public:
   bool setMainGain(double gain);
   bool setAmbGain(double gain);
   bool setSurrGain(double gain);
+  void setPanScale(double n_pan_scale);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
   void setChannelIn(enum side n_side, string n_channel_in);
