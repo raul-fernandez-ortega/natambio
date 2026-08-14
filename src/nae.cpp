@@ -623,23 +623,34 @@ void NAE::thr_process(void)
       double ps_main = pan_side_main;
       double ps_amb = pan_side_amb;
       if(pan_scale != 0) {
-	// A component's quiet channel vanishes when |factor * tan(theta)|
-	// reaches 1, theta being the rotation of the principal axis, which
-	// eigvectors[0] carries as (cos theta, sin theta). Sitting near that
-	// point turns the small wobble of the axis -- half a degree of standard
-	// deviation on real material -- into swings of tens of dB in the image.
-	// Hold both factors below it, never below 1, so that the untouched
-	// behaviour is never made more conservative than it already is.
+	// How far the rescale is allowed to go, both bounds resting on the
+	// rotation of the principal axis, which eigvectors[0] carries as
+	// (cos theta, sin theta). A component's coefficients go as
+	// 1 + factor*tan(theta) and 1 - factor*tan(theta).
+	//
+	// Downwards, a factor of zero puts a component at the centre: the main
+	// one collapses to mono, the ambience one to two channels of equal
+	// level. A negative factor would mirror the imbalance instead, carrying
+	// the component past the centre to the other side, so zero is the floor.
+	//
+	// Upwards, the quiet channel vanishes at |factor*tan(theta)| = 1 and
+	// grows again beyond it in the opposite polarity: anti phase for the
+	// main component, in phase for the ambience one. It is held to half the
+	// level of the other channel, |quiet| <= 0.5*|loud|, which works out as
+	// |factor*tan(theta)| <= 3 for either of them. The ceiling is never
+	// taken below 1, so the untouched behaviour is never made more
+	// conservative than it already is.
 	double sn = fabs(eigvectors[0][1]);
 	double cs = fabs(eigvectors[0][0]);
+	double hi = -1.0;                    // negative: nothing to bound
 	if(sn > 0.0) {
-	  double lim = NAE_PAN_MAX_TAN*cs/sn;
-	  if(lim < 1.0) lim = 1.0;
-	  if(ps_main > lim) ps_main = lim;
-	  else if(ps_main < -lim) ps_main = -lim;
-	  if(ps_amb > lim) ps_amb = lim;
-	  else if(ps_amb < -lim) ps_amb = -lim;
+	  hi = NAE_PAN_MAX_TAN*cs/sn;
+	  if(hi < 1.0) hi = 1.0;
 	}
+	if(ps_main < 0.0) ps_main = 0.0;
+	else if(hi > 0.0 && ps_main > hi) ps_main = hi;
+	if(ps_amb < 0.0) ps_amb = 0.0;
+	else if(hi > 0.0 && ps_amb > hi) ps_amb = hi;
       }
       for(int  i = 0; i < sample_count; i++) {
 	left_main = (pca.mid_left[i] + ps_main*pca.mid_right[i])/(norm_covsteps);

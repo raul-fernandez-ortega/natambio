@@ -36,11 +36,11 @@ using namespace std;
 #define NAECOEFF -2.5
 
 // Panning rescale (<pan_scale>). A component's quiet channel vanishes when
-// |(1+2*pan_scale) * tan(theta)| reaches 1, theta being the rotation of the
-// principal axis, and near that point the block to block wobble of the axis
-// turns into wild swings of the image. The applied factor is held below that
-// point: 0.9 caps a component at 25.6 dB of panning.
-#define NAE_PAN_MAX_TAN 0.9
+// |factor * tan(theta)| reaches 1, theta being the rotation of the principal
+// axis, and grows again past that point in the opposite polarity. Holding it
+// to half the level of the other channel, |quiet| <= 0.5*|loud|, gives
+// |factor * tan(theta)| <= 3.
+#define NAE_PAN_MAX_TAN 3.0
 
 typedef struct {
   double *sum_xy_array;
