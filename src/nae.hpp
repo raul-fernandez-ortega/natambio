@@ -35,6 +35,13 @@ using namespace std;
 #define ICORRL 20
 #define NAECOEFF -2.5
 
+// Panning rescale (<pan_scale>). A component's quiet channel vanishes when
+// |(1+2*pan_scale) * tan(theta)| reaches 1, theta being the rotation of the
+// principal axis, and near that point the block to block wobble of the axis
+// turns into wild swings of the image. The applied factor is held below that
+// point: 0.9 caps a component at 25.6 dB of panning.
+#define NAE_PAN_MAX_TAN 0.9
+
 typedef struct {
   double *sum_xy_array;
   double *sum_x2_array;
@@ -73,8 +80,9 @@ private:
   double gain_main;
   double gain_amb;
   double gain_main_surround;
-  double pan_scale;  // configured panning rescale of C1, [-1, 1]
-  double pan_side;   // 1 + 2*pan_scale, the factor actually applied
+  double pan_scale;       // configured panning rescale, [-1, 1]
+  double pan_side_main;   // 1 + 2*pan_scale, applied to the main component
+  double pan_side_amb;    // 1 - 2*pan_scale, applied to the ambience one
   int covsteps;
   double *comps;
   CovMatrix covM;

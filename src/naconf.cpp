@@ -901,9 +901,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     std::cout << "\t\tFront main gain: " << nae->gain_main << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_amb << std::endl;
     if(nae->pan_scale != 0) {
-      std::cout << "\t\tPrincipal component pan scale: " << nae->pan_scale
-		<< " (" << ((nae->pan_scale > 0) ? "widening" : "narrowing")
-		<< ", channel difference x " << (1.0 + 2.0*nae->pan_scale) << ")" << std::endl;
+      std::cout << "\t\tPan scale: " << nae->pan_scale << " ("
+		<< ((nae->pan_scale > 0) ? "main widening" : "main narrowing")
+		<< " x " << (1.0 + 2.0*nae->pan_scale) << ", ambience x "
+		<< (1.0 - 2.0*nae->pan_scale) << ")" << std::endl;
     }
   }
   if(!nae->left_out.empty())

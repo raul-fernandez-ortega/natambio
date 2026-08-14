@@ -154,7 +154,8 @@ NAE::NAE(string n_name, int n_mode)
   mid_right_name_out = "";
   side_right_name_out = "";
   pan_scale = 0;
-  pan_side = 1.0;
+  pan_side_main = 1.0;
+  pan_side_amb = 1.0;
 }
 
 NAE::~NAE(void)
@@ -213,8 +214,11 @@ bool NAE::setSurrGain(double gain)
 void NAE::setPanScale(double n_pan_scale)
 {
   pan_scale = n_pan_scale;
-  // See thr_process() for where this comes from.
-  pan_side = 1.0 + 2.0*pan_scale;
+  // The two components lean to opposite sides, so they take opposite signs:
+  // widening the main one while the ambience one gathers towards the centre.
+  // See thr_process() for where these come from.
+  pan_side_main = 1.0 + 2.0*pan_scale;
+  pan_side_amb = 1.0 - 2.0*pan_scale;
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -601,18 +605,47 @@ void NAE::thr_process(void)
       //     e = left_amb + right_amb
       //     left_amb += pan_scale*e,  right_amb += pan_scale*e
       //
-      // Both reduce to scaling one accumulator by (1 + 2*pan_scale): whichever
-      // of the two is the subdominant one, mid_right for the mid dominated C1
-      // and side_left for the side dominated C2. Under either form the power
-      // imbalance of the component, |L|^2 - |R|^2, ends up scaled by exactly
-      // that same factor, so one setting acts on the two components alike.
-      // Written this way it costs nothing when the feature is off, pan_side
+      // Both reduce to scaling one accumulator: whichever of the two is the
+      // subdominant one, mid_right for the mid dominated C1 and side_left for
+      // the side dominated C2. Under either form the power imbalance of the
+      // component, |L|^2 - |R|^2, ends up scaled by that factor.
+      //
+      // The signs are opposite, (1 + 2*pan_scale) against (1 - 2*pan_scale),
+      // because the two components lean to opposite sides -- which follows from
+      // their being orthogonal, their imbalances being exact mirrors of each
+      // other. Driving both with the same sign pulls them apart and leaves the
+      // direct sound and the ambience contradicting each other, which is heard
+      // as an image that will not settle. With opposite signs the main
+      // component spreads while the ambience one gathers towards the centre.
+      //
+      // Written this way it costs nothing when the feature is off, both factors
       // being 1, and adds no branch to the loop.
+      double ps_main = pan_side_main;
+      double ps_amb = pan_side_amb;
+      if(pan_scale != 0) {
+	// A component's quiet channel vanishes when |factor * tan(theta)|
+	// reaches 1, theta being the rotation of the principal axis, which
+	// eigvectors[0] carries as (cos theta, sin theta). Sitting near that
+	// point turns the small wobble of the axis -- half a degree of standard
+	// deviation on real material -- into swings of tens of dB in the image.
+	// Hold both factors below it, never below 1, so that the untouched
+	// behaviour is never made more conservative than it already is.
+	double sn = fabs(eigvectors[0][1]);
+	double cs = fabs(eigvectors[0][0]);
+	if(sn > 0.0) {
+	  double lim = NAE_PAN_MAX_TAN*cs/sn;
+	  if(lim < 1.0) lim = 1.0;
+	  if(ps_main > lim) ps_main = lim;
+	  else if(ps_main < -lim) ps_main = -lim;
+	  if(ps_amb > lim) ps_amb = lim;
+	  else if(ps_amb < -lim) ps_amb = -lim;
+	}
+      }
       for(int  i = 0; i < sample_count; i++) {
-	left_main = (pca.mid_left[i] + pan_side*pca.mid_right[i])/(norm_covsteps);
-	right_main = (pca.mid_left[i] - pan_side*pca.mid_right[i])/(norm_covsteps);
-	left_amb = (pan_side*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_amb = (pan_side*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
+	left_main = (pca.mid_left[i] + ps_main*pca.mid_right[i])/(norm_covsteps);
+	right_main = (pca.mid_left[i] - ps_main*pca.mid_right[i])/(norm_covsteps);
+	left_amb = (ps_amb*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
+	right_amb = (ps_amb*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
 	left_out[i]  = gain_main*left_main + gain_amb*left_amb;
 	right_out[i] = gain_main*right_main + gain_amb*right_amb;
 	mid_left_out[i] = gain_main*left_main;
