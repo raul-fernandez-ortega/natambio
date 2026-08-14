@@ -80,9 +80,8 @@ private:
   double gain_main;
   double gain_amb;
   double gain_main_surround;
-  double pan_scale;       // configured panning rescale, [-1, 1]
-  double pan_side_main;   // 1 + 2*pan_scale, applied to the main component
-  double pan_side_amb;    // 1 - 2*pan_scale, applied to the ambience one
+  double pan_scale;  // configured panning rescale, [-1, 1]
+  double pan_side;   // 1 + 2*pan_scale, applied to both components
   int covsteps;
   double *comps;
   CovMatrix covM;

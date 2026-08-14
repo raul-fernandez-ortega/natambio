@@ -154,8 +154,7 @@ NAE::NAE(string n_name, int n_mode)
   mid_right_name_out = "";
   side_right_name_out = "";
   pan_scale = 0;
-  pan_side_main = 1.0;
-  pan_side_amb = 1.0;
+  pan_side = 1.0;
 }
 
 NAE::~NAE(void)
@@ -214,11 +213,9 @@ bool NAE::setSurrGain(double gain)
 void NAE::setPanScale(double n_pan_scale)
 {
   pan_scale = n_pan_scale;
-  // The two components lean to opposite sides, so they take opposite signs:
-  // widening the main one while the ambience one gathers towards the centre.
-  // See thr_process() for where these come from.
-  pan_side_main = 1.0 + 2.0*pan_scale;
-  pan_side_amb = 1.0 - 2.0*pan_scale;
+  // Both components take the same factor. See thr_process() for where it
+  // comes from and for the bounds applied to it.
+  pan_side = 1.0 + 2.0*pan_scale;
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -610,18 +607,15 @@ void NAE::thr_process(void)
       // the side dominated C2. Under either form the power imbalance of the
       // component, |L|^2 - |R|^2, ends up scaled by that factor.
       //
-      // The signs are opposite, (1 + 2*pan_scale) against (1 - 2*pan_scale),
-      // because the two components lean to opposite sides -- which follows from
-      // their being orthogonal, their imbalances being exact mirrors of each
-      // other. Driving both with the same sign pulls them apart and leaves the
-      // direct sound and the ambience contradicting each other, which is heard
-      // as an image that will not settle. With opposite signs the main
-      // component spreads while the ambience one gathers towards the centre.
+      // Both components take the same factor. They lean to opposite sides to
+      // begin with -- their imbalances are exact mirrors of each other, which
+      // follows from their being orthogonal -- so a positive setting opens the
+      // two of them away from each other and a negative one brings both towards
+      // the centre, where the floor below stops them.
       //
-      // Written this way it costs nothing when the feature is off, both factors
+      // Written this way it costs nothing when the feature is off, the factor
       // being 1, and adds no branch to the loop.
-      double ps_main = pan_side_main;
-      double ps_amb = pan_side_amb;
+      double ps = pan_side;
       if(pan_scale != 0) {
 	// How far the rescale is allowed to go, both bounds resting on the
 	// rotation of the principal axis, which eigvectors[0] carries as
@@ -647,16 +641,14 @@ void NAE::thr_process(void)
 	  hi = NAE_PAN_MAX_TAN*cs/sn;
 	  if(hi < 1.0) hi = 1.0;
 	}
-	if(ps_main < 0.0) ps_main = 0.0;
-	else if(hi > 0.0 && ps_main > hi) ps_main = hi;
-	if(ps_amb < 0.0) ps_amb = 0.0;
-	else if(hi > 0.0 && ps_amb > hi) ps_amb = hi;
+	if(ps < 0.0) ps = 0.0;
+	else if(hi > 0.0 && ps > hi) ps = hi;
       }
       for(int  i = 0; i < sample_count; i++) {
-	left_main = (pca.mid_left[i] + ps_main*pca.mid_right[i])/(norm_covsteps);
-	right_main = (pca.mid_left[i] - ps_main*pca.mid_right[i])/(norm_covsteps);
-	left_amb = (ps_amb*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_amb = (ps_amb*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
+	left_main = (pca.mid_left[i] + ps*pca.mid_right[i])/(norm_covsteps);
+	right_main = (pca.mid_left[i] - ps*pca.mid_right[i])/(norm_covsteps);
+	left_amb = (ps*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
+	right_amb = (ps*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
 	left_out[i]  = gain_main*left_main + gain_amb*left_amb;
 	right_out[i] = gain_main*right_main + gain_amb*right_amb;
 	mid_left_out[i] = gain_main*left_main;
