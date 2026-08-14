@@ -574,29 +574,45 @@ void NAE::thr_process(void)
 	pca.side_left[i] += side_factor * eigvectors[1][0]; // = side_left
 	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
       }
-      // Panning rescale of the principal component (<pan_scale>).
+      // Panning rescale of both components (<pan_scale>).
       //
-      // Take the difference between C1's two channels, scale it by the factor
-      // and hand it to the louder channel while taking it from the quieter one,
-      // after the manner of algorithm 1 of the testing_XTC tools:
+      // Take the level difference between a component's two channels, scale it
+      // by the factor and hand it to the louder channel while taking it from
+      // the quieter one, after the manner of algorithm 1 of the testing_XTC
+      // tools. For the principal component, whose channels are in phase, that
+      // is the signed instantaneous difference:
       //
-      //     d  = left_main - right_main
-      //     left_main  += pan_scale * d
-      //     right_main -= pan_scale * d
+      //     d = left_main - right_main
+      //     left_main += pan_scale*d,  right_main -= pan_scale*d
       //
-      // d is the signed instantaneous difference, so it is positive exactly
-      // when left is the louder channel; one expression therefore covers both
-      // signs of the factor, widening the image for a positive one and
-      // narrowing it for a negative one. Since d is twice mid_right over the
-      // normalisation, the whole thing folds into scaling mid_right by
-      // (1 + 2*pan_scale): the sum of the two channels is left untouched and
-      // only their difference is rescaled. Written that way it costs nothing
-      // when the feature is off, pan_side being 1.
+      // d is positive exactly when left is the louder channel, so the one
+      // expression covers both signs of the factor: positive widens, negative
+      // narrows.
+      //
+      // The ambience component cannot use that expression. Its two channels are
+      // in ANTI phase -- measured correlation -0.9999 -- so their signed
+      // difference no longer tells which one carries more level, and applying
+      // the rule verbatim moves both channels the same way, changing the level
+      // of the component instead of its panning, and in the wrong direction at
+      // that. With the sign taken into account, subtracting from the quieter
+      // channel is written as an ADDITION, because that channel is the negative
+      // going one, and the difference to distribute is the SUM:
+      //
+      //     e = left_amb + right_amb
+      //     left_amb += pan_scale*e,  right_amb += pan_scale*e
+      //
+      // Both reduce to scaling one accumulator by (1 + 2*pan_scale): whichever
+      // of the two is the subdominant one, mid_right for the mid dominated C1
+      // and side_left for the side dominated C2. Under either form the power
+      // imbalance of the component, |L|^2 - |R|^2, ends up scaled by exactly
+      // that same factor, so one setting acts on the two components alike.
+      // Written this way it costs nothing when the feature is off, pan_side
+      // being 1, and adds no branch to the loop.
       for(int  i = 0; i < sample_count; i++) {
 	left_main = (pca.mid_left[i] + pan_side*pca.mid_right[i])/(norm_covsteps);
 	right_main = (pca.mid_left[i] - pan_side*pca.mid_right[i])/(norm_covsteps);
-	left_amb = (pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_amb = (pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
+	left_amb = (pan_side*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
+	right_amb = (pan_side*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
 	left_out[i]  = gain_main*left_main + gain_amb*left_amb;
 	right_out[i] = gain_main*right_main + gain_amb*right_amb;
 	mid_left_out[i] = gain_main*left_main;
