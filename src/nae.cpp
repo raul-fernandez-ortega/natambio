@@ -153,6 +153,8 @@ NAE::NAE(string n_name, int n_mode)
   side_left_name_out = "";
   mid_right_name_out = "";
   side_right_name_out = "";
+  pan_scale = 0;
+  pan_side = 1.0;
 }
 
 NAE::~NAE(void)
@@ -206,6 +208,13 @@ bool NAE::setSurrGain(double gain)
 {
   gain_main_surround = gain;
   return true;
+}
+
+void NAE::setPanScale(double n_pan_scale)
+{
+  pan_scale = n_pan_scale;
+  // See thr_process() for where this comes from.
+  pan_side = 1.0 + 2.0*pan_scale;
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -565,9 +574,27 @@ void NAE::thr_process(void)
 	pca.side_left[i] += side_factor * eigvectors[1][0]; // = side_left
 	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
       }
+      // Panning rescale of the principal component (<pan_scale>).
+      //
+      // Take the difference between C1's two channels, scale it by the factor
+      // and hand it to the louder channel while taking it from the quieter one,
+      // after the manner of algorithm 1 of the testing_XTC tools:
+      //
+      //     d  = left_main - right_main
+      //     left_main  += pan_scale * d
+      //     right_main -= pan_scale * d
+      //
+      // d is the signed instantaneous difference, so it is positive exactly
+      // when left is the louder channel; one expression therefore covers both
+      // signs of the factor, widening the image for a positive one and
+      // narrowing it for a negative one. Since d is twice mid_right over the
+      // normalisation, the whole thing folds into scaling mid_right by
+      // (1 + 2*pan_scale): the sum of the two channels is left untouched and
+      // only their difference is rescaled. Written that way it costs nothing
+      // when the feature is off, pan_side being 1.
       for(int  i = 0; i < sample_count; i++) {
-	left_main = (pca.mid_left[i] + pca.mid_right[i])/(norm_covsteps);
-	right_main = (pca.mid_left[i] - pca.mid_right[i])/(norm_covsteps);
+	left_main = (pca.mid_left[i] + pan_side*pca.mid_right[i])/(norm_covsteps);
+	right_main = (pca.mid_left[i] - pan_side*pca.mid_right[i])/(norm_covsteps);
 	left_amb = (pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
 	right_amb = (pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
 	left_out[i]  = gain_main*left_main + gain_amb*left_amb;

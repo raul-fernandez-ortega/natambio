@@ -785,6 +785,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_main = 0;
   nae->gain_amb = 0;
   nae->gain_surr = 0;
+  nae->pan_scale = 0;      // optional; 0 leaves the principal component alone
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
   nae->left_in = "";
   nae->right_in = "";
@@ -805,6 +806,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->gain_amb = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"rear_gain")) {
       nae->gain_surr = FROM_DB(strtof((char*)cnt, NULL));
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
+      nae->pan_scale = strtof((char*)cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
       nae->left_in = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_right")) {
@@ -852,10 +855,22 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       delete nae;
       return NULL;
     }
+    if(nae->pan_scale < -1.0 || nae->pan_scale > 1.0) {
+      parse_error("Error: nae pan_scale must be within [-1, 1].");
+      delete nae;
+      return NULL;
+    }
   } else if(mode == "beta") {
     nae->mode = 1;
     if(nae->gain_surr == 0) {
       parse_error("Error: nae beta mode rear_gain not defined.");
+      delete nae;
+      return NULL;
+    }
+    if(nae->pan_scale != 0) {
+      // Beta mode emits the surround component alone; it has no principal
+      // component whose panning could be rescaled.
+      parse_error("Error: nae pan_scale is only valid in alpha mode.");
       delete nae;
       return NULL;
     }
@@ -885,6 +900,11 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   } else {
     std::cout << "\t\tFront main gain: " << nae->gain_main << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_amb << std::endl;
+    if(nae->pan_scale != 0) {
+      std::cout << "\t\tPrincipal component pan scale: " << nae->pan_scale
+		<< " (" << ((nae->pan_scale > 0) ? "widening" : "narrowing")
+		<< ", channel difference x " << (1.0 + 2.0*nae->pan_scale) << ")" << std::endl;
+    }
   }
   if(!nae->left_out.empty())
     std::cout << "\tLeft channel output: " << nae->left_out << std::endl;

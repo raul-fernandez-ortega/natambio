@@ -404,6 +404,8 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     } else {
       std::cout << "NatAmbio: NAE main gain " << n_nae->gain_main << std::endl;
       std::cout << "NatAmbio: NAE ambience gain " << n_nae->gain_amb << std::endl;
+      if(n_nae->pan_scale != 0)
+	std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
     }
   }
   NAE *n_nae_p;
@@ -411,6 +413,7 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   n_nae_p->setMainGain(n_nae->gain_main);
   n_nae_p->setAmbGain(n_nae->gain_amb);
   n_nae_p->setSurrGain(n_nae->gain_surr);
+  n_nae_p->setPanScale(n_nae->pan_scale);
   n_nae_p->setSampleCount(naJack->getPartSize());
   n_nae_p->setCovStepsLength(n_nae->steps_length);
   n_nae_p->setChannelIn(LEFT, n_nae->left_in);

@@ -57,6 +57,7 @@ struct s_nae {
   double gain_main;
   double gain_amb;
   double gain_surr;
+  double pan_scale;   // panning rescale of the principal component, [-1, 1]
   int steps_length;
   string left_in;
   string right_in;
