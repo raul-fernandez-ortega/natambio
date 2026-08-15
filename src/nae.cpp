@@ -566,15 +566,6 @@ void NAE::thr_process(void)
 	side_right_out[i] = right_out[i];
       }
     } else {
-      // Main / Front calculation
-      for(int i = 0; i < covsteps * sample_count; i ++) {
-	mid_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
-	side_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.mid_left[i] += mid_factor * eigvectors[0][0]; // = mid_left
-	pca.mid_right[i] += mid_factor * eigvectors[0][1]; // = mid_right
-	pca.side_left[i] += side_factor * eigvectors[1][0]; // = side_left
-	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
-      }
       // Panning rescale of both components (<pan_scale>).
       //
       // Take the level difference between a component's two channels, scale it
@@ -602,10 +593,22 @@ void NAE::thr_process(void)
       //     e = left_amb + right_amb
       //     left_amb += pan_scale*e,  right_amb += pan_scale*e
       //
-      // Both reduce to scaling one accumulator: whichever of the two is the
+      // Both reduce to scaling one coordinate: whichever of the two is the
       // subdominant one, mid_right for the mid dominated C1 and side_left for
       // the side dominated C2. Under either form the power imbalance of the
       // component, |L|^2 - |R|^2, ends up scaled by that factor.
+      //
+      // The factor is folded into the back projection coefficients below, so
+      // that every contribution is rescaled with the very eigenvector that
+      // produced it. The four accumulators each hold a sum over covsteps
+      // blocks, one term per analysis, and those terms do not share a panning:
+      // each carries the rotation its own block measured. Rescaling the sum
+      // afterwards with the newest block's factor would apply it to all of
+      // them alike. With a constant factor the two orderings agree exactly,
+      // multiplication distributing over the sum, so this only parts company
+      // from the older form where the bounds below bite and the factor starts
+      // varying from block to block -- but there it is the correct one, each
+      // term then being bounded by its own theta.
       //
       // Both components take the same factor. They lean to opposite sides to
       // begin with -- their imbalances are exact mirrors of each other, which
@@ -644,11 +647,26 @@ void NAE::thr_process(void)
 	if(ps < 0.0) ps = 0.0;
 	else if(hi > 0.0 && ps > hi) ps = hi;
       }
+      // Back projection coefficients of the two subdominant coordinates, with
+      // the factor already in them. The projections themselves, mid_factor and
+      // side_factor, are the components of the signal along the eigenvectors
+      // and are left alone.
+      double pan_mid_right = ps*eigvectors[0][1];
+      double pan_side_left = ps*eigvectors[1][0];
+      // Main / Front calculation
+      for(int i = 0; i < covsteps * sample_count; i ++) {
+	mid_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
+	side_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+	pca.mid_left[i] += mid_factor * eigvectors[0][0]; // = mid_left
+	pca.mid_right[i] += mid_factor * pan_mid_right; // = mid_right, rescaled
+	pca.side_left[i] += side_factor * pan_side_left; // = side_left, rescaled
+	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
+      }
       for(int  i = 0; i < sample_count; i++) {
-	left_main = (pca.mid_left[i] + ps*pca.mid_right[i])/(norm_covsteps);
-	right_main = (pca.mid_left[i] - ps*pca.mid_right[i])/(norm_covsteps);
-	left_amb = (ps*pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_amb = (ps*pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
+	left_main = (pca.mid_left[i] + pca.mid_right[i])/(norm_covsteps);
+	right_main = (pca.mid_left[i] - pca.mid_right[i])/(norm_covsteps);
+	left_amb = (pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
+	right_amb = (pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
 	left_out[i]  = gain_main*left_main + gain_amb*left_amb;
 	right_out[i] = gain_main*right_main + gain_amb*right_amb;
 	mid_left_out[i] = gain_main*left_main;
