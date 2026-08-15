@@ -154,7 +154,11 @@ NAE::NAE(string n_name, int n_mode)
   mid_right_name_out = "";
   side_right_name_out = "";
   pan_scale = 0;
-  pan_side = 1.0;
+  pan_tau = NAE_PAN_TAU_DEF;
+  pan_rate = 0;
+  pan_smooth = 0;
+  pan_theta = 0;
+  pan_theta_set = false;
 }
 
 NAE::~NAE(void)
@@ -210,12 +214,11 @@ bool NAE::setSurrGain(double gain)
   return true;
 }
 
-void NAE::setPanScale(double n_pan_scale)
+void NAE::setPanScale(double n_pan_scale, double n_tau, int n_rate)
 {
   pan_scale = n_pan_scale;
-  // Both components take the same factor. See thr_process() for where it
-  // comes from and for the bounds applied to it.
-  pan_side = 1.0 + 2.0*pan_scale;
+  pan_tau = n_tau;
+  pan_rate = n_rate;
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -374,6 +377,20 @@ void NAE::load(int abspri, int policy)
 
   pan = 1;
   icorr = 1;
+
+  if(pan_scale != 0) {
+    // One pole coefficient for a pan_tau time constant, one step per period.
+    if(pan_rate > 0 && pan_tau > 0)
+      pan_smooth = exp(-((double) sample_count / (double) pan_rate) / pan_tau);
+    else
+      pan_smooth = 0;
+    if(!quiet) {
+      std::cout << "NAE: " << name << " pan scale " << pan_scale
+		<< " (mid x " << (1.0 - pan_scale) << ", side x " << (1.0 + pan_scale)
+		<< "), placement smoothed with a time constant of " << pan_tau
+		<< " s" << std::endl;
+    }
+  }
 
   pca.mid_step = (double*) calloc(covsteps*sample_count, sizeof(double));
   pca.side_step = (double*) calloc(covsteps*sample_count, sizeof(double));
@@ -568,99 +585,84 @@ void NAE::thr_process(void)
     } else {
       // Panning rescale of both components (<pan_scale>).
       //
-      // Take the level difference between a component's two channels, scale it
-      // by the factor and hand it to the louder channel while taking it from
-      // the quieter one, after the manner of algorithm 1 of the testing_XTC
-      // tools. For the principal component, whose channels are in phase, that
-      // is the signed instantaneous difference:
+      // Classic mid/side scaling, done on the coordinates the decomposition
+      // already works in and before they are turned into left and right. Each
+      // component is held in a mid coordinate and a side coordinate -- for the
+      // main one those are mid_left and mid_right, for the ambience one
+      // side_left and side_right, the names being historical -- and the
+      // control grows one against the other:
       //
-      //     d = left_main - right_main
-      //     left_main += pan_scale*d,  right_main -= pan_scale*d
+      //     mid  coordinate *= (1 - pan_scale)
+      //     side coordinate *= (1 + pan_scale)
       //
-      // d is positive exactly when left is the louder channel, so the one
-      // expression covers both signs of the factor: positive widens, negative
-      // narrows.
+      // Their ratio therefore goes as (1 + pan_scale)/(1 - pan_scale), which
+      // is what sets the panning, while the level of the component follows the
+      // two factors and shifts the balance between direct sound and ambience:
+      // opening brings the ambience up, closing brings it down. That balance
+      // shift is the whole point of scaling both coordinates rather than one.
       //
-      // The ambience component cannot use that expression. Its two channels are
-      // in ANTI phase -- measured correlation -0.9999 -- so their signed
-      // difference no longer tells which one carries more level, and applying
-      // the rule verbatim moves both channels the same way, changing the level
-      // of the component instead of its panning, and in the wrong direction at
-      // that. With the sign taken into account, subtracting from the quieter
-      // channel is written as an ADDITION, because that channel is the negative
-      // going one, and the difference to distribute is the SUM:
+      // At -1 the side coordinate vanishes and the component sits at the
+      // centre, the main one at mono and the ambience one at two channels of
+      // equal level; no value in range can carry it past, the ratio staying
+      // positive throughout, so the lower end needs no bound. At +1 the mid
+      // coordinate vanishes instead and the component is pure side.
       //
-      //     e = left_amb + right_amb
-      //     left_amb += pan_scale*e,  right_amb += pan_scale*e
-      //
-      // Both reduce to scaling one coordinate: whichever of the two is the
-      // subdominant one, mid_right for the mid dominated C1 and side_left for
-      // the side dominated C2. Under either form the power imbalance of the
-      // component, |L|^2 - |R|^2, ends up scaled by that factor.
-      //
-      // The factor is folded into the back projection coefficients below, so
-      // that every contribution is rescaled with the very eigenvector that
-      // produced it. The four accumulators each hold a sum over covsteps
-      // blocks, one term per analysis, and those terms do not share a panning:
-      // each carries the rotation its own block measured. Rescaling the sum
-      // afterwards with the newest block's factor would apply it to all of
-      // them alike. With a constant factor the two orderings agree exactly,
-      // multiplication distributing over the sum, so this only parts company
-      // from the older form where the bounds below bite and the factor starts
-      // varying from block to block -- but there it is the correct one, each
-      // term then being bounded by its own theta.
-      //
-      // Both components take the same factor. They lean to opposite sides to
-      // begin with -- their imbalances are exact mirrors of each other, which
-      // follows from their being orthogonal -- so a positive setting opens the
-      // two of them away from each other and a negative one brings both towards
-      // the centre, where the floor below stops them.
-      //
-      // Written this way it costs nothing when the feature is off, the factor
-      // being 1, and adds no branch to the loop.
-      double ps = pan_side;
+      // Placement is smoothed before it is rescaled. The rotation of the
+      // principal axis wanders from block to block, and since the control
+      // multiplies the imbalance it multiplies that wander too, which is heard
+      // as sources drifting about. The axis used to place the components is
+      // therefore a one pole average of its own rotation, while the
+      // projections keep using the raw eigenvectors: what is extracted does not
+      // change, only where it is put. None of this runs at all with the feature
+      // off, where the coefficients stay the plain eigenvectors.
+      double c1_mid = eigvectors[0][0], c1_side = eigvectors[0][1];
+      double c2_mid = eigvectors[1][0], c2_side = eigvectors[1][1];
       if(pan_scale != 0) {
-	// How far the rescale is allowed to go, both bounds resting on the
-	// rotation of the principal axis, which eigvectors[0] carries as
-	// (cos theta, sin theta). A component's coefficients go as
-	// 1 + factor*tan(theta) and 1 - factor*tan(theta).
-	//
-	// Downwards, a factor of zero puts a component at the centre: the main
-	// one collapses to mono, the ambience one to two channels of equal
-	// level. A negative factor would mirror the imbalance instead, carrying
-	// the component past the centre to the other side, so zero is the floor.
-	//
-	// Upwards, the quiet channel vanishes at |factor*tan(theta)| = 1 and
-	// grows again beyond it in the opposite polarity: anti phase for the
-	// main component, in phase for the ambience one. It is held to half the
-	// level of the other channel, |quiet| <= 0.5*|loud|, which works out as
-	// |factor*tan(theta)| <= 3 for either of them. The ceiling is never
-	// taken below 1, so the untouched behaviour is never made more
-	// conservative than it already is.
-	double sn = fabs(eigvectors[0][1]);
-	double cs = fabs(eigvectors[0][0]);
-	double hi = -1.0;                    // negative: nothing to bound
-	if(sn > 0.0) {
-	  hi = NAE_PAN_MAX_TAN*cs/sn;
-	  if(hi < 1.0) hi = 1.0;
+	double th = atan2(eigvectors[0][1], eigvectors[0][0]);
+	if(pan_theta_set)
+	  pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
+	else {
+	  pan_theta = th;
+	  pan_theta_set = true;
 	}
-	if(ps < 0.0) ps = 0.0;
-	else if(hi > 0.0 && ps > hi) ps = hi;
+	double cs = cos(pan_theta);
+	double sn = sin(pan_theta);
+	// eigen_2x2_symmetric does not fix the sign of the minor eigenvector,
+	// so carry over whichever orientation it handed us; the projection
+	// side_factor is computed with it and the two must agree.
+	double orient = (eigvectors[1][0]*(-sn) + eigvectors[1][1]*cs >= 0.0) ? 1.0 : -1.0;
+	// The quiet channel of a component vanishes when the ratio of its two
+	// coordinates times tan(theta) reaches 1, and grows again past that in
+	// the opposite polarity. Holding it to half the level of the other
+	// channel gives |(1+k)/(1-k) * tan(theta)| <= NAE_PAN_MAX_TAN, which in
+	// terms of the setting itself is k <= (m-1)/(m+1) for m the bound over
+	// the tangent. Never taken below zero, so the untouched behaviour is
+	// never made more conservative than it already is.
+	double k = pan_scale;
+	if(k > 0.0) {
+	  double a = fabs(sn);
+	  if(a > 0.0) {
+	    double m = NAE_PAN_MAX_TAN*fabs(cs)/a;
+	    double kmax = (m - 1.0)/(m + 1.0);
+	    if(kmax < 0.0) kmax = 0.0;
+	    if(k > kmax) k = kmax;
+	  }
+	}
+	double km = 1.0 - k;
+	double kp = 1.0 + k;
+	c1_mid = cs*km;
+	c1_side = sn*kp;
+	c2_mid = orient*(-sn)*km;
+	c2_side = orient*cs*kp;
       }
-      // Back projection coefficients of the two subdominant coordinates, with
-      // the factor already in them. The projections themselves, mid_factor and
-      // side_factor, are the components of the signal along the eigenvectors
-      // and are left alone.
-      double pan_mid_right = ps*eigvectors[0][1];
-      double pan_side_left = ps*eigvectors[1][0];
       // Main / Front calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	mid_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
 	side_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.mid_left[i] += mid_factor * eigvectors[0][0]; // = mid_left
-	pca.mid_right[i] += mid_factor * pan_mid_right; // = mid_right, rescaled
-	pca.side_left[i] += side_factor * pan_side_left; // = side_left, rescaled
-	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
+	pca.mid_left[i] += mid_factor * c1_mid; // = mid_left
+	pca.mid_right[i] += mid_factor * c1_side; // = mid_right
+	pca.side_left[i] += side_factor * c2_mid; // = side_left
+	pca.side_right[i] += side_factor * c2_side; // = side_right
       }
       for(int  i = 0; i < sample_count; i++) {
 	left_main = (pca.mid_left[i] + pca.mid_right[i])/(norm_covsteps);
