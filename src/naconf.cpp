@@ -784,7 +784,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->mode = -1;
   nae->gain_main = 0;
   nae->gain_amb = 0;
-  nae->gain_surr = 0;
+  nae->gain_ambient = 0;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
   nae->pan_scale_tau = NAE_PAN_TAU_DEF;  // optional; seconds
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
@@ -806,7 +806,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"ambience_gain")) {
       nae->gain_amb = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"rear_gain")) {
-      nae->gain_surr = FROM_DB(strtof((char*)cnt, NULL));
+      nae->gain_ambient = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale_tau")) {
@@ -870,13 +870,13 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     }
   } else if(mode == "beta") {
     nae->mode = 1;
-    if(nae->gain_surr == 0) {
+    if(nae->gain_ambient == 0) {
       parse_error("Error: nae beta mode rear_gain not defined.");
       delete nae;
       return NULL;
     }
     if(nae->pan_scale != 0) {
-      // Beta mode emits the surround component alone; it has no principal
+      // Beta mode emits the ambient component alone; it has no principal
       // component whose panning could be rescaled.
       parse_error("Error: nae pan_scale is only valid in alpha mode.");
       delete nae;
@@ -904,7 +904,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   std::cout << "\tRight channel input: " << nae->right_in << std::endl;
   std::cout << "\tMode: " << nae->mode << std::endl;
   if(nae->mode) {
-    std::cout << "\t\tRear surround gain: " << nae->gain_surr << std::endl;
+    std::cout << "\t\tRear ambient gain: " << nae->gain_ambient << std::endl;
   } else {
     std::cout << "\t\tFront main gain: " << nae->gain_main << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_amb << std::endl;
