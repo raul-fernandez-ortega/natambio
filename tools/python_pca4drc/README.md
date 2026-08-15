@@ -198,8 +198,10 @@ system (JACK + Audio Interface). It chains five phases:
    PCA component WAVs and then converts them to `.raw` (float 32-bit LE) with
    `wav2raw.py` in the same directory, to feed DRC.
 4. **DRC** (Sbragion's `drc`): for each channel it runs `drc` with `config.drc`
-   (next to this script), overriding `--BCBaseDir=i_<channel>/` (the impulse folder,
-   at the same level as the original `p_left/` so the config's relative paths,
+   (next to this script) — or with a different configuration per pair, see
+   `DRC_CONFIG_FRONT` / `DRC_CONFIG_REAR` below — overriding
+   `--BCBaseDir=i_<channel>/` (the impulse folder, at the same level as the
+   original `p_left/` so the config's relative paths,
    e.g. the target curve `../target/...`, keep resolving) and
    `--BCInFile=pca4drc/PCA_0.raw` (the principal component). When finished, it
    converts the `rps.raw` (`PSOutFile`) and `rms.raw` (`MSOutFile`) outputs,
@@ -276,7 +278,10 @@ chosen according to `FULL_NATAMBIO`/`SUBWOOFER`), `NATAMBIO_LOG`; sweep generati
 `SWEEP_LENGTH`, `SWEEP_SILENCE`, `SWEEP_LEADIN`, `SWEEP_LEADOUT`; measurement
 `NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `SELECT_INPUT`, `GAIN_OUT`, `GAIN_IN`,
 `REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
-`DRC_BIN`, `DRC_CONFIG` (by default `config.drc` next to the script), `DRC_PS_OUT`
+`DRC_BIN`, `DRC_CONFIG` (by default `config.drc` next to the script),
+`DRC_CONFIG_FRONT` and `DRC_CONFIG_REAR` (per-pair configurations, each one
+falling back to `DRC_CONFIG`, so that the front pair — usually with a subwoofer —
+and the rear one can be corrected towards different targets), `DRC_PS_OUT`
 (rps.raw), `DRC_MS_OUT` (rms.raw); and the phase switches `DO_SWEEP` /
 `DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` / `DO_DRC` / `AUTO`. If the `.py` scripts
 are not next to the `.sh`, export `TOOLS_DIR` pointing to them.
