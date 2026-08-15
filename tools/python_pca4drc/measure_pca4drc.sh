@@ -19,8 +19,11 @@
 #      lsconv.py / pyDRC.LsConv.
 #    - A PCA step with pca4drc.py (when there are 2 or more measurements): for
 #      each channel it generates i_<channel>/pca4drc/ with the WAVs of the PCA
-#      components and their .raw. With a single measurement (NUM_POS=1) PCA is
-#      NOT applied: the measured impulse is used.
+#      components and their .raw. The impulses are aligned by covariance
+#      maximisation (PCA_ALIGN=xcorr) rather than by their sample peak alone,
+#      which leaves more of the variance in the principal component. With a
+#      single measurement (NUM_POS=1) PCA is NOT applied: the measured impulse
+#      is used.
 #    - A final correction step with drc (Sbragion) per channel, using config.drc
 #      and, as input, the principal PCA component PCA_0.raw (>=2 measurements)
 #      or the directly measured impulse (1 measurement); it converts the
@@ -40,6 +43,7 @@
 #      DO_MEASURE=0 DO_IMPULSES=0 ./measure_pca4drc.sh   # only PCA (+ DRC)
 #      DO_DRC=0 ./measure_pca4drc.sh        # everything except the DRC correction
 #      OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh
+#      PCA_ALIGN=peak ./measure_pca4drc.sh  # old alignment, on the sample peak only
 #
 #  Requires: ecasound + a running JACK server, the natambio executable, the
 #  drc (Sbragion) binary with its config.drc, python3 with numpy/scipy/soundfile,
@@ -91,6 +95,9 @@ MIN_SNR=${MIN_SNR:-20}              # dB below which "low SNR" is warned
 # --- PCA parameters -----------------------------------------------------------
 OUTPUT_LEN=${OUTPUT_LEN:-131072}    # length of the PCA component WAVs
 PCA_NORMALIZE=${PCA_NORMALIZE:-true}
+PCA_ALIGN=${PCA_ALIGN:-xcorr}       # peak = centre on the sample peak only;
+                                    # xcorr = refine it to a fraction of a
+                                    # sample by covariance maximisation
 
 # =============================================================================
 # --- DRC parameters (Phase 4: correction with the standard drc by Sbragion) ---
@@ -623,7 +630,8 @@ if [ "$DO_PCA" = "1" ]; then
         echo "### Phase 3: PCA of the impulses (pca4drc.py) + conversion to .raw"
         for w in $(seq 0 $((NUM_WAYS - 1))); do
             echo "PCA of ${LABELS[$w]} -> ${IMP_DIRS[$w]}/pca4drc/"
-            python3 "$PCA4DRC" "${IMP_DIRS[$w]}" "$OUTPUT_LEN" --normalize "$PCA_NORMALIZE"
+            python3 "$PCA4DRC" "${IMP_DIRS[$w]}" "$OUTPUT_LEN" \
+                --normalize "$PCA_NORMALIZE" --align "$PCA_ALIGN"
             # Converts the WAV components to .raw (float 32-bit LE) for DRC.
             pca_dir="${IMP_DIRS[$w]}/pca4drc"
             if compgen -G "$pca_dir/*.wav" >/dev/null; then

@@ -32,7 +32,7 @@ Contents:
 ## Usage
 
 ```sh
-python pca4drc.py <impulse_directory> <output_len> [--normalize true|false]
+python pca4drc.py <impulse_directory> <output_len> [--normalize true|false] [--align peak|xcorr]
 ```
 
 - `impulse_directory`: folder with the already-measured impulse responses, in
@@ -41,6 +41,8 @@ python pca4drc.py <impulse_directory> <output_len> [--normalize true|false]
 - `--normalize true|false` (default `true`): if `true`, the components are
   divided by the peak of the principal component (the principal one ends with
   peak 1.0); if `false`, the raw PCA values are kept (unnormalized).
+- `--align peak|xcorr` (default `peak`): how the impulses are aligned before the
+  PCA (see below).
 
 The PCA components are saved in a `pca4drc/` subdirectory **inside** the input
 directory (created if missing), numbered by their order in the algorithm starting
@@ -51,13 +53,79 @@ at 0: `PCA_0.wav` (principal component), `PCA_1.wav`, ...
 1. Reads all the `.wav` files in the directory with `soundfile`.
 2. Locates the peak (absolute maximum) of each impulse.
 3. Rewrites each impulse into a signal of length `output_len` centered on its
-   peak and applies a Blackman window.
+   peak, optionally refines that centering by covariance maximization (see
+   `--align`) and applies a Blackman window.
 4. Subtracts the mean of each impulse, computes the covariance matrix between
    impulses, its eigenvalues/eigenvectors and projects the impulses onto the
    eigenvectors (PCA).
 5. Corrects the polarity, optionally normalizes each component by the maximum of
    the principal component (see `--normalize`) and saves them as WAVs of length
    `output_len`.
+
+## Alignment: `--align peak|xcorr`
+
+`peak` (the default) centers every impulse on its own sample peak: a single
+sample decides, and the result is quantized to the sample grid. Half a sample at
+48 kHz is 10 us, which is 60 degrees of phase at 16 kHz, so what is left after
+centering is not negligible for the covariance.
+
+`xcorr` starts from that centering and refines it to a fraction of a sample by
+maximizing the covariance between **every pair** of impulses: the pairwise lags
+are reduced to one lag per impulse by least squares with a zero-sum constraint
+(using all pairs instead of a reference impulse keeps a single measurement from
+dragging the whole set), the correlation peak is refined by parabolic
+interpolation, and the shift is applied with a linear phase. The correlation
+window (+/-20 ms) only has to cover the direct sound and the first reflections;
+the +/-2 ms bound keeps a pathological correlation from moving an impulse to a
+different arrival.
+
+Measured on a real four-way system, 16 positions per way: the residual lags are
+0.26 to 0.61 samples rms, and the variance explained by the principal component
+rises from 41-61 % to 50-67 %, while the second component drops from ~10 % to
+~4 %. Much of what looked like a second acoustic mode was sub-sample
+misalignment.
+
+What `xcorr` does **not** do is bring the principal component closer to the power
+average of the set: position to position the room differs by modal nulls and
+reflection patterns, not by delays, and no per-impulse delay turns a coherent sum
+into a power average.
+
+Besides the lags applied, the report prints the mean and minimum pairwise
+similarity. It describes the set — it goes with the explained variance — and is
+not a pass/fail criterion: on real measurements it runs from ~0.7 between close
+positions to ~0.4 between distant ones, a range a broken set can sit inside as
+well.
+
+## Level reference: `--level-normalize`
+
+The principal component is defined up to an arbitrary scale factor, and that
+factor is **different for every way**: it depends on the covariance structure of
+that way's own impulse set, on the peak normalization of step 5, and on the mean
+subtraction and windowing of steps 3-4. DRC then normalizes its own stages as
+well (`ISNormType`, `PSNormType`, `MSNormType`), so the filter it produces
+carries no memory of how loud that way actually plays. Measure four ways, run
+them through the chain and their relative levels no longer mean anything: on a
+four-way system the arbitrary factor differed by 5 dB between ways.
+
+No DRC normalization type fixes this, because S, E, M and P are all anti-clipping
+criteria computed from the filter itself. The reference has to be restored on the
+finished filters:
+
+```sh
+python pca4drc.py --level-normalize i_*/rms.wav [--ref-band LO HI] [--in-place] [--dry-run]
+```
+
+Each filter is scaled so that its energy-average gain over the reference band
+(`--ref-band`, 200-2000 Hz by default) is exactly 0 dB, i.e. unity gain for
+band-limited noise in that band. The filter then changes the frequency response
+only, and the relative levels between ways stay the ones the system had before
+correction, so any level calibration already made downstream remains valid. The
+scaled filters are written next to the originals with a `_lvl` suffix
+(`--suffix`), or over them with `--in-place`.
+
+The report prints, per filter, the gain applied, how much the filter still varies
+inside the reference band, and the three figures the convolver needs for
+headroom: peak sample, `sum|h|` and the highest gain of the magnitude response.
 
 ## Sweep generation: `sweepgen.py`
 
