@@ -125,21 +125,21 @@ NAE::~NAE(void)
   pthread_mutex_destroy(&mutex);
 }
 
-bool NAE::setMainGain(double gain)
+bool NAE::setC1Gain(double gain)
 {
-  gain_main = gain;
+  gain_c1 = gain;
   return true;
 }
 
-bool NAE::setAmbGain(double gain)
+bool NAE::setC2Gain(double gain)
 {
-  gain_amb = gain;
+  gain_c2 = gain;
   return true;
 }
 
-bool NAE::setAmbientGain(double gain)
+bool NAE::setC2RearGain(double gain)
 {
-  gain_ambient = gain;
+  gain_c2_rear = gain;
   return true;
 }
 
@@ -504,8 +504,8 @@ void NAE::thr_process(void)
       for(int  i = 0; i < sample_count; i++) {
 	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
 	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-	left_out[i]  = gain_ambient*c2_left;
-	right_out[i] = gain_ambient*c2_right;
+	left_out[i]  = gain_c2_rear*c2_left;
+	right_out[i] = gain_c2_rear*c2_right;
 	c2_left_out[i] = left_out[i];
 	c2_right_out[i] = right_out[i];
       }
@@ -595,12 +595,12 @@ void NAE::thr_process(void)
 	c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
 	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
 	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-	left_out[i]  = gain_main*c1_left + gain_amb*c2_left;
-	right_out[i] = gain_main*c1_right + gain_amb*c2_right;
-	c1_left_out[i] = gain_main*c1_left;
-        c1_right_out[i] = gain_main*c1_right;
-	c2_left_out[i] = gain_amb*c2_left;
-	c2_right_out[i] = gain_amb*c2_right;
+	left_out[i]  = gain_c1*c1_left + gain_c2*c2_left;
+	right_out[i] = gain_c1*c1_right + gain_c2*c2_right;
+	c1_left_out[i] = gain_c1*c1_left;
+        c1_right_out[i] = gain_c1*c1_right;
+	c2_left_out[i] = gain_c2*c2_left;
+	c2_right_out[i] = gain_c2*c2_right;
       }
     }
     

@@ -57,9 +57,9 @@ enum side {
 struct s_nae {
   string name;
   int mode;
-  double gain_main;
-  double gain_amb;
-  double gain_ambient;
+  double gain_c1;
+  double gain_c2;
+  double gain_c2_rear;
   double pan_scale;      // mid/side rescale of both components, [-1, 1]
   double pan_scale_tau;  // time constant of the placement smoothing, seconds
   int steps_length;

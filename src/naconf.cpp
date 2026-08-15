@@ -640,9 +640,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae = new struct s_nae;
   nae->name = "";
   nae->mode = -1;
-  nae->gain_main = 0;
-  nae->gain_amb = 0;
-  nae->gain_ambient = 0;
+  nae->gain_c1 = 0;
+  nae->gain_c2 = 0;
+  nae->gain_c2_rear = 0;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
   nae->pan_scale_tau = NAE_PAN_TAU_DEF;  // optional; seconds
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
@@ -660,11 +660,11 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"mode")) {
       mode = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_gain")) {
-      nae->gain_main = FROM_DB(strtof((char*)cnt, NULL));
+      nae->gain_c1 = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"ambience_gain")) {
-      nae->gain_amb = FROM_DB(strtof((char*)cnt, NULL));
+      nae->gain_c2 = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"rear_gain")) {
-      nae->gain_ambient = FROM_DB(strtof((char*)cnt, NULL));
+      nae->gain_c2_rear = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale_tau")) {
@@ -706,12 +706,12 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   }
   if(mode == "alpha") {
     nae->mode = 0;
-    if(nae->gain_main == 0) {
+    if(nae->gain_c1 == 0) {
       parse_error("Error: nae alpha mode front_gain not defined.");
       delete nae;
       return NULL;
     }
-    if(nae->gain_amb == 0) {
+    if(nae->gain_c2 == 0) {
       parse_error("Error: nae alpha mode ambience_gain not defined.");
       delete nae;
       return NULL;
@@ -728,7 +728,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     }
   } else if(mode == "beta") {
     nae->mode = 1;
-    if(nae->gain_ambient == 0) {
+    if(nae->gain_c2_rear == 0) {
       parse_error("Error: nae beta mode rear_gain not defined.");
       delete nae;
       return NULL;
@@ -762,10 +762,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   std::cout << "\tRight channel input: " << nae->right_in << std::endl;
   std::cout << "\tMode: " << nae->mode << std::endl;
   if(nae->mode) {
-    std::cout << "\t\tRear ambient gain: " << nae->gain_ambient << std::endl;
+    std::cout << "\t\tRear ambient gain: " << nae->gain_c2_rear << std::endl;
   } else {
-    std::cout << "\t\tFront main gain: " << nae->gain_main << std::endl;
-    std::cout << "\t\tFront ambience gain: " << nae->gain_amb << std::endl;
+    std::cout << "\t\tFront main gain: " << nae->gain_c1 << std::endl;
+    std::cout << "\t\tFront ambience gain: " << nae->gain_c2 << std::endl;
     if(nae->pan_scale != 0) {
       std::cout << "\t\tPan scale: " << nae->pan_scale << " ("
 		<< ((nae->pan_scale > 0) ? "widening" : "narrowing")
