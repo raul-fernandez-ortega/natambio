@@ -33,7 +33,6 @@ extern "C" {
 using namespace std;
 
 #define ICORRL 20
-#define NAECOEFF -2.5
 
 // Panning rescale (<pan_scale>). A component's quiet channel vanishes when
 // |factor * tan(theta)| reaches 1, theta being the rotation of the principal
@@ -48,16 +47,16 @@ typedef struct {
   double *sum_y2_array;
   double *sum_x_array;
   double *sum_y_array;
-} CovMatrix;
+} RunningSums;
 
 
 typedef struct {
-  double *mid_step;
-  double *side_step;
-  double *mid_left;
-  double *mid_right;
-  double *side_left;
-  double *side_right;
+  double *mid_step;   // mid of the input pair, L+R
+  double *side_step;  // side of the input pair, L-R
+  double *c1_mid;     // mid coordinate of the principal component
+  double *c1_side;    // side coordinate of the principal component
+  double *c2_mid;     // mid coordinate of the ambience component
+  double *c2_side;    // side coordinate of the ambience component
 } PCATrans;
 
 int eigen_2x2_symmetric(double a, double b, double d,double* eig1, double* eig2, double v1[2], double v2[2]);
@@ -87,28 +86,27 @@ private:
   double pan_theta;    // smoothed rotation of the principal axis
   bool pan_theta_set;  // false until the smoother has its first value
   int covsteps;
-  double *comps;
-  CovMatrix covM;
-  CovMatrix icorrv;
+  RunningSums covM;
+  RunningSums icorrv;
   PCATrans pca;
-  double pan;
+  double side_weight;
   double icorr;
   float *left_in;
   float *right_in;
   float *left_out;
   float *right_out;
-  float *mid_left_out;
-  float *side_left_out;
-  float *mid_right_out;
-  float *side_right_out;
+  float *c1_left_out;
+  float *c2_left_out;
+  float *c1_right_out;
+  float *c2_right_out;
   string left_name_in;
   string right_name_in;
   string left_name_out;
   string right_name_out;
-  string mid_left_name_out;
-  string mid_right_name_out;
-  string side_left_name_out;
-  string side_right_name_out;
+  string c1_left_name_out;
+  string c1_right_name_out;
+  string c2_left_name_out;
+  string c2_right_name_out;
 
 public:
   

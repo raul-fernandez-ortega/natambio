@@ -11,77 +11,6 @@
 #define NAE_BETA_2 0.45
 
 
-// Compute covariance between two double vectors of length N
-double covariance(const float* x, const float* y, int N)
-{
-  if (N == 0) return 0.0;
-  
-  double mean_x = 0.0, mean_y = 0.0;
-  
-  // First pass: compute means
-  for (int i = 0; i < N; i++) {
-    mean_x += x[i];
-    mean_y += y[i];
-  }
-  mean_x /= N;
-  mean_y /= N;
-  
-  double cov = 0.0;
-  for (int i = 0; i < N; i++) {
-    cov += (x[i] - mean_x) * (y[i] - mean_y);
-  }
-  return cov / (N-1); // Use N-1 for sample covariance
-}
-
-double correlationPearson(const float* x, const float* y, size_t N) {
-    if (N == 0) return 0.0;
-
-    double sumx = 0.0;
-    double sumy = 0.0;
-    double sumxy = 0.0;
-    double sumx2 = 0.0;
-    double sumy2 = 0.0;
-
-    for (size_t i = 0; i < N; i++) {
-      sumx += x[i];
-      sumy += y[i];
-      sumx2 += x[i]*x[i];
-      sumy2 += y[i]*y[i];
-      sumxy += x[i]*y[i];
-    }
-    if(N*sumx2==sumx*sumx || N*sumy2==sumy*sumy)
-      return 1;
-    else
-      return (N*sumxy - sumx*sumy) / sqrt((N*sumx2 - sumx*sumx)* (N*sumy2 - sumy*sumy) );
-}
-
-// Compute correlation between two double vectors of length N
-double correlation(const float* x, const float* y, int N)
-{
-  if (N == 0) return 0.0;
-  
-  double mean_x = 0.0, mean_y = 0.0;
-  
-  // First pass: compute means
-  for (int i = 0; i < N; i++) {
-    mean_x += x[i];
-    mean_y += y[i];
-  }
-  mean_x /= N;
-  mean_y /= N;
-
-  double cov = 0.0;
-  double stdx = 0;
-  double stdy = 0;
-  for (int i = 0; i < N; i++) {
-    stdx += (x[i] - mean_x)*(x[i] - mean_x);
-    stdy += (y[i] - mean_y)*(y[i] - mean_y);
-    cov += (x[i] - mean_x) * (y[i] - mean_y);
-  }
-  if(stdx==0 || stdy==0) return 0;
-  return cov / (sqrt(stdx)*sqrt(stdy));
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 // Calculates eigenvalues and eigenvectors of a 2x2 simmetric matrix. Matrix format:
 //             [[ a  b ]
@@ -149,10 +78,10 @@ NAE::NAE(string n_name, int n_mode)
   left_name_out = "";
   right_name_in = "";
   right_name_out = "";
-  mid_left_name_out = "";
-  side_left_name_out = "";
-  mid_right_name_out = "";
-  side_right_name_out = "";
+  c1_left_name_out = "";
+  c2_left_name_out = "";
+  c1_right_name_out = "";
+  c2_right_name_out = "";
   pan_scale = 0;
   pan_tau = NAE_PAN_TAU_DEF;
   pan_rate = 0;
@@ -170,16 +99,16 @@ NAE::~NAE(void)
   free(right_in);
   free(left_out);
   free(right_out);
-  free(mid_left_out);
-  free(mid_right_out);
-  free(side_left_out);
-  free(side_right_out);
+  free(c1_left_out);
+  free(c1_right_out);
+  free(c2_left_out);
+  free(c2_right_out);
   free(pca.mid_step);
   free(pca.side_step);
-  free(pca.mid_left);
-  free(pca.side_left);
-  free(pca.mid_right);
-  free(pca.side_right);
+  free(pca.c1_mid);
+  free(pca.c2_mid);
+  free(pca.c1_side);
+  free(pca.c2_side);
   free(covM.sum_xy_array);
   free(covM.sum_x2_array);
   free(covM.sum_y2_array);
@@ -234,15 +163,15 @@ void NAE::setSampleCount(int n_sample_count)
   memset(left_out, 0, sample_count);
   memset(right_out, 0, sample_count);
   
-  mid_left_out = (float*) calloc(sample_count, sizeof(float));
-  mid_right_out = (float*) calloc(sample_count, sizeof(float));
-  memset(mid_left_out, 0, sample_count);
-  memset(mid_right_out, 0, sample_count);
+  c1_left_out = (float*) calloc(sample_count, sizeof(float));
+  c1_right_out = (float*) calloc(sample_count, sizeof(float));
+  memset(c1_left_out, 0, sample_count);
+  memset(c1_right_out, 0, sample_count);
   
-  side_left_out = (float*) calloc(sample_count, sizeof(float));
-  side_right_out = (float*) calloc(sample_count, sizeof(float));
-  memset(side_left_out, 0, sample_count);
-  memset(side_right_out, 0, sample_count);
+  c2_left_out = (float*) calloc(sample_count, sizeof(float));
+  c2_right_out = (float*) calloc(sample_count, sizeof(float));
+  memset(c2_left_out, 0, sample_count);
+  memset(c2_right_out, 0, sample_count);
 }
 
 void NAE::setCovStepsLength(int n_covsteps)
@@ -267,14 +196,14 @@ void NAE::setChannelOut(enum side n_side, string n_channel_out)
     left_name_out = n_channel_out;
   else if (n_side == RIGHT)
     right_name_out = n_channel_out;
-  else if (n_side == MID_LEFT)
-    mid_left_name_out = n_channel_out;
-  else if (n_side == MID_RIGHT)
-    mid_right_name_out = n_channel_out;
-  else if (n_side == SIDE_LEFT)
-    side_left_name_out = n_channel_out;
+  else if (n_side == C1_LEFT)
+    c1_left_name_out = n_channel_out;
+  else if (n_side == C1_RIGHT)
+    c1_right_name_out = n_channel_out;
+  else if (n_side == C2_LEFT)
+    c2_left_name_out = n_channel_out;
   else
-    side_right_name_out = n_channel_out;
+    c2_right_name_out = n_channel_out;
 }
 
 string NAE::getChannelIn(enum side n_side)
@@ -291,14 +220,14 @@ string NAE::getChannelOut(enum side n_side)
     return left_name_out;
   else if(n_side == RIGHT) 
     return right_name_out;
-  else if(n_side == MID_LEFT) 
-    return mid_left_name_out;
-  else if(n_side == MID_RIGHT) 
-    return mid_right_name_out;
-  else if(n_side == SIDE_LEFT) 
-    return side_left_name_out;
+  else if(n_side == C1_LEFT) 
+    return c1_left_name_out;
+  else if(n_side == C1_RIGHT) 
+    return c1_right_name_out;
+  else if(n_side == C2_LEFT) 
+    return c2_left_name_out;
   else 
-    return side_right_name_out;
+    return c2_right_name_out;
 }
 
 void NAE::fillInputBuffer(enum side n_side, const float *n_input)
@@ -338,27 +267,27 @@ void NAE::fillOutputBuffer(enum side n_side, float* n_output)
 #ifdef RTDEBUG
     std::cout << "r_out:" << n_output[0] << std::endl;
 #endif
-  } else if(n_side == MID_LEFT) {
+  } else if(n_side == C1_LEFT) {
     for(int i = 0; i < sample_count; i++)
-      n_output[i] += mid_left_out[i];
+      n_output[i] += c1_left_out[i];
 #ifdef RTDEBUG
     std::cout << "l_out:" << n_output[0] << std::endl;
 #endif
-  } else if(n_side == MID_RIGHT) {
+  } else if(n_side == C1_RIGHT) {
     for(int i = 0; i < sample_count; i++)
-      n_output[i] += mid_right_out[i];
+      n_output[i] += c1_right_out[i];
 #ifdef RTDEBUG
     std::cout << "r_out:" << n_output[0] << std::endl;
 #endif
-  } else if(n_side == SIDE_LEFT) {
+  } else if(n_side == C2_LEFT) {
     for(int i = 0; i < sample_count; i++)
-      n_output[i] += side_left_out[i];
+      n_output[i] += c2_left_out[i];
 #ifdef RTDEBUG
     std::cout << "l_out:" << n_output[0] << std::endl;
 #endif
-  } else if(n_side == SIDE_RIGHT) {
+  } else if(n_side == C2_RIGHT) {
     for(int i = 0; i < sample_count; i++)
-      n_output[i] += side_right_out[i];
+      n_output[i] += c2_right_out[i];
 #ifdef RTDEBUG
     std::cout << "r_out:" << n_output[0] << std::endl;
 #endif
@@ -375,7 +304,7 @@ void NAE::load(int abspri, int policy)
   std::cout << "NAE: initial loading " << name << std::endl;
 #endif
 
-  pan = 1;
+  side_weight = 1;
   icorr = 1;
 
   if(pan_scale != 0) {
@@ -394,10 +323,10 @@ void NAE::load(int abspri, int policy)
 
   pca.mid_step = (double*) calloc(covsteps*sample_count, sizeof(double));
   pca.side_step = (double*) calloc(covsteps*sample_count, sizeof(double));
-  pca.mid_left = (double*) calloc(covsteps*sample_count, sizeof(double));
-  pca.mid_right = (double*) calloc(covsteps*sample_count, sizeof(double));
-  pca.side_left = (double*) calloc(covsteps*sample_count, sizeof(double));
-  pca.side_right = (double*) calloc(covsteps*sample_count, sizeof(double));
+  pca.c1_mid = (double*) calloc(covsteps*sample_count, sizeof(double));
+  pca.c1_side = (double*) calloc(covsteps*sample_count, sizeof(double));
+  pca.c2_mid = (double*) calloc(covsteps*sample_count, sizeof(double));
+  pca.c2_side = (double*) calloc(covsteps*sample_count, sizeof(double));
 
   // Data for covariance calculation
   covM.sum_xy_array = (double*) calloc(covsteps, sizeof(double));
@@ -459,7 +388,7 @@ void NAE::thr_process(void)
   double cov_matrix[2][2];
   double eigvalues[2];
   double eigvectors[2][2];
-  double mid_factor, side_factor;
+  double c1_factor, c2_factor;
   double sum_xy = 0;
   double sum_x2 = 0;
   double sum_y2 = 0;
@@ -471,10 +400,10 @@ void NAE::thr_process(void)
   double c_sum_x = 0;
   double c_sum_y = 0;
   int norm_covsteps = covsteps + 1;
-  double left_main;
-  double right_main;
-  double left_amb;
-  double right_amb;
+  double c1_left;
+  double c1_right;
+  double c2_left;
+  double c2_right;
   double left_surr;
   double right_surr;
   int N = (covsteps)*sample_count;
@@ -526,15 +455,15 @@ void NAE::thr_process(void)
 	icorr = 1;
       else 
 	icorr = fabs(ICORRL*sample_count*c_sum_xy - c_sum_x*c_sum_y) / sqrt((ICORRL*sample_count*c_sum_x2 - c_sum_x*c_sum_x)* (ICORRL*sample_count*c_sum_y2 - c_sum_y*c_sum_y));
-      pan = NAE_BETA_1 + icorr * NAE_BETA_2;
+      side_weight = NAE_BETA_1 + icorr * NAE_BETA_2;
     }
     else {
-      pan = 1.0;
+      side_weight = 1.0;
     }
     
     for (int i = 0, j = (covsteps - 1) * sample_count; i < sample_count; i++, j++) {
       pca.mid_step[j] = left_in[i] + right_in[i];
-      pca.side_step[j] = pan*(left_in[i] - right_in[i]);
+      pca.side_step[j] = side_weight*(left_in[i] - right_in[i]);
       // Covariances
       covM.sum_xy_array[covsteps - 1] += pca.mid_step[j] * pca.side_step[j];
       covM.sum_x2_array[covsteps - 1] += pca.mid_step[j] * pca.mid_step[j];
@@ -570,17 +499,17 @@ void NAE::thr_process(void)
     if(mode) {
       // Surround / Rear calculation 
       for(int i = 0; i < covsteps * sample_count; i ++) {
-	side_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.side_left[i] += side_factor * eigvectors[1][0]; // = side_left
-	pca.side_right[i] += side_factor * eigvectors[1][1]; // = side_right
+	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+	pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
-	left_surr = (pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_surr = (pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
+	left_surr = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+	right_surr = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
 	left_out[i]  = gain_main_surround*(left_surr); // right_surround
 	right_out[i] = gain_main_surround*(right_surr); // left_surround
-	side_left_out[i] = left_out[i];
-	side_right_out[i] = right_out[i];
+	c2_left_out[i] = left_out[i];
+	c2_right_out[i] = right_out[i];
       }
     } else {
       // Panning rescale of both components (<pan_scale>).
@@ -588,9 +517,8 @@ void NAE::thr_process(void)
       // Classic mid/side scaling, done on the coordinates the decomposition
       // already works in and before they are turned into left and right. Each
       // component is held in a mid coordinate and a side coordinate -- for the
-      // main one those are mid_left and mid_right, for the ambience one
-      // side_left and side_right, the names being historical -- and the
-      // control grows one against the other:
+      // main one those are c1_mid and c1_side, for the ambience one c2_mid
+      // and c2_side -- and the control grows one against the other:
       //
       //     mid  coordinate *= (1 - pan_scale)
       //     side coordinate *= (1 + pan_scale)
@@ -615,8 +543,8 @@ void NAE::thr_process(void)
       // projections keep using the raw eigenvectors: what is extracted does not
       // change, only where it is put. None of this runs at all with the feature
       // off, where the coefficients stay the plain eigenvectors.
-      double c1_mid = eigvectors[0][0], c1_side = eigvectors[0][1];
-      double c2_mid = eigvectors[1][0], c2_side = eigvectors[1][1];
+      double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
+      double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
       if(pan_scale != 0) {
 	double th = atan2(eigvectors[0][1], eigvectors[0][0]);
 	if(pan_theta_set)
@@ -629,7 +557,7 @@ void NAE::thr_process(void)
 	double sn = sin(pan_theta);
 	// eigen_2x2_symmetric does not fix the sign of the minor eigenvector,
 	// so carry over whichever orientation it handed us; the projection
-	// side_factor is computed with it and the two must agree.
+	// c2_factor is computed with it and the two must agree.
 	double orient = (eigvectors[1][0]*(-sn) + eigvectors[1][1]*cs >= 0.0) ? 1.0 : -1.0;
 	// The quiet channel of a component vanishes when the ratio of its two
 	// coordinates times tan(theta) reaches 1, and grows again past that in
@@ -650,48 +578,48 @@ void NAE::thr_process(void)
 	}
 	double km = 1.0 - k;
 	double kp = 1.0 + k;
-	c1_mid = cs*km;
-	c1_side = sn*kp;
-	c2_mid = orient*(-sn)*km;
-	c2_side = orient*cs*kp;
+	c1_mid_coef = cs*km;
+	c1_side_coef = sn*kp;
+	c2_mid_coef = orient*(-sn)*km;
+	c2_side_coef = orient*cs*kp;
       }
       // Main / Front calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
-	mid_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
-	side_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.mid_left[i] += mid_factor * c1_mid; // = mid_left
-	pca.mid_right[i] += mid_factor * c1_side; // = mid_right
-	pca.side_left[i] += side_factor * c2_mid; // = side_left
-	pca.side_right[i] += side_factor * c2_side; // = side_right
+	c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
+	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+	pca.c1_mid[i] += c1_factor * c1_mid_coef;
+	pca.c1_side[i] += c1_factor * c1_side_coef;
+	pca.c2_mid[i] += c2_factor * c2_mid_coef;
+	pca.c2_side[i] += c2_factor * c2_side_coef;
       }
       for(int  i = 0; i < sample_count; i++) {
-	left_main = (pca.mid_left[i] + pca.mid_right[i])/(norm_covsteps);
-	right_main = (pca.mid_left[i] - pca.mid_right[i])/(norm_covsteps);
-	left_amb = (pca.side_left[i] + pca.side_right[i])/(norm_covsteps);
-	right_amb = (pca.side_left[i] - pca.side_right[i])/(norm_covsteps);
-	left_out[i]  = gain_main*left_main + gain_amb*left_amb;
-	right_out[i] = gain_main*right_main + gain_amb*right_amb;
-	mid_left_out[i] = gain_main*left_main;
-        mid_right_out[i] = gain_main*right_main;
-	side_left_out[i] = gain_amb*left_amb;
-	side_right_out[i] = gain_amb*right_amb;
+	c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
+	c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
+	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
+	left_out[i]  = gain_main*c1_left + gain_amb*c2_left;
+	right_out[i] = gain_main*c1_right + gain_amb*c2_right;
+	c1_left_out[i] = gain_main*c1_left;
+        c1_right_out[i] = gain_main*c1_right;
+	c2_left_out[i] = gain_amb*c2_left;
+	c2_right_out[i] = gain_amb*c2_right;
       }
     }
     
     for(int i = 0, j = sample_count; i < sample_count *(covsteps - 1); i++, j++) {
-      pca.mid_left[i] = pca.mid_left[j];
-      pca.mid_right[i] = pca.mid_right[j];
-      pca.side_left[i] = pca.side_left[j];
-      pca.side_right[i] = pca.side_right[j];
+      pca.c1_mid[i] = pca.c1_mid[j];
+      pca.c1_side[i] = pca.c1_side[j];
+      pca.c2_mid[i] = pca.c2_mid[j];
+      pca.c2_side[i] = pca.c2_side[j];
       pca.mid_step[i] = pca.mid_step[j];
       pca.side_step[i] = pca.side_step[j];
     }
     
     for(int i = sample_count *(covsteps - 1); i < sample_count * covsteps; i++) {
-      pca.mid_left[i] = 0;
-      pca.mid_right[i] = 0;
-      pca.side_left[i] = 0;
-      pca.side_right[i] = 0;
+      pca.c1_mid[i] = 0;
+      pca.c1_side[i] = 0;
+      pca.c2_mid[i] = 0;
+      pca.c2_side[i] = 0;
     }
     
     for(int i = 0; i < covsteps - 1; i++) {

@@ -48,10 +48,10 @@ using namespace std;
 enum side {
   LEFT,
   RIGHT,
-  MID_LEFT,
-  MID_RIGHT,
-  SIDE_LEFT,
-  SIDE_RIGHT
+  C1_LEFT,
+  C1_RIGHT,
+  C2_LEFT,
+  C2_RIGHT
 };
 
 struct s_nae {
@@ -67,10 +67,10 @@ struct s_nae {
   string right_in;
   string left_out;
   string right_out;
-  string mid_left_out;
-  string mid_right_out;
-  string side_left_out;
-  string side_right_out;
+  string c1_left_out;
+  string c1_right_out;
+  string c2_left_out;
+  string c2_right_out;
 };
 
 struct coeff {
