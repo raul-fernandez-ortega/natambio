@@ -400,19 +400,19 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     std::cout << "NatAmbio: NAE name " << n_nae->name << std::endl;
     std::cout << "NatAmbio: NAE mode " << n_nae->mode << std::endl;
     if(n_nae->mode) {
-      std::cout << "NatAmbio: NAE ambient gain " << n_nae->gain_ambient << std::endl;
+      std::cout << "NatAmbio: NAE ambient gain " << n_nae->gain_c2_rear << std::endl;
     } else {
-      std::cout << "NatAmbio: NAE main gain " << n_nae->gain_main << std::endl;
-      std::cout << "NatAmbio: NAE ambience gain " << n_nae->gain_amb << std::endl;
+      std::cout << "NatAmbio: NAE main gain " << n_nae->gain_c1 << std::endl;
+      std::cout << "NatAmbio: NAE ambience gain " << n_nae->gain_c2 << std::endl;
       if(n_nae->pan_scale != 0)
 	std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
     }
   }
   NAE *n_nae_p;
   n_nae_p = new NAE(n_nae->name, n_nae->mode);
-  n_nae_p->setMainGain(n_nae->gain_main);
-  n_nae_p->setAmbGain(n_nae->gain_amb);
-  n_nae_p->setAmbientGain(n_nae->gain_ambient);
+  n_nae_p->setC1Gain(n_nae->gain_c1);
+  n_nae_p->setC2Gain(n_nae->gain_c2);
+  n_nae_p->setC2RearGain(n_nae->gain_c2_rear);
   n_nae_p->setPanScale(n_nae->pan_scale, n_nae->pan_scale_tau, naJack->getSampleRate());
   n_nae_p->setSampleCount(naJack->getPartSize());
   n_nae_p->setCovStepsLength(n_nae->steps_length);
