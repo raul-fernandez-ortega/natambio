@@ -61,7 +61,7 @@ static void* process_front(void *n_nae)
   return (void*) nae;
 }
 
-static void* process_surround(void *n_nae)
+static void* process_ambient(void *n_nae)
 {
   NAE *nae = (NAE*) n_nae;
   nae->thr_process();
@@ -137,9 +137,9 @@ bool NAE::setAmbGain(double gain)
   return true;
 }
 
-bool NAE::setSurrGain(double gain)
+bool NAE::setAmbientGain(double gain)
 {
-  gain_main_surround = gain;
+  gain_ambient = gain;
   return true;
 }
 
@@ -368,7 +368,7 @@ void NAE::load(int abspri, int policy)
   pthread_attr_setinheritsched(&attr, PTHREAD_EXPLICIT_SCHED);
   pthread_attr_setstacksize(&attr, 0x10000);
   if(mode)
-    pthread_create(&t_proc, &attr, process_surround, (void *)this);
+    pthread_create(&t_proc, &attr, process_ambient, (void *)this);
   else
     pthread_create(&t_proc, &attr, process_front, (void *)this);
   pthread_attr_destroy(&attr);
@@ -404,8 +404,6 @@ void NAE::thr_process(void)
   double c1_right;
   double c2_left;
   double c2_right;
-  double left_surr;
-  double right_surr;
   int N = (covsteps)*sample_count;
 
   if(!quiet) {
@@ -429,7 +427,7 @@ void NAE::thr_process(void)
     covM.sum_y_array[covsteps - 1] = 0;
 
     if(mode) {
-      // surround only
+      // ambient mode only
       icorrv.sum_xy_array[ICORRL - 1] = 0;
       icorrv.sum_x2_array[ICORRL - 1] = 0;
       icorrv.sum_y2_array[ICORRL - 1] = 0;
@@ -495,19 +493,19 @@ void NAE::thr_process(void)
     //Components
     pthread_mutex_lock(&mutex);
     
-    // Output: surround
+    // Output: ambient
     if(mode) {
-      // Surround / Rear calculation 
+      // Rear ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
 	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
 	pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
-	left_surr = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
-	right_surr = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-	left_out[i]  = gain_main_surround*(left_surr); // right_surround
-	right_out[i] = gain_main_surround*(right_surr); // left_surround
+	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
+	left_out[i]  = gain_ambient*c2_left;
+	right_out[i] = gain_ambient*c2_right;
 	c2_left_out[i] = left_out[i];
 	c2_right_out[i] = right_out[i];
       }
@@ -630,7 +628,7 @@ void NAE::thr_process(void)
       covM.sum_y_array[i] = covM.sum_y_array[i + 1];
     }
     if(mode) {
-      // surround only
+      // ambient mode only
       for(int i = 0; i < ICORRL - 1; i++) {
       icorrv.sum_xy_array[i] = icorrv.sum_xy_array[i + 1];
       icorrv.sum_x2_array[i] = icorrv.sum_x2_array[i + 1];

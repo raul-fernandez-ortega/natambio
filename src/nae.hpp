@@ -78,7 +78,7 @@ private:
   int sample_count;
   double gain_main;
   double gain_amb;
-  double gain_main_surround;
+  double gain_ambient;
   double pan_scale;    // configured mid/side rescale, [-1, 1]
   double pan_tau;      // time constant of the placement smoothing, seconds
   int pan_rate;        // sample rate, to turn that into a coefficient
@@ -117,7 +117,7 @@ public:
   string getName(void) { return name; };
   bool setMainGain(double gain);
   bool setAmbGain(double gain);
-  bool setSurrGain(double gain);
+  bool setAmbientGain(double gain);
   void setPanScale(double n_pan_scale, double n_tau, int n_rate);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
