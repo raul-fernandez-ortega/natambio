@@ -32,7 +32,7 @@ Contenido:
 ## Uso
 
 ```sh
-python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false]
+python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false] [--align peak|xcorr]
 ```
 
 - `directorio_impulsos`: carpeta con las respuestas impulsivas ya medidas, en
@@ -41,6 +41,8 @@ python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false]
 - `--normalize true|false` (por defecto `true`): si es `true`, las componentes se
   dividen por el pico de la componente principal (la principal queda con pico
   1.0); si es `false`, se guardan los valores PCA crudos (sin normalizar).
+- `--align peak|xcorr` (por defecto `peak`): cómo se alinean las impulsivas antes
+  de la PCA (ver más abajo).
 
 Las componentes PCA se guardan en un subdirectorio `pca4drc/` **dentro** del
 directorio de entrada (se crea si no existe), numeradas por su orden en el
@@ -51,13 +53,80 @@ algoritmo empezando en 0: `PCA_0.wav` (componente principal), `PCA_1.wav`, ...
 1. Lee todos los `.wav` del directorio con `soundfile`.
 2. Localiza el pico (máximo absoluto) de cada impulso.
 3. Reescribe cada impulso en una señal de longitud `output_len` centrada en su
-   pico y le aplica una ventana de Blackman.
+   pico, opcionalmente afina ese centrado por maximización de covarianza (ver
+   `--align`) y le aplica una ventana de Blackman.
 4. Resta la media de cada impulso, calcula la matriz de covarianza entre
    impulsos, sus autovalores/autovectores y proyecta los impulsos sobre los
    autovectores (PCA).
 5. Corrige la polaridad, opcionalmente normaliza cada componente por el máximo de
    la componente principal (ver `--normalize`) y las guarda como WAV de longitud
    `output_len`.
+
+## Alineado: `--align peak|xcorr`
+
+`peak` (por defecto) centra cada impulsiva en su propio pico de muestra: decide
+una sola muestra y el resultado queda cuantizado a la rejilla de muestreo. Media
+muestra a 48 kHz son 10 µs, que a 16 kHz equivalen a 60° de fase, así que lo que
+queda después del centrado no es despreciable para la covarianza.
+
+`xcorr` parte de ese centrado y lo afina a fracción de muestra maximizando la
+covarianza entre **todas las parejas** de impulsivas: los retardos por parejas se
+resuelven por mínimos cuadrados con suma cero (usar todas las parejas, y no una
+impulsiva de referencia, evita que una sola medida arrastre al conjunto), el pico
+de correlación se refina por interpolación parabólica y el desplazamiento se
+aplica con fase lineal. La ventana de correlación (±20 ms) solo tiene que cubrir
+el directo y las primeras reflexiones; el tope de ±2 ms impide que una
+correlación patológica lleve una impulsiva a otro arribo.
+
+Medido sobre un sistema real de cuatro vías, 16 posiciones por vía: los retardos
+residuales son de 0,26 a 0,61 muestras rms, y la varianza explicada por la
+componente principal sube del 41–61 % al 50–67 %, mientras la segunda componente
+baja de ~10 % a ~4 %. Es decir, buena parte de lo que parecía un segundo modo
+acústico era desalineamiento sub-muestra.
+
+Lo que `xcorr` **no** hace es acercar la componente principal al promedio en
+potencia del conjunto: de una posición a otra la sala cambia por nulos modales y
+patrones de reflexión, no por retardos, y ningún retardo por impulsiva convierte
+una suma coherente en una media de potencia.
+
+El informe imprime, además de los retardos aplicados, un valor de similitud media
+y mínima entre parejas. Es descriptivo del conjunto —acompaña a la varianza
+explicada—, no un criterio de aprobado: en medidas reales va de ~0,7 entre
+posiciones próximas a ~0,4 entre lejanas, un rango en el que también puede caer
+un conjunto defectuoso.
+
+## Referencia de nivel: `--level-normalize`
+
+La componente principal está definida salvo un factor de escala arbitrario, y ese
+factor es **distinto en cada vía**: depende de la estructura de covarianza del
+conjunto de impulsivas de esa vía, de la normalización por pico del paso 5 y de la
+resta de media y el ventaneado de los pasos 3-4. Después DRC normaliza también sus
+propias etapas (`ISNormType`, `PSNormType`, `MSNormType`), de modo que el filtro
+resultante no guarda memoria de a qué nivel suena esa vía. Si mides cuatro vías y
+las pasas por la cadena, sus niveles relativos dejan de significar nada: en un
+sistema de cuatro vías el factor arbitrario variaba 5 dB entre ellas.
+
+Ningún tipo de normalización de DRC lo resuelve, porque S, E, M y P son criterios
+anticlipping calculados a partir del propio filtro. La referencia hay que
+restituirla sobre los filtros ya terminados:
+
+```sh
+python pca4drc.py --level-normalize i_*/rms.wav [--ref-band LO HI] [--in-place] [--dry-run]
+```
+
+Cada filtro se escala para que su ganancia media en energía sobre la banda de
+referencia (`--ref-band`, 200-2000 Hz por defecto) sea exactamente 0 dB, es decir,
+ganancia unidad para ruido limitado a esa banda. El filtro pasa así a cambiar solo
+la respuesta en frecuencia, y los niveles relativos entre vías se quedan como los
+tenía el sistema antes de corregir, con lo que cualquier calibración de nivel
+hecha aguas abajo sigue siendo válida. Los filtros escalados se escriben junto a
+los originales con el sufijo `_lvl` (`--suffix`), o encima de ellos con
+`--in-place`.
+
+El informe imprime, por filtro, la ganancia aplicada, cuánto varía todavía el
+filtro dentro de la banda de referencia y las tres cifras que necesita el
+convolucionador para dejar headroom: pico de muestra, `suma|h|` y la ganancia
+máxima de la respuesta de magnitud.
 
 ## Generación del sweep: `sweepgen.py`
 
