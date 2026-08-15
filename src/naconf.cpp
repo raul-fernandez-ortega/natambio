@@ -858,16 +858,6 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       delete nae;
       return NULL;
     }
-    if(nae->pan_scale < -1.0 || nae->pan_scale > 1.0) {
-      parse_error("Error: nae pan_scale must be within [-1, 1].");
-      delete nae;
-      return NULL;
-    }
-    if(nae->pan_scale != 0 && nae->pan_scale_tau <= 0) {
-      parse_error("Error: nae pan_scale_tau must be > 0.");
-      delete nae;
-      return NULL;
-    }
   } else if(mode == "beta") {
     nae->mode = 1;
     if(nae->gain_c2_rear == 0) {
@@ -875,15 +865,18 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       delete nae;
       return NULL;
     }
-    if(nae->pan_scale != 0) {
-      // Beta mode emits the ambient component alone; it has no principal
-      // component whose panning could be rescaled.
-      parse_error("Error: nae pan_scale is only valid in alpha mode.");
-      delete nae;
-      return NULL;
-    }
   } else {
     parse_error("Error: nae process mode not defined.");
+    delete nae;
+    return NULL;
+  }
+  if(nae->pan_scale < -1.0 || nae->pan_scale > 1.0) {
+    parse_error("Error: nae pan_scale must be within [-1, 1].");
+    delete nae;
+    return NULL;
+  }
+  if(nae->pan_scale != 0 && nae->pan_scale_tau <= 0) {
+    parse_error("Error: nae pan_scale_tau must be > 0.");
     delete nae;
     return NULL;
   }
@@ -908,13 +901,13 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   } else {
     std::cout << "\t\tFront main gain: " << nae->gain_c1 << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_c2 << std::endl;
-    if(nae->pan_scale != 0) {
-      std::cout << "\t\tPan scale: " << nae->pan_scale << " ("
-		<< ((nae->pan_scale > 0) ? "widening" : "narrowing")
-		<< " both components, mid x " << (1.0 - nae->pan_scale)
-		<< ", side x " << (1.0 + nae->pan_scale)
-		<< ", tau " << nae->pan_scale_tau << " s)" << std::endl;
-    }
+  }
+  if(nae->pan_scale != 0) {
+    std::cout << "\t\tPan scale: " << nae->pan_scale << " ("
+	      << ((nae->pan_scale > 0) ? "widening" : "narrowing")
+	      << ", mid x " << (1.0 - nae->pan_scale)
+	      << ", side x " << (1.0 + nae->pan_scale)
+	      << ", tau " << nae->pan_scale_tau << " s)" << std::endl;
   }
   if(!nae->left_out.empty())
     std::cout << "\tLeft channel output: " << nae->left_out << std::endl;

@@ -493,13 +493,81 @@ void NAE::thr_process(void)
     //Components
     pthread_mutex_lock(&mutex);
     
+    // Panning rescale (<pan_scale>), both modes.
+    //
+    // Classic mid/side scaling, done on the coordinates the decomposition
+    // already works in and before they are turned into left and right. Each
+    // component is held in a mid coordinate and a side coordinate -- c1_mid
+    // and c1_side for the principal one, c2_mid and c2_side for the ambient
+    // one -- and the control grows one against the other:
+    //
+    //     mid  coordinate *= (1 - pan_scale)
+    //     side coordinate *= (1 + pan_scale)
+    //
+    // Their ratio therefore goes as r = (1 + pan_scale)/(1 - pan_scale), which
+    // is what sets the panning, while the level of the component follows the
+    // two factors and shifts the balance between direct sound and ambience:
+    // opening brings the ambience up, closing brings it down. That balance
+    // shift is the whole point of scaling both coordinates rather than one.
+    // In beta mode, which emits the ambient component alone, only the second
+    // pair of coefficients is used.
+    //
+    // Placement is smoothed before it is rescaled. The rotation of the
+    // principal axis wanders from block to block, and since the control
+    // multiplies the imbalance it multiplies that wander too, which is heard
+    // as sources drifting about. The axis used to place the components is
+    // therefore a one pole average of its own rotation, while the projections
+    // keep using the raw eigenvectors: what is extracted does not change, only
+    // where it is put. None of this runs at all with the feature off, where
+    // the coefficients stay the plain eigenvectors.
+    double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
+    double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
+    if(pan_scale != 0) {
+      double th = atan2(eigvectors[0][1], eigvectors[0][0]);
+      if(pan_theta_set)
+	pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
+      else {
+	pan_theta = th;
+	pan_theta_set = true;
+      }
+      double cs = cos(pan_theta);
+      double sn = sin(pan_theta);
+      // eigen_2x2_symmetric does not fix the sign of the minor eigenvector,
+      // so carry over whichever orientation it handed us; the projection
+      // c2_factor is computed with it and the two must agree.
+      double orient = (eigvectors[1][0]*(-sn) + eigvectors[1][1]*cs >= 0.0) ? 1.0 : -1.0;
+      // The bound is two sided, because the two components flip on opposite
+      // sides of the control. The principal one has its quiet channel vanish
+      // when r*tan(theta) reaches 1, which needs r above 1 and so a positive
+      // setting; the ambient one when tan(theta)/r reaches 1, which needs a
+      // negative one. Holding the quiet channel to half the level of the other
+      // in either case, |quiet| <= 0.5*|loud|, bounds both at
+      // |pan_scale| <= (m - t)/(m + t) for t the tangent and m the ceiling
+      // over it. Never taken below zero, so the untouched behaviour is never
+      // made more conservative than it already is.
+      double k = pan_scale;
+      double t = (fabs(cs) > 0.0) ? fabs(sn)/fabs(cs) : -1.0;
+      if(t >= 0.0) {
+	double kmax = (NAE_PAN_MAX_TAN - t)/(NAE_PAN_MAX_TAN + t);
+	if(kmax < 0.0) kmax = 0.0;
+	if(k > kmax) k = kmax;
+	else if(k < -kmax) k = -kmax;
+      }
+      double km = 1.0 - k;
+      double kp = 1.0 + k;
+      c1_mid_coef = cs*km;
+      c1_side_coef = sn*kp;
+      c2_mid_coef = orient*(-sn)*km;
+      c2_side_coef = orient*cs*kp;
+    }
+
     // Output: ambient
     if(mode) {
       // Rear ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
-	pca.c2_side[i] += c2_factor * eigvectors[1][1];
+	pca.c2_mid[i] += c2_factor * c2_mid_coef;
+	pca.c2_side[i] += c2_factor * c2_side_coef;
       }
       for(int  i = 0; i < sample_count; i++) {
 	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
@@ -510,77 +578,6 @@ void NAE::thr_process(void)
 	c2_right_out[i] = right_out[i];
       }
     } else {
-      // Panning rescale of both components (<pan_scale>).
-      //
-      // Classic mid/side scaling, done on the coordinates the decomposition
-      // already works in and before they are turned into left and right. Each
-      // component is held in a mid coordinate and a side coordinate -- for the
-      // main one those are c1_mid and c1_side, for the ambience one c2_mid
-      // and c2_side -- and the control grows one against the other:
-      //
-      //     mid  coordinate *= (1 - pan_scale)
-      //     side coordinate *= (1 + pan_scale)
-      //
-      // Their ratio therefore goes as (1 + pan_scale)/(1 - pan_scale), which
-      // is what sets the panning, while the level of the component follows the
-      // two factors and shifts the balance between direct sound and ambience:
-      // opening brings the ambience up, closing brings it down. That balance
-      // shift is the whole point of scaling both coordinates rather than one.
-      //
-      // At -1 the side coordinate vanishes and the component sits at the
-      // centre, the main one at mono and the ambience one at two channels of
-      // equal level; no value in range can carry it past, the ratio staying
-      // positive throughout, so the lower end needs no bound. At +1 the mid
-      // coordinate vanishes instead and the component is pure side.
-      //
-      // Placement is smoothed before it is rescaled. The rotation of the
-      // principal axis wanders from block to block, and since the control
-      // multiplies the imbalance it multiplies that wander too, which is heard
-      // as sources drifting about. The axis used to place the components is
-      // therefore a one pole average of its own rotation, while the
-      // projections keep using the raw eigenvectors: what is extracted does not
-      // change, only where it is put. None of this runs at all with the feature
-      // off, where the coefficients stay the plain eigenvectors.
-      double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
-      double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
-      if(pan_scale != 0) {
-	double th = atan2(eigvectors[0][1], eigvectors[0][0]);
-	if(pan_theta_set)
-	  pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
-	else {
-	  pan_theta = th;
-	  pan_theta_set = true;
-	}
-	double cs = cos(pan_theta);
-	double sn = sin(pan_theta);
-	// eigen_2x2_symmetric does not fix the sign of the minor eigenvector,
-	// so carry over whichever orientation it handed us; the projection
-	// c2_factor is computed with it and the two must agree.
-	double orient = (eigvectors[1][0]*(-sn) + eigvectors[1][1]*cs >= 0.0) ? 1.0 : -1.0;
-	// The quiet channel of a component vanishes when the ratio of its two
-	// coordinates times tan(theta) reaches 1, and grows again past that in
-	// the opposite polarity. Holding it to half the level of the other
-	// channel gives |(1+k)/(1-k) * tan(theta)| <= NAE_PAN_MAX_TAN, which in
-	// terms of the setting itself is k <= (m-1)/(m+1) for m the bound over
-	// the tangent. Never taken below zero, so the untouched behaviour is
-	// never made more conservative than it already is.
-	double k = pan_scale;
-	if(k > 0.0) {
-	  double a = fabs(sn);
-	  if(a > 0.0) {
-	    double m = NAE_PAN_MAX_TAN*fabs(cs)/a;
-	    double kmax = (m - 1.0)/(m + 1.0);
-	    if(kmax < 0.0) kmax = 0.0;
-	    if(k > kmax) k = kmax;
-	  }
-	}
-	double km = 1.0 - k;
-	double kp = 1.0 + k;
-	c1_mid_coef = cs*km;
-	c1_side_coef = sn*kp;
-	c2_mid_coef = orient*(-sn)*km;
-	c2_side_coef = orient*cs*kp;
-      }
       // Main / Front calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];

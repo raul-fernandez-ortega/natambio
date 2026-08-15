@@ -404,9 +404,9 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     } else {
       std::cout << "NatAmbio: NAE main gain " << n_nae->gain_c1 << std::endl;
       std::cout << "NatAmbio: NAE ambience gain " << n_nae->gain_c2 << std::endl;
-      if(n_nae->pan_scale != 0)
-	std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
     }
+    if(n_nae->pan_scale != 0)
+      std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
   }
   NAE *n_nae_p;
   n_nae_p = new NAE(n_nae->name, n_nae->mode);
