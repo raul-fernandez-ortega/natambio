@@ -80,8 +80,12 @@ private:
   double gain_main;
   double gain_amb;
   double gain_main_surround;
-  double pan_scale;  // configured panning rescale, [-1, 1]
-  double pan_side;   // 1 + 2*pan_scale, applied to both components
+  double pan_scale;    // configured mid/side rescale, [-1, 1]
+  double pan_tau;      // time constant of the placement smoothing, seconds
+  int pan_rate;        // sample rate, to turn that into a coefficient
+  double pan_smooth;   // one pole coefficient derived from pan_tau
+  double pan_theta;    // smoothed rotation of the principal axis
+  bool pan_theta_set;  // false until the smoother has its first value
   int covsteps;
   double *comps;
   CovMatrix covM;
@@ -116,7 +120,7 @@ public:
   bool setMainGain(double gain);
   bool setAmbGain(double gain);
   bool setSurrGain(double gain);
-  void setPanScale(double n_pan_scale);
+  void setPanScale(double n_pan_scale, double n_tau, int n_rate);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
   void setChannelIn(enum side n_side, string n_channel_in);

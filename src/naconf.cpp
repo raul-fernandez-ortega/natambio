@@ -785,7 +785,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_main = 0;
   nae->gain_amb = 0;
   nae->gain_surr = 0;
-  nae->pan_scale = 0;      // optional; 0 leaves the principal component alone
+  nae->pan_scale = 0;      // optional; 0 leaves both components alone
+  nae->pan_scale_tau = NAE_PAN_TAU_DEF;  // optional; seconds
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
   nae->left_in = "";
   nae->right_in = "";
@@ -808,6 +809,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->gain_surr = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale_tau")) {
+      nae->pan_scale_tau = strtof((char*)cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
       nae->left_in = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_right")) {
@@ -860,6 +863,11 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       delete nae;
       return NULL;
     }
+    if(nae->pan_scale != 0 && nae->pan_scale_tau <= 0) {
+      parse_error("Error: nae pan_scale_tau must be > 0.");
+      delete nae;
+      return NULL;
+    }
   } else if(mode == "beta") {
     nae->mode = 1;
     if(nae->gain_surr == 0) {
@@ -903,8 +911,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     if(nae->pan_scale != 0) {
       std::cout << "\t\tPan scale: " << nae->pan_scale << " ("
 		<< ((nae->pan_scale > 0) ? "widening" : "narrowing")
-		<< " both components, imbalance x "
-		<< (1.0 + 2.0*nae->pan_scale) << ")" << std::endl;
+		<< " both components, mid x " << (1.0 - nae->pan_scale)
+		<< ", side x " << (1.0 + nae->pan_scale)
+		<< ", tau " << nae->pan_scale_tau << " s)" << std::endl;
     }
   }
   if(!nae->left_out.empty())

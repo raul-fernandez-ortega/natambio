@@ -32,6 +32,9 @@ extern "C" {
 #define FROM_DB(db) (pow(10, (db) / 20.0))
 #endif
 
+// Default time constant of the NAE panning rescale smoothing, seconds.
+#define NAE_PAN_TAU_DEF 0.5
+
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
@@ -57,7 +60,8 @@ struct s_nae {
   double gain_main;
   double gain_amb;
   double gain_surr;
-  double pan_scale;   // panning rescale of the principal component, [-1, 1]
+  double pan_scale;      // mid/side rescale of both components, [-1, 1]
+  double pan_scale_tau;  // time constant of the placement smoothing, seconds
   int steps_length;
   string left_in;
   string right_in;
