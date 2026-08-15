@@ -92,14 +92,14 @@ void ConvChannel::addNaeInput(enum side n_side, NAE *n_nae)
     cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
   else if (n_side == RIGHT)
     cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
-  else   if(n_side == MID_LEFT)
-    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(MID_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
-  else if (n_side == MID_RIGHT)
-    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(MID_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
-  else   if(n_side == SIDE_LEFT)
-    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(SIDE_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
-  else if (n_side == SIDE_RIGHT)
-    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(SIDE_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else   if(n_side == C1_LEFT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C1_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else if (n_side == C1_RIGHT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C1_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else   if(n_side == C2_LEFT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C2_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else if (n_side == C2_RIGHT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C2_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
 #endif
   nae_channel *n_nae_channel = new struct nae_channel();
   n_nae_channel->n_side = n_side;

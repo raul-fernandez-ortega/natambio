@@ -678,13 +678,13 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"output_right")) {
       nae->right_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_output_left")) {
-      nae->mid_left_out = (char*)cnt;
+      nae->c1_left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_output_right")) {
-      nae->mid_right_out = (char*)cnt;
+      nae->c1_right_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_left")) {
-      nae->side_left_out = (char*)cnt;
+      nae->c2_left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_right")) {
-      nae->side_right_out = (char*)cnt;
+      nae->c2_right_out = (char*)cnt;
     }
     xmlFree(cnt);
     xmlnode = xmlnode->next;
@@ -745,12 +745,12 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     delete nae;
     return NULL;
   }
-  if(nae->left_out.empty() && nae->mid_left_out.empty() && nae->side_left_out.empty()) {
+  if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty()) {
     parse_error("Error: nae left output not defined.");
     delete nae;
     return NULL;
   }
-  if(nae->right_out.empty() && nae->mid_right_out.empty() && nae->side_right_out.empty()) {
+  if(nae->right_out.empty() && nae->c1_right_out.empty() && nae->c2_right_out.empty()) {
     parse_error("Error: nae right output not defined.");
     delete nae;
     return NULL;
@@ -778,14 +778,14 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     std::cout << "\tLeft channel output: " << nae->left_out << std::endl;
   if(!nae->right_out.empty())
     std::cout << "\tRight channel output: " << nae->right_out << std::endl;
-  if(!nae->mid_left_out.empty())
-    std::cout << "\tMid left channel output: " << nae->mid_left_out << std::endl;
-  if(!nae->mid_right_out.empty())
-    std::cout << "\tMid right channel output: " << nae->mid_right_out << std::endl;
-  if(!nae->side_left_out.empty())
-    std::cout << "\tSide left channel output: " << nae->side_left_out << std::endl;
-  if(!nae->side_right_out.empty())
-    std::cout << "\tSide right channel output: " << nae->side_right_out << std::endl;
+  if(!nae->c1_left_out.empty())
+    std::cout << "\tMid left channel output: " << nae->c1_left_out << std::endl;
+  if(!nae->c1_right_out.empty())
+    std::cout << "\tMid right channel output: " << nae->c1_right_out << std::endl;
+  if(!nae->c2_left_out.empty())
+    std::cout << "\tSide left channel output: " << nae->c2_left_out << std::endl;
+  if(!nae->c2_right_out.empty())
+    std::cout << "\tSide right channel output: " << nae->c2_right_out << std::endl;
   return nae;
 }
 

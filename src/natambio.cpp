@@ -328,51 +328,51 @@ bool NatAmbio::startNAE(void)
 	    }
 	  }
 	}
-	if((*naeinp) == (*nae)->getChannelOut(MID_LEFT)) {
+	if((*naeinp) == (*nae)->getChannelOut(C1_LEFT)) {
 	  if(!quiet) 
-	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(MID_LEFT) << std::endl;
+	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C1_LEFT) << std::endl;
 	  found_nae = true;
 	  for (std::vector<ConvChannel*>::iterator ch = convChannels.begin() ; ch != convChannels.end(); ++ch) {
 	    if((*ch)->get_name() == (*cv)->name) {
 	      if(!quiet) 
-		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(MID_LEFT) << " to convChannel " << (*ch)->get_name() << std::endl;
-	      (*ch)->addNaeInput(MID_LEFT, *nae);
+		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C1_LEFT) << " to convChannel " << (*ch)->get_name() << std::endl;
+	      (*ch)->addNaeInput(C1_LEFT, *nae);
 	    }
 	  }
 	}
-	if((*naeinp) == (*nae)->getChannelOut(MID_RIGHT)) {
+	if((*naeinp) == (*nae)->getChannelOut(C1_RIGHT)) {
 	  if(!quiet) 
-	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(MID_RIGHT) << std::endl;
+	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C1_RIGHT) << std::endl;
 	  found_nae = true;
 	  for (std::vector<ConvChannel*>::iterator ch = convChannels.begin() ; ch != convChannels.end(); ++ch) {
 	    if((*ch)->get_name() == (*cv)->name) {
 	      if(!quiet) 
-		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(MID_RIGHT) << " to convChannel " << (*ch)->get_name() << std::endl;
-	      (*ch)->addNaeInput(MID_RIGHT, *nae);
+		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C1_RIGHT) << " to convChannel " << (*ch)->get_name() << std::endl;
+	      (*ch)->addNaeInput(C1_RIGHT, *nae);
 	    }
 	  }
 	}
-	if((*naeinp) == (*nae)->getChannelOut(SIDE_LEFT)) {
+	if((*naeinp) == (*nae)->getChannelOut(C2_LEFT)) {
 	  if(!quiet) 
-	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(SIDE_LEFT) << std::endl;
+	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C2_LEFT) << std::endl;
 	  found_nae = true;
 	  for (std::vector<ConvChannel*>::iterator ch = convChannels.begin() ; ch != convChannels.end(); ++ch) {
 	    if((*ch)->get_name() == (*cv)->name) {
 	      if(!quiet) 
-		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(SIDE_LEFT) << " to convChannel " << (*ch)->get_name() << std::endl;
-	      (*ch)->addNaeInput(SIDE_LEFT, *nae);
+		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C2_LEFT) << " to convChannel " << (*ch)->get_name() << std::endl;
+	      (*ch)->addNaeInput(C2_LEFT, *nae);
 	    }
 	  }
 	}
-	if((*naeinp) == (*nae)->getChannelOut(SIDE_RIGHT)) {
+	if((*naeinp) == (*nae)->getChannelOut(C2_RIGHT)) {
 	  if(!quiet) 
-	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(SIDE_RIGHT) << std::endl;
+	    std::cout << "NatAmbio: creating NAE input to convproc " << (*cv)->name << " from NAE " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C2_RIGHT) << std::endl;
 	  found_nae = true;
 	  for (std::vector<ConvChannel*>::iterator ch = convChannels.begin() ; ch != convChannels.end(); ++ch) {
 	    if((*ch)->get_name() == (*cv)->name) {
 	      if(!quiet) 
-		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(SIDE_RIGHT) << " to convChannel " << (*ch)->get_name() << std::endl;
-	      (*ch)->addNaeInput(SIDE_RIGHT, *nae);
+		std::cout << "NatAmbio: connecting NAE output " << (*nae)->getName() << " output channel " << (*nae)->getChannelOut(C2_RIGHT) << " to convChannel " << (*ch)->get_name() << std::endl;
+	      (*ch)->addNaeInput(C2_RIGHT, *nae);
 	    }
 	  }
 	}
@@ -422,14 +422,14 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     n_nae_p->setChannelOut(LEFT, n_nae->left_out);
   if(!n_nae->right_out.empty())
     n_nae_p->setChannelOut(RIGHT, n_nae->right_out);
-  if(!n_nae->mid_left_out.empty())
-    n_nae_p->setChannelOut(MID_LEFT, n_nae->mid_left_out);
-  if(!n_nae->mid_right_out.empty())
-    n_nae_p->setChannelOut(MID_RIGHT, n_nae->mid_right_out);
-  if(!n_nae->side_left_out.empty())
-    n_nae_p->setChannelOut(SIDE_LEFT, n_nae->side_left_out);
-  if(!n_nae->side_right_out.empty())
-    n_nae_p->setChannelOut(SIDE_RIGHT, n_nae->side_right_out);  
+  if(!n_nae->c1_left_out.empty())
+    n_nae_p->setChannelOut(C1_LEFT, n_nae->c1_left_out);
+  if(!n_nae->c1_right_out.empty())
+    n_nae_p->setChannelOut(C1_RIGHT, n_nae->c1_right_out);
+  if(!n_nae->c2_left_out.empty())
+    n_nae_p->setChannelOut(C2_LEFT, n_nae->c2_left_out);
+  if(!n_nae->c2_right_out.empty())
+    n_nae_p->setChannelOut(C2_RIGHT, n_nae->c2_right_out);  
   // Connecting jackaudio input to nae inputs following configuration (naConf)
   for(std::vector<struct jackport*>::iterator it = naConf->jackclient->outports.begin() ; it != naConf->jackclient->outports.end(); ++it) {
     if(n_nae->left_out == (*it)->name) {
@@ -442,25 +442,25 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
 	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->right_out << " connection to jack input " << (*it)->name <<  std::endl;
       naJack->connectOutputNaePort(RIGHT, (*it)->name, n_nae_p);
     }
-    if(n_nae->mid_left_out == (*it)->name) {
+    if(n_nae->c1_left_out == (*it)->name) {
       if(!quiet) 
-	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->mid_left_out << " connection to jack input " << (*it)->name <<  std::endl;
-      naJack->connectOutputNaePort(MID_LEFT, (*it)->name, n_nae_p);
+	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->c1_left_out << " connection to jack input " << (*it)->name <<  std::endl;
+      naJack->connectOutputNaePort(C1_LEFT, (*it)->name, n_nae_p);
     }
-    if(n_nae->mid_right_out == (*it)->name) {
+    if(n_nae->c1_right_out == (*it)->name) {
       if(!quiet)
-	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->mid_right_out << " connection to jack input " << (*it)->name <<  std::endl;
-      naJack->connectOutputNaePort(MID_RIGHT, (*it)->name, n_nae_p);
+	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->c1_right_out << " connection to jack input " << (*it)->name <<  std::endl;
+      naJack->connectOutputNaePort(C1_RIGHT, (*it)->name, n_nae_p);
     }
-    if(n_nae->side_left_out == (*it)->name) {
+    if(n_nae->c2_left_out == (*it)->name) {
       if(!quiet) 
-	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->side_left_out << " connection to jack input " << (*it)->name <<  std::endl;
-      naJack->connectOutputNaePort(SIDE_LEFT, (*it)->name, n_nae_p);
+	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->c2_left_out << " connection to jack input " << (*it)->name <<  std::endl;
+      naJack->connectOutputNaePort(C2_LEFT, (*it)->name, n_nae_p);
     }
-    if(n_nae->side_right_out == (*it)->name) {
+    if(n_nae->c2_right_out == (*it)->name) {
       if(!quiet)
-	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->side_right_out << " connection to jack input " << (*it)->name <<  std::endl;
-      naJack->connectOutputNaePort(SIDE_RIGHT, (*it)->name, n_nae_p);
+	std::cout << "NatAmbio: creating NAE output " << n_nae->name << ":" << n_nae->c2_right_out << " connection to jack input " << (*it)->name <<  std::endl;
+      naJack->connectOutputNaePort(C2_RIGHT, (*it)->name, n_nae_p);
     }
   }
   return n_nae_p;
