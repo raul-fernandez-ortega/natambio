@@ -1,3 +1,13 @@
+natambio (1.1.0) unstable; urgency=medium
+
+  * NAE: new <pan_scale> control, a mid/side rescale of the decomposition's
+    two components, with the placement smoothed by <pan_scale_tau>. Available
+    in both alpha and beta modes.
+  * NAE: internal naming reworked around the two components (c1, c2), and the
+    beta mode output called ambient rather than surround.
+
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Sat, 15 Aug 2026 12:00:00 +0200
+
 natambio (1.0.0) unstable; urgency=medium
 
   * Initial Debian packaging.
