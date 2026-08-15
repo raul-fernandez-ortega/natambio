@@ -198,8 +198,10 @@ altavoces (JACK + Interfaz Audio). Encadena cinco fases:
    las componentes PCA y, a continuación, los convierte a `.raw` (float 32-bit
    LE) con `wav2raw.py` en el mismo directorio, para alimentar a DRC.
 4. **DRC** (`drc` de Sbragion): por cada vía ejecuta `drc` con `config.drc`
-   (junto a este script), sobrescribiendo `--BCBaseDir=i_<via>/` (la carpeta de
-   impulsos, al mismo nivel que el `p_left/` original para que las rutas
+   (junto a este script) —o con un config distinto por par, ver
+   `DRC_CONFIG_FRONT` / `DRC_CONFIG_REAR` más abajo—, sobrescribiendo
+   `--BCBaseDir=i_<via>/` (la carpeta de impulsos, al mismo nivel que el
+   `p_left/` original para que las rutas
    relativas del config, p.ej. la curva objetivo `../target/...`, sigan
    resolviendo) y `--BCInFile=pca4drc/PCA_0.raw` (la componente principal). Al
    terminar, convierte las salidas `rps.raw` (`PSOutFile`) y `rms.raw`
@@ -276,7 +278,10 @@ generación del sweep (Fase 0) `SWEEP_RATE`, `SWEEP_AMPLITUDE`, `SWEEP_HZSTART`,
 `SWEEP_HZEND`, `SWEEP_LENGTH`, `SWEEP_SILENCE`, `SWEEP_LEADIN`, `SWEEP_LEADOUT`;
 medición `NUM_POS`, `SWEEP`, `INVERSE`, `IN_MEAS`, `SELECT_INPUT`, `GAIN_OUT`,
 `GAIN_IN`, `REC_SECONDS`, `MIN_LEVEL`, `MIN_SNR`; PCA `OUTPUT_LEN`, `PCA_NORMALIZE`; DRC
-`DRC_BIN`, `DRC_CONFIG` (por defecto `config.drc` junto al script), `DRC_PS_OUT`
+`DRC_BIN`, `DRC_CONFIG` (por defecto `config.drc` junto al script),
+`DRC_CONFIG_FRONT` y `DRC_CONFIG_REAR` (configuraciones por par, cada una con
+`DRC_CONFIG` como valor de respaldo, para corregir hacia objetivos distintos el
+par frontal —normalmente con subwoofer— y el trasero), `DRC_PS_OUT`
 (rps.raw), `DRC_MS_OUT` (rms.raw); y los interruptores de fase `DO_SWEEP` /
 `DO_MEASURE` / `DO_IMPULSES` / `DO_PCA` / `DO_DRC` / `AUTO`. Si los scripts `.py`
 no están junto al `.sh`, exporta `TOOLS_DIR` apuntando a ellos.

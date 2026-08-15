@@ -25,9 +25,10 @@
 #      single measurement (NUM_POS=1) PCA is NOT applied: the measured impulse
 #      is used.
 #    - A final correction step with drc (Sbragion) per channel, using config.drc
-#      and, as input, the principal PCA component PCA_0.raw (>=2 measurements)
-#      or the directly measured impulse (1 measurement); it converts the
-#      outputs to WAV.
+#      -- or a different configuration for each pair, see DRC_CONFIG_FRONT /
+#      DRC_CONFIG_REAR -- and, as input, the principal PCA component PCA_0.raw
+#      (>=2 measurements) or the directly measured impulse (1 measurement); it
+#      converts the outputs to WAV.
 #    - Separately enableable phases (DO_SWEEP / DO_MEASURE / DO_IMPULSES /
 #      DO_PCA / DO_DRC) to allow re-processing without measuring again.
 #    - Non-interactive mode (AUTO=1) and safe stop on errors (set -euo).
@@ -44,6 +45,7 @@
 #      DO_DRC=0 ./measure_pca4drc.sh        # everything except the DRC correction
 #      OUTPUT_LEN=65536 PCA_NORMALIZE=false ./measure_pca4drc.sh
 #      PCA_ALIGN=peak ./measure_pca4drc.sh  # old alignment, on the sample peak only
+#      DRC_CONFIG_REAR=config_rear.drc ./measure_pca4drc.sh   # rear pair to its own target
 #
 #  Requires: ecasound + a running JACK server, the natambio executable, the
 #  drc (Sbragion) binary with its config.drc, python3 with numpy/scipy/soundfile,
@@ -111,6 +113,12 @@ PCA_ALIGN=${PCA_ALIGN:-xcorr}       # peak = centre on the sample peak only;
 # =============================================================================
 DRC_BIN=${DRC_BIN:-drc}                       # standard DRC binary
 DRC_CONFIG=${DRC_CONFIG:-"$TOOLS_DIR/config.drc"}
+# Per-pair configurations. The front pair usually has a subwoofer and the rear
+# one does not, so the target curve that protects one is not the one that suits
+# the other. Whatever is left unset falls back to DRC_CONFIG, so a run with a
+# single configuration behaves exactly as before.
+DRC_CONFIG_FRONT=${DRC_CONFIG_FRONT:-$DRC_CONFIG}
+DRC_CONFIG_REAR=${DRC_CONFIG_REAR:-$DRC_CONFIG}
 DRC_PS_OUT=${DRC_PS_OUT:-rps.raw}             # = PSOutFile from the config
 DRC_MS_OUT=${DRC_MS_OUT:-rms.raw}             # = MSOutFile from the config
 # =============================================================================
@@ -165,6 +173,9 @@ MEAS_DIRS=( "m_front_left"      "m_front_right"      "m_rear_left"  "m_rear_righ
 IMP_DIRS=(  "i_front_left"      "i_front_right"      "i_rear_left"  "i_rear_right" )
 SWEEP_PRE=( "left_sweep"  "right_sweep"  "left_sweep"  "right_sweep" )
 IMP_PRE=(   "front_left_impulse" "front_right_impulse" "rear_left_impulse" "rear_right_impulse" )
+# DRC configuration per channel: the front pair and the rear pair can be
+# corrected towards different targets (see DRC_CONFIG_FRONT / DRC_CONFIG_REAR).
+DRC_CONFIGS=( "$DRC_CONFIG_FRONT" "$DRC_CONFIG_FRONT" "$DRC_CONFIG_REAR" "$DRC_CONFIG_REAR" )
 
 # 4 channels for the full NatAmbio, 2 (only front L/R) otherwise.
 if [ "$FULL_NATAMBIO" = "true" ]; then
@@ -216,7 +227,14 @@ preflight() {
     fi
     if [ "$DO_DRC" = "1" ]; then
         command -v "$DRC_BIN" >/dev/null 2>&1 || { echo "ERROR: cannot find the DRC binary ('$DRC_BIN')."; err=1; }
-        [ -f "$DRC_CONFIG" ] || { echo "ERROR: the DRC configuration '$DRC_CONFIG' does not exist."; err=1; }
+        # Every configuration actually used by an active channel, each checked once.
+        local seen="" cfg
+        for w in $(seq 0 $((NUM_WAYS - 1))); do
+            cfg="${DRC_CONFIGS[$w]}"
+            case " $seen " in *" $cfg "*) continue ;; esac
+            seen="$seen $cfg"
+            [ -f "$cfg" ] || { echo "ERROR: the DRC configuration '$cfg' does not exist."; err=1; }
+        done
         [ -f "$RAW2WAV" ] || { echo "ERROR: cannot find '$RAW2WAV' (export TOOLS_DIR)."; err=1; }
     fi
     if [ "$DO_SWEEP" = "1" ] || [ "$DO_MEASURE" = "1" ] || [ "$DO_IMPULSES" = "1" ] || [ "$DO_PCA" = "1" ] || [ "$DO_DRC" = "1" ]; then
@@ -644,9 +662,16 @@ fi
 
 # --- Phase 4: correction with DRC (standard drc) ------------------------------
 if [ "$DO_DRC" = "1" ]; then
-    echo "### Phase 4: correction with DRC ($DRC_BIN + $(basename "$DRC_CONFIG"))"
+    drc_cfg_list=""
+    for w in $(seq 0 $((NUM_WAYS - 1))); do
+        case " $drc_cfg_list " in *" $(basename "${DRC_CONFIGS[$w]}") "*) ;;
+            *) drc_cfg_list="$drc_cfg_list $(basename "${DRC_CONFIGS[$w]}")" ;;
+        esac
+    done
+    echo "### Phase 4: correction with DRC ($DRC_BIN +$drc_cfg_list)"
     for w in $(seq 0 $((NUM_WAYS - 1))); do
         base="${IMP_DIRS[$w]}"
+        cfg="${DRC_CONFIGS[$w]}"
         # DRC input: with a single measurement, the directly measured impulse (no
         # PCA); with 2 or more, the principal PCA component (PCA_0.raw).
         if [ "$NUM_POS" -le 1 ]; then
@@ -658,12 +683,12 @@ if [ "$DO_DRC" = "1" ]; then
             echo "WARNING: '$base/$in_rel' does not exist; DRC skipped for ${LABELS[$w]}."
             continue
         fi
-        echo "DRC of ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel"
+        echo "DRC of ${LABELS[$w]}: --BCBaseDir=$base/ --BCInFile=$in_rel with $(basename "$cfg")"
         # BaseDir = the channel's impulse folder (same level as the original
         # p_left/). Since --BCBaseDir goes on the command line, it also affects
         # --BCInFile (-> $base/$in_rel) and the config's outputs/relative paths
         # (rps.raw/rms.raw -> $base/, ../target/... -> measurement root).
-        if "$DRC_BIN" --BCBaseDir="$base/" --BCInFile="$in_rel" "$DRC_CONFIG"; then
+        if "$DRC_BIN" --BCBaseDir="$base/" --BCInFile="$in_rel" "$cfg"; then
             # Converts the DRC outputs rps.raw / rms.raw to WAV.
             for out in "$DRC_PS_OUT" "$DRC_MS_OUT"; do
                 if [ -f "$base/$out" ]; then
