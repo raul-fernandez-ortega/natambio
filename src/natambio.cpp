@@ -415,8 +415,8 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   n_nae_p->setC1Gain(n_nae->gain_c1);
   n_nae_p->setC2Gain(n_nae->gain_c2);
   n_nae_p->setC2RearGain(n_nae->gain_c2_rear);
-  n_nae_p->setPanControls(n_nae->pan_scale, n_nae->pan_rotate, n_nae->pan_scale_corr,
-			  n_nae->pan_scale_tau, naJack->getSampleRate());
+  n_nae_p->setPanControls(n_nae->pan_scale, n_nae->pan_rotate,
+			  n_nae->pan_rotate_tau, naJack->getSampleRate());
   n_nae_p->setSampleCount(naJack->getPartSize());
   n_nae_p->setCovStepsLength(n_nae->steps_length);
   n_nae_p->setChannelIn(LEFT, n_nae->left_in);

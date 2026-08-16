@@ -83,10 +83,9 @@ NAE::NAE(string n_name, int n_mode)
   c1_right_name_out = "";
   c2_right_name_out = "";
   pan_scale = 0;
+  pan_a = 1.0;
+  pan_b = 0.0;
   pan_rotate = 0;
-  pan_corr = 0;
-  pan_corr_val = 0;
-  pan_corr_set = false;
   pan_tau = NAE_PAN_TAU_DEF;
   pan_rate = 0;
   pan_smooth = 0;
@@ -147,14 +146,29 @@ bool NAE::setC2RearGain(double gain)
   return true;
 }
 
-void NAE::setPanControls(double n_scale, double n_rotate, double n_corr,
-			 double n_tau, int n_rate)
+void NAE::setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate)
 {
   pan_scale = n_scale;
   pan_rotate = n_rotate;
-  pan_corr = n_corr;
   pan_tau = n_tau;
   pan_rate = n_rate;
+  // Width of the input pair (<pan_scale>), as a plain constant matrix on L/R,
+  // applied before anything else looks at the signal. Written as an angle so
+  // the two weights stay power complementary, wm^2 + ws^2 = 2:
+  //
+  //     phi = 45deg * (1 - pan_scale),  wm = sqrt(2)*cos(phi), ws = sqrt(2)*sin(phi)
+  //
+  // which puts +1 at mono (the side weight vanishing), 0 at the signal
+  // untouched, and -1 at the two channels in opposite polarity (the mid weight
+  // vanishing). A width control cannot be energy preserving in the strict
+  // sense -- [[a,b],[b,a]] is orthogonal only for b = 0 or a = 0 -- so power
+  // complementary is as close as it gets: exact whenever mid and side carry
+  // the same power, and bounded and smooth otherwise.
+  double phi = (M_PI/4.0)*(1.0 - pan_scale);
+  double wm = M_SQRT2*cos(phi);
+  double ws = M_SQRT2*sin(phi);
+  pan_a = 0.5*(wm + ws);
+  pan_b = 0.5*(wm - ws);
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -314,7 +328,7 @@ void NAE::load(int abspri, int policy)
   side_weight = 1;
   icorr = 1;
 
-  if(pan_scale != 0 || pan_rotate != 0) {
+  if(pan_rotate != 0) {
     // One pole coefficient for a pan_tau time constant, one step per period.
     if(pan_rate > 0 && pan_tau > 0)
       pan_smooth = exp(-((double) sample_count / (double) pan_rate) / pan_tau);
@@ -442,13 +456,17 @@ void NAE::thr_process(void)
       icorrv.sum_x_array[ICORRL - 1] = 0;
       icorrv.sum_y_array[ICORRL - 1] = 0;
 
-      // Correlation
+      // Correlation, of the pair as the width control leaves it: <pan_scale>
+      // acts before anything else looks at the signal, so the weighting this
+      // correlation drives follows the width too.
       for (int i = 0; i < sample_count; i++) {
-	icorrv.sum_xy_array[ICORRL - 1] += left_in[i] * right_in[i];
-	icorrv.sum_x2_array[ICORRL - 1] += left_in[i] * left_in[i];
-	icorrv.sum_y2_array[ICORRL - 1] += right_in[i] * right_in[i];
-	icorrv.sum_x_array[ICORRL - 1] += left_in[i];
-	icorrv.sum_y_array[ICORRL - 1] += right_in[i];
+	double l = pan_a*left_in[i] + pan_b*right_in[i];
+	double r = pan_b*left_in[i] + pan_a*right_in[i];
+	icorrv.sum_xy_array[ICORRL - 1] += l * r;
+	icorrv.sum_x2_array[ICORRL - 1] += l * l;
+	icorrv.sum_y2_array[ICORRL - 1] += r * r;
+	icorrv.sum_x_array[ICORRL - 1] += l;
+	icorrv.sum_y_array[ICORRL - 1] += r;
       }
       for(int i = 0; i < ICORRL; i++) {
 	c_sum_xy += icorrv.sum_xy_array[i];
@@ -468,8 +486,11 @@ void NAE::thr_process(void)
     }
     
     for (int i = 0, j = (covsteps - 1) * sample_count; i < sample_count; i++, j++) {
-      pca.mid_step[j] = left_in[i] + right_in[i];
-      pca.side_step[j] = side_weight*(left_in[i] - right_in[i]);
+      // Width first, then the decomposition works on the pair as it leaves it.
+      double l = pan_a*left_in[i] + pan_b*right_in[i];
+      double r = pan_b*left_in[i] + pan_a*right_in[i];
+      pca.mid_step[j] = l + r;
+      pca.side_step[j] = side_weight*(l - r);
       // Covariances
       covM.sum_xy_array[covsteps - 1] += pca.mid_step[j] * pca.side_step[j];
       covM.sum_x2_array[covsteps - 1] += pca.mid_step[j] * pca.mid_step[j];
@@ -501,36 +522,15 @@ void NAE::thr_process(void)
     //Components
     pthread_mutex_lock(&mutex);
     
-    // Panning rescale (<pan_scale>), both modes.
+    // Rotation of the placement frame (<pan_rotate>).
     //
-    // Classic mid/side scaling, done on the coordinates the decomposition
-    // already works in and before they are turned into left and right. Each
-    // component is held in a mid coordinate and a side coordinate -- c1_mid
-    // and c1_side for the principal one, c2_mid and c2_side for the ambient
-    // one -- and the control grows one against the other:
-    //
-    //     mid  coordinate *= (1 - pan_scale)
-    //     side coordinate *= (1 + pan_scale)
-    //
-    // Their ratio therefore goes as r = (1 + pan_scale)/(1 - pan_scale), which
-    // is what sets the panning, while the level of the component follows the
-    // two factors and shifts the balance between direct sound and ambience:
-    // opening brings the ambience up, closing brings it down. That balance
-    // shift is the whole point of scaling both coordinates rather than one.
-    // In beta mode, which emits the ambient component alone, only the second
-    // pair of coefficients is used.
-    //
-    // Placement is smoothed before it is rescaled. The rotation of the
-    // principal axis wanders from block to block, and since the control
-    // multiplies the imbalance it multiplies that wander too, which is heard
-    // as sources drifting about. The axis used to place the components is
-    // therefore a one pole average of its own rotation, while the projections
-    // keep using the raw eigenvectors: what is extracted does not change, only
-    // where it is put. None of this runs at all with the feature off, where
-    // the coefficients stay the plain eigenvectors.
+    // The frame the two components are placed on is turned as a rigid pair,
+    // which leaves the energy of each of them untouched and moves only where
+    // they are put; the projections keep the true eigenvectors, so what is
+    // extracted does not change either.
     double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
     double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
-    if(pan_scale != 0 || pan_rotate != 0) {
+    if(pan_rotate != 0) {
       double th = atan2(eigvectors[0][1], eigvectors[0][0]);
       if(pan_theta_set)
 	pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
@@ -569,60 +569,10 @@ void NAE::thr_process(void)
       double cs = cos(thp);
       double sn = sin(thp);
 
-      // Mid/side rescale (<pan_scale>), on the frame as left by the rotation.
-      // Positive closes towards mono and negative opens towards the sides, the
-      // same way round as pan_rotate.
-      //
-      // The bound is two sided, because the two components flip their quiet
-      // channel on opposite sides of the control: the principal one when the
-      // coordinate ratio times the tangent reaches 1, the ambient one when the
-      // tangent over that ratio does. Holding the quiet channel to half the
-      // level of the other in either case bounds both at
-      // |pan_scale| <= (m - t)/(m + t). Never taken below zero, so the
-      // untouched behaviour is never made more conservative than it is.
-      // How much of pan_scale is actually applied (<pan_scale_corr>). The
-      // decomposition already carries a correlation meter in its eigenvalues:
-      // on balanced material (eig0 - eig1)/(eig0 + eig1) is exactly |rho|, the
-      // inter-channel correlation of the input, which is why nothing extra
-      // needs measuring and no history has to be kept. At 0 the reading is
-      // ignored and pan_scale is the fixed factor it has always been; at 1 the
-      // factor follows the reading, so correlated passages take the full
-      // setting and decorrelated ones are left alone. Note the reading cannot
-      // tell +rho from -rho, and that on anti-correlated material the
-      // decomposition has already swapped which component is which.
-      //
-      // It is smoothed on the same time constant as the placement. Correlation
-      // moves with the programme rather than with the axis, so if this ends up
-      // breathing audibly the two constants want separating.
-      double k = pan_scale;
-      if(pan_corr > 0.0) {
-	double sum = eigvalues[0] + eigvalues[1];
-	if(sum > 0.0) {
-	  double c = (eigvalues[0] - eigvalues[1])/sum;
-	  if(c < 0.0) c = 0.0;
-	  else if(c > 1.0) c = 1.0;
-	  if(pan_corr_set)
-	    pan_corr_val = pan_smooth*pan_corr_val + (1.0 - pan_smooth)*c;
-	  else {
-	    pan_corr_val = c;
-	    pan_corr_set = true;
-	  }
-	}
-	k *= (1.0 - pan_corr) + pan_corr*pan_corr_val;
-      }
-      double t = (fabs(cs) > 0.0) ? fabs(sn)/fabs(cs) : -1.0;
-      if(t >= 0.0) {
-	double kmax = (NAE_PAN_MAX_TAN - t)/(NAE_PAN_MAX_TAN + t);
-	if(kmax < 0.0) kmax = 0.0;
-	if(k > kmax) k = kmax;
-	else if(k < -kmax) k = -kmax;
-      }
-      double km = 1.0 + k;   // mid coordinate
-      double kp = 1.0 - k;   // side coordinate
-      c1_mid_coef = cs*km;
-      c1_side_coef = sn*kp;
-      c2_mid_coef = orient*(-sn)*km;
-      c2_side_coef = orient*cs*kp;
+      c1_mid_coef = cs;
+      c1_side_coef = sn;
+      c2_mid_coef = orient*(-sn);
+      c2_side_coef = orient*cs;
     }
 
     // Output: ambient
