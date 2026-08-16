@@ -1,8 +1,9 @@
 natambio (1.1.0) unstable; urgency=medium
 
   * NAE: new <pan_scale> control, a mid/side rescale of the decomposition's
-    two components, with the placement smoothed by <pan_scale_tau>. Available
-    in both alpha and beta modes.
+    two components, and <pan_rotate>, a rotation of the placement frame that
+    tracks the measured axis. Placement smoothed by <pan_scale_tau>. Both
+    available in alpha and beta modes; positive closes towards mono.
   * NAE: internal naming reworked around the two components (c1, c2), and the
     beta mode output called ambient rather than surround.
 

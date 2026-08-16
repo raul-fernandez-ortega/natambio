@@ -61,6 +61,7 @@ struct s_nae {
   double gain_c2;
   double gain_c2_rear;
   double pan_scale;      // mid/side rescale of both components, [-1, 1]
+  double pan_rotate;     // rotation of the placement frame, [-1, 1]
   double pan_scale_tau;  // time constant of the placement smoothing, seconds
   int steps_length;
   string left_in;
