@@ -84,6 +84,9 @@ NAE::NAE(string n_name, int n_mode)
   c2_right_name_out = "";
   pan_scale = 0;
   pan_rotate = 0;
+  pan_corr = 0;
+  pan_corr_val = 0;
+  pan_corr_set = false;
   pan_tau = NAE_PAN_TAU_DEF;
   pan_rate = 0;
   pan_smooth = 0;
@@ -144,10 +147,12 @@ bool NAE::setC2RearGain(double gain)
   return true;
 }
 
-void NAE::setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate)
+void NAE::setPanControls(double n_scale, double n_rotate, double n_corr,
+			 double n_tau, int n_rate)
 {
   pan_scale = n_scale;
   pan_rotate = n_rotate;
+  pan_corr = n_corr;
   pan_tau = n_tau;
   pan_rate = n_rate;
 }
@@ -575,7 +580,36 @@ void NAE::thr_process(void)
       // level of the other in either case bounds both at
       // |pan_scale| <= (m - t)/(m + t). Never taken below zero, so the
       // untouched behaviour is never made more conservative than it is.
+      // How much of pan_scale is actually applied (<pan_scale_corr>). The
+      // decomposition already carries a correlation meter in its eigenvalues:
+      // on balanced material (eig0 - eig1)/(eig0 + eig1) is exactly |rho|, the
+      // inter-channel correlation of the input, which is why nothing extra
+      // needs measuring and no history has to be kept. At 0 the reading is
+      // ignored and pan_scale is the fixed factor it has always been; at 1 the
+      // factor follows the reading, so correlated passages take the full
+      // setting and decorrelated ones are left alone. Note the reading cannot
+      // tell +rho from -rho, and that on anti-correlated material the
+      // decomposition has already swapped which component is which.
+      //
+      // It is smoothed on the same time constant as the placement. Correlation
+      // moves with the programme rather than with the axis, so if this ends up
+      // breathing audibly the two constants want separating.
       double k = pan_scale;
+      if(pan_corr > 0.0) {
+	double sum = eigvalues[0] + eigvalues[1];
+	if(sum > 0.0) {
+	  double c = (eigvalues[0] - eigvalues[1])/sum;
+	  if(c < 0.0) c = 0.0;
+	  else if(c > 1.0) c = 1.0;
+	  if(pan_corr_set)
+	    pan_corr_val = pan_smooth*pan_corr_val + (1.0 - pan_smooth)*c;
+	  else {
+	    pan_corr_val = c;
+	    pan_corr_set = true;
+	  }
+	}
+	k *= (1.0 - pan_corr) + pan_corr*pan_corr_val;
+      }
       double t = (fabs(cs) > 0.0) ? fabs(sn)/fabs(cs) : -1.0;
       if(t >= 0.0) {
 	double kmax = (NAE_PAN_MAX_TAN - t)/(NAE_PAN_MAX_TAN + t);
