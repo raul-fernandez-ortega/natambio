@@ -76,12 +76,6 @@ private:
   double pan_scale;    // configured width of the input pair, [-1, 1]
   double pan_a;        // same-channel weight of the width matrix
   double pan_b;        // opposite-channel weight of the width matrix
-  double pan_rotate;   // configured rotation of the placement frame, [-1, 1]
-  double pan_tau;      // time constant of the placement smoothing, seconds
-  int pan_rate;        // sample rate, to turn that into a coefficient
-  double pan_smooth;   // one pole coefficient derived from pan_tau
-  double pan_theta;    // smoothed rotation of the principal axis
-  bool pan_theta_set;  // false until the smoother has its first value
   int covsteps;
   RunningSums covM;
   RunningSums icorrv;
@@ -115,7 +109,7 @@ public:
   bool setC1Gain(double gain);
   bool setC2Gain(double gain);
   bool setC2RearGain(double gain);
-  void setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate);
+  void setPanScale(double n_scale);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
   void setChannelIn(enum side n_side, string n_channel_in);

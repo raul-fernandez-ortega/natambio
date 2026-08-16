@@ -786,8 +786,6 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_c2 = 0;
   nae->gain_c2_rear = 0;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
-  nae->pan_rotate = 0;     // optional; 0 leaves the frame where the PCA put it
-  nae->pan_rotate_tau = NAE_PAN_TAU_DEF;  // optional; seconds
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
   nae->left_in = "";
   nae->right_in = "";
@@ -810,10 +808,6 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->gain_c2_rear = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
-    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_rotate")) {
-      nae->pan_rotate = strtof((char*)cnt, NULL);
-    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_rotate_tau")) {
-      nae->pan_rotate_tau = strtof((char*)cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
       nae->left_in = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_right")) {
@@ -878,16 +872,6 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     delete nae;
     return NULL;
   }
-  if(nae->pan_rotate < -1.0 || nae->pan_rotate > 1.0) {
-    parse_error("Error: nae pan_rotate must be within [-1, 1].");
-    delete nae;
-    return NULL;
-  }
-  if(nae->pan_rotate != 0 && nae->pan_rotate_tau <= 0) {
-    parse_error("Error: nae pan_rotate_tau must be > 0.");
-    delete nae;
-    return NULL;
-  }
   if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty()) {
     parse_error("Error: nae left output not defined.");
     delete nae;
@@ -910,17 +894,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     std::cout << "\t\tFront main gain: " << nae->gain_c1 << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_c2 << std::endl;
   }
-  if(nae->pan_scale != 0 || nae->pan_rotate != 0) {
-    if(nae->pan_scale != 0)
-      std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("
-		<< ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
-		<< ")" << std::endl;
-    if(nae->pan_rotate != 0)
-      std::cout << "\t\tPan rotate: " << nae->pan_rotate << " ("
-		<< ((nae->pan_rotate > 0) ? "frame towards mid" : "frame towards side")
-		<< ")" << std::endl;
-    if(nae->pan_rotate != 0)
-      std::cout << "\t\tPlacement smoothing tau: " << nae->pan_rotate_tau << " s" << std::endl;
+  if(nae->pan_scale != 0) {
+    std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("
+	      << ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
+	      << ")" << std::endl;
   }
   if(!nae->left_out.empty())
     std::cout << "\tLeft channel output: " << nae->left_out << std::endl;
