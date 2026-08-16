@@ -80,6 +80,7 @@ private:
   double gain_c2;
   double gain_c2_rear;
   double pan_scale;    // configured mid/side rescale, [-1, 1]
+  double pan_rotate;   // configured rotation of the placement frame, [-1, 1]
   double pan_tau;      // time constant of the placement smoothing, seconds
   int pan_rate;        // sample rate, to turn that into a coefficient
   double pan_smooth;   // one pole coefficient derived from pan_tau
@@ -118,7 +119,7 @@ public:
   bool setC1Gain(double gain);
   bool setC2Gain(double gain);
   bool setC2RearGain(double gain);
-  void setPanScale(double n_pan_scale, double n_tau, int n_rate);
+  void setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
   void setChannelIn(enum side n_side, string n_channel_in);

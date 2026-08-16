@@ -83,6 +83,7 @@ NAE::NAE(string n_name, int n_mode)
   c1_right_name_out = "";
   c2_right_name_out = "";
   pan_scale = 0;
+  pan_rotate = 0;
   pan_tau = NAE_PAN_TAU_DEF;
   pan_rate = 0;
   pan_smooth = 0;
@@ -143,9 +144,10 @@ bool NAE::setC2RearGain(double gain)
   return true;
 }
 
-void NAE::setPanScale(double n_pan_scale, double n_tau, int n_rate)
+void NAE::setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate)
 {
-  pan_scale = n_pan_scale;
+  pan_scale = n_scale;
+  pan_rotate = n_rotate;
   pan_tau = n_tau;
   pan_rate = n_rate;
 }
@@ -307,7 +309,7 @@ void NAE::load(int abspri, int policy)
   side_weight = 1;
   icorr = 1;
 
-  if(pan_scale != 0) {
+  if(pan_scale != 0 || pan_rotate != 0) {
     // One pole coefficient for a pan_tau time constant, one step per period.
     if(pan_rate > 0 && pan_tau > 0)
       pan_smooth = exp(-((double) sample_count / (double) pan_rate) / pan_tau);
@@ -315,8 +317,9 @@ void NAE::load(int abspri, int policy)
       pan_smooth = 0;
     if(!quiet) {
       std::cout << "NAE: " << name << " pan scale " << pan_scale
-		<< " (mid x " << (1.0 - pan_scale) << ", side x " << (1.0 + pan_scale)
-		<< "), placement smoothed with a time constant of " << pan_tau
+		<< " (mid x " << (1.0 + pan_scale) << ", side x " << (1.0 - pan_scale)
+		<< "), pan rotate " << pan_rotate
+		<< ", placement smoothed with a time constant of " << pan_tau
 		<< " s" << std::endl;
     }
   }
@@ -522,7 +525,7 @@ void NAE::thr_process(void)
     // the coefficients stay the plain eigenvectors.
     double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
     double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
-    if(pan_scale != 0) {
+    if(pan_scale != 0 || pan_rotate != 0) {
       double th = atan2(eigvectors[0][1], eigvectors[0][0]);
       if(pan_theta_set)
 	pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
@@ -530,21 +533,48 @@ void NAE::thr_process(void)
 	pan_theta = th;
 	pan_theta_set = true;
       }
-      double cs = cos(pan_theta);
-      double sn = sin(pan_theta);
-      // eigen_2x2_symmetric does not fix the sign of the minor eigenvector,
-      // so carry over whichever orientation it handed us; the projection
-      // c2_factor is computed with it and the two must agree.
-      double orient = (eigvectors[1][0]*(-sn) + eigvectors[1][1]*cs >= 0.0) ? 1.0 : -1.0;
-      // The bound is two sided, because the two components flip on opposite
-      // sides of the control. The principal one has its quiet channel vanish
-      // when r*tan(theta) reaches 1, which needs r above 1 and so a positive
-      // setting; the ambient one when tan(theta)/r reaches 1, which needs a
-      // negative one. Holding the quiet channel to half the level of the other
-      // in either case, |quiet| <= 0.5*|loud|, bounds both at
-      // |pan_scale| <= (m - t)/(m + t) for t the tangent and m the ceiling
-      // over it. Never taken below zero, so the untouched behaviour is never
-      // made more conservative than it already is.
+      // eigen_2x2_symmetric does not fix the sign of the minor eigenvector, so
+      // carry over whichever orientation it handed us; the projection
+      // c2_factor is computed with it and the two must agree. Taken against
+      // the unrotated axis, where the dot product is exactly +-1 and so cannot
+      // be led astray however far the frame is then turned.
+      double orient = (eigvectors[1][0]*(-sin(pan_theta)) +
+		       eigvectors[1][1]*cos(pan_theta) >= 0.0) ? 1.0 : -1.0;
+
+      // Rotation of the placement frame (<pan_rotate>). The frame is turned
+      // as a rigid pair, which leaves the energy of each component untouched
+      // and moves only where it is put; the projections keep the true
+      // eigenvectors, so what is extracted does not change either. The angle
+      // the principal component ends up at is a fraction of the one the
+      // decomposition found:
+      //
+      //     pan_rotate > 0:  theta * (1 - pan_rotate)      towards mid
+      //     pan_rotate < 0:  theta - pan_rotate*(pi/2 - theta)  towards side
+      //
+      // so +1 lands the principal component on the mid axis and the ambient
+      // one on the side axis, giving a clean mono / anti phase pair, and -1
+      // exchanges their roles. Being a fraction of an angle the decomposition
+      // measures block by block, this tracks the programme and is not
+      // something a fixed matrix downstream could reproduce.
+      double thp = pan_theta;
+      if(pan_rotate > 0)
+	thp = (1.0 - pan_rotate)*pan_theta;
+      else if(pan_rotate < 0)
+	thp = pan_theta - pan_rotate*(M_PI/2.0 - pan_theta);
+      double cs = cos(thp);
+      double sn = sin(thp);
+
+      // Mid/side rescale (<pan_scale>), on the frame as left by the rotation.
+      // Positive closes towards mono and negative opens towards the sides, the
+      // same way round as pan_rotate.
+      //
+      // The bound is two sided, because the two components flip their quiet
+      // channel on opposite sides of the control: the principal one when the
+      // coordinate ratio times the tangent reaches 1, the ambient one when the
+      // tangent over that ratio does. Holding the quiet channel to half the
+      // level of the other in either case bounds both at
+      // |pan_scale| <= (m - t)/(m + t). Never taken below zero, so the
+      // untouched behaviour is never made more conservative than it is.
       double k = pan_scale;
       double t = (fabs(cs) > 0.0) ? fabs(sn)/fabs(cs) : -1.0;
       if(t >= 0.0) {
@@ -553,8 +583,8 @@ void NAE::thr_process(void)
 	if(k > kmax) k = kmax;
 	else if(k < -kmax) k = -kmax;
       }
-      double km = 1.0 - k;
-      double kp = 1.0 + k;
+      double km = 1.0 + k;   // mid coordinate
+      double kp = 1.0 - k;   // side coordinate
       c1_mid_coef = cs*km;
       c1_side_coef = sn*kp;
       c2_mid_coef = orient*(-sn)*km;
