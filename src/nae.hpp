@@ -34,12 +34,6 @@ using namespace std;
 
 #define ICORRL 20
 
-// Panning rescale (<pan_scale>). A component's quiet channel vanishes when
-// |factor * tan(theta)| reaches 1, theta being the rotation of the principal
-// axis, and grows again past that point in the opposite polarity. Holding it
-// to half the level of the other channel, |quiet| <= 0.5*|loud|, gives
-// |factor * tan(theta)| <= 3.
-#define NAE_PAN_MAX_TAN 3.0
 
 typedef struct {
   double *sum_xy_array;
@@ -79,11 +73,10 @@ private:
   double gain_c1;
   double gain_c2;
   double gain_c2_rear;
-  double pan_scale;    // configured mid/side rescale, [-1, 1]
+  double pan_scale;    // configured width of the input pair, [-1, 1]
+  double pan_a;        // same-channel weight of the width matrix
+  double pan_b;        // opposite-channel weight of the width matrix
   double pan_rotate;   // configured rotation of the placement frame, [-1, 1]
-  double pan_corr;     // how much of pan_scale follows the correlation, [0, 1]
-  double pan_corr_val; // smoothed correlation read off the eigenvalues
-  bool pan_corr_set;   // false until that smoother has its first value
   double pan_tau;      // time constant of the placement smoothing, seconds
   int pan_rate;        // sample rate, to turn that into a coefficient
   double pan_smooth;   // one pole coefficient derived from pan_tau
@@ -122,8 +115,7 @@ public:
   bool setC1Gain(double gain);
   bool setC2Gain(double gain);
   bool setC2RearGain(double gain);
-  void setPanControls(double n_scale, double n_rotate, double n_corr,
-		      double n_tau, int n_rate);
+  void setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate);
   void setSampleCount(int n_sample_count);
   void setCovStepsLength(int n_covsteps);
   void setChannelIn(enum side n_side, string n_channel_in);
