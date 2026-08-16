@@ -85,12 +85,6 @@ NAE::NAE(string n_name, int n_mode)
   pan_scale = 0;
   pan_a = 1.0;
   pan_b = 0.0;
-  pan_rotate = 0;
-  pan_tau = NAE_PAN_TAU_DEF;
-  pan_rate = 0;
-  pan_smooth = 0;
-  pan_theta = 0;
-  pan_theta_set = false;
 }
 
 NAE::~NAE(void)
@@ -146,12 +140,9 @@ bool NAE::setC2RearGain(double gain)
   return true;
 }
 
-void NAE::setPanControls(double n_scale, double n_rotate, double n_tau, int n_rate)
+void NAE::setPanScale(double n_scale)
 {
   pan_scale = n_scale;
-  pan_rotate = n_rotate;
-  pan_tau = n_tau;
-  pan_rate = n_rate;
   // Width of the input pair (<pan_scale>), as a plain constant matrix on L/R,
   // applied before anything else looks at the signal. Written as an angle so
   // the two weights stay power complementary, wm^2 + ws^2 = 2:
@@ -327,21 +318,6 @@ void NAE::load(int abspri, int policy)
 
   side_weight = 1;
   icorr = 1;
-
-  if(pan_rotate != 0) {
-    // One pole coefficient for a pan_tau time constant, one step per period.
-    if(pan_rate > 0 && pan_tau > 0)
-      pan_smooth = exp(-((double) sample_count / (double) pan_rate) / pan_tau);
-    else
-      pan_smooth = 0;
-    if(!quiet) {
-      std::cout << "NAE: " << name << " pan scale " << pan_scale
-		<< " (mid x " << (1.0 + pan_scale) << ", side x " << (1.0 - pan_scale)
-		<< "), pan rotate " << pan_rotate
-		<< ", placement smoothed with a time constant of " << pan_tau
-		<< " s" << std::endl;
-    }
-  }
 
   pca.mid_step = (double*) calloc(covsteps*sample_count, sizeof(double));
   pca.side_step = (double*) calloc(covsteps*sample_count, sizeof(double));
@@ -522,66 +498,13 @@ void NAE::thr_process(void)
     //Components
     pthread_mutex_lock(&mutex);
     
-    // Rotation of the placement frame (<pan_rotate>).
-    //
-    // The frame the two components are placed on is turned as a rigid pair,
-    // which leaves the energy of each of them untouched and moves only where
-    // they are put; the projections keep the true eigenvectors, so what is
-    // extracted does not change either.
-    double c1_mid_coef = eigvectors[0][0], c1_side_coef = eigvectors[0][1];
-    double c2_mid_coef = eigvectors[1][0], c2_side_coef = eigvectors[1][1];
-    if(pan_rotate != 0) {
-      double th = atan2(eigvectors[0][1], eigvectors[0][0]);
-      if(pan_theta_set)
-	pan_theta = pan_smooth*pan_theta + (1.0 - pan_smooth)*th;
-      else {
-	pan_theta = th;
-	pan_theta_set = true;
-      }
-      // eigen_2x2_symmetric does not fix the sign of the minor eigenvector, so
-      // carry over whichever orientation it handed us; the projection
-      // c2_factor is computed with it and the two must agree. Taken against
-      // the unrotated axis, where the dot product is exactly +-1 and so cannot
-      // be led astray however far the frame is then turned.
-      double orient = (eigvectors[1][0]*(-sin(pan_theta)) +
-		       eigvectors[1][1]*cos(pan_theta) >= 0.0) ? 1.0 : -1.0;
-
-      // Rotation of the placement frame (<pan_rotate>). The frame is turned
-      // as a rigid pair, which leaves the energy of each component untouched
-      // and moves only where it is put; the projections keep the true
-      // eigenvectors, so what is extracted does not change either. The angle
-      // the principal component ends up at is a fraction of the one the
-      // decomposition found:
-      //
-      //     pan_rotate > 0:  theta * (1 - pan_rotate)      towards mid
-      //     pan_rotate < 0:  theta - pan_rotate*(pi/2 - theta)  towards side
-      //
-      // so +1 lands the principal component on the mid axis and the ambient
-      // one on the side axis, giving a clean mono / anti phase pair, and -1
-      // exchanges their roles. Being a fraction of an angle the decomposition
-      // measures block by block, this tracks the programme and is not
-      // something a fixed matrix downstream could reproduce.
-      double thp = pan_theta;
-      if(pan_rotate > 0)
-	thp = (1.0 - pan_rotate)*pan_theta;
-      else if(pan_rotate < 0)
-	thp = pan_theta - pan_rotate*(M_PI/2.0 - pan_theta);
-      double cs = cos(thp);
-      double sn = sin(thp);
-
-      c1_mid_coef = cs;
-      c1_side_coef = sn;
-      c2_mid_coef = orient*(-sn);
-      c2_side_coef = orient*cs;
-    }
-
     // Output: ambient
     if(mode) {
       // Rear ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.c2_mid[i] += c2_factor * c2_mid_coef;
-	pca.c2_side[i] += c2_factor * c2_side_coef;
+	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+	pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
 	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
@@ -596,10 +519,10 @@ void NAE::thr_process(void)
       for(int i = 0; i < covsteps * sample_count; i ++) {
 	c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
 	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.c1_mid[i] += c1_factor * c1_mid_coef;
-	pca.c1_side[i] += c1_factor * c1_side_coef;
-	pca.c2_mid[i] += c2_factor * c2_mid_coef;
-	pca.c2_side[i] += c2_factor * c2_side_coef;
+	pca.c1_mid[i] += c1_factor * eigvectors[0][0];
+	pca.c1_side[i] += c1_factor * eigvectors[0][1];
+	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+	pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
 	c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);

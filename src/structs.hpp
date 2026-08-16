@@ -32,9 +32,6 @@ extern "C" {
 #define FROM_DB(db) (pow(10, (db) / 20.0))
 #endif
 
-// Default time constant of the NAE placement smoothing, seconds.
-#define NAE_PAN_TAU_DEF 0.5
-
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
@@ -61,8 +58,6 @@ struct s_nae {
   double gain_c2;
   double gain_c2_rear;
   double pan_scale;      // width of the input pair, [-1, 1]
-  double pan_rotate;     // rotation of the placement frame, [-1, 1]
-  double pan_rotate_tau; // time constant of the placement smoothing, seconds
   int steps_length;
   string left_in;
   string right_in;
