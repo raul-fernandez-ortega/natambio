@@ -25,7 +25,7 @@ WantedBy=default.target
 # If you switch back to start_natambio_separated.sh (2 natambio processes),
 # use an instantiated template instead of this unit. Create natambio@.service
 # with:
-#     ExecStart=/usr/local/bin/natambio %h/nat_ambio_surround_config/%i.xml
+#     ExecStart=/usr/local/bin/natambio %h/natambio_config/%i.xml
 # and start:
 #     systemctl --user enable --now natambio@test_natambio_only_<tag> \
 #                                    natambio@test_eq_only_subwoofer_<tag>

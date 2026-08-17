@@ -2,8 +2,9 @@
 
 > **Disclaimer:** `start_jackd_systemd.sh` and `start_natambio_systemd.sh` are
 > scripts from a specific audio system and are **not generic**. They hard-code the
-> sound cards installed on that system (Focusrite Scarlett 6i6 USB, Echo AudioFire4/8,
-> Edirol FA66/FA101) and reference a particular directory layout and naming convention
+> sound cards installed on that system (Focusrite Scarlett 6i6 USB, Behringer
+> UMC204HD, Echo AudioFire4/8, Edirol FA66/FA101, MOTU UltraLite) and reference a
+> particular directory layout and naming convention
 > for natambio's XML configuration files. Before using them on a different system,
 > both scripts must be adapted to match the audio interfaces present and the local
 > repository of XML configs. They are provided as reference examples to be modified
