@@ -15,6 +15,12 @@ ioJack::ioJack(string clientName, bool n_quiet)
   has_started = false;
   client_name = strdup(clientName.c_str());
   jackclient = NULL;
+  /* Start muted and aim at unity: the outputs fade in over the first periods
+     after activation instead of jumping to whatever level the input is already
+     at. global_init() replaces ramp_inc once the sample rate is known. */
+  ramp_gain = 0.0f;
+  ramp_target = 1.0f;
+  ramp_inc = 1.0f / 1536.0f;
   if (client_name == NULL) 
     client_name = strdup(DEFAULT_CLIENTNAME);
   if(!quiet)
@@ -23,6 +29,16 @@ ioJack::ioJack(string clientName, bool n_quiet)
 
 ioJack::~ioJack(void)
 {
+  /* Stop the client BEFORE freeing anything the RT callback uses. Everything
+     below -- the jack_port structs, the nae_channel structs, the NAE objects
+     with the output buffers fillOutputBuffer() reads from -- is live for the
+     callback until jack_deactivate() returns, and deactivate is what
+     guarantees it has finished and will not run again. Freeing first left the
+     callback reading freed memory for as long as the teardown took (the NAE
+     destructors join their worker threads), and it writes whatever it reads
+     straight to the outputs: a burst of garbage at the speakers on every
+     stop. Not academic -- it is the audible pulse on systemctl restart. */
+  synch_stop();
   for (vector<jack_port*>::iterator jack_p = jack_inputs.begin() ; jack_p != jack_inputs.end(); jack_p++) {
     for(vector<nae_channel*>::iterator pchn_p = (*jack_p)->nae_channels.begin(); pchn_p != (*jack_p)->nae_channels.end(); pchn_p++)
       delete *pchn_p;
@@ -41,7 +57,6 @@ ioJack::~ioJack(void)
   if(!quiet)
     std::cout << "iojack: closing Jackaudio client: " << client_name << std::endl;
   free(client_name);
-  synch_stop();
 }
 
 void ioJack::latency_callback(jack_latency_callback_mode_t mode, void *arg)
@@ -155,6 +170,24 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
   std::cout << "ioJack callback: convproc processing finished..." << std::endl;
 #endif
 
+  /* Ramp for this period, computed once so the whole output bus fades
+     together: g0 at the first sample, g1 at the last, interpolated in between.
+     While ramp_gain sits at ramp_target -- the running case -- both ends are
+     1.0 and the scaling loop below is skipped altogether. */
+  float g0 = ramp_gain;
+  float g1 = g0;
+  float span = ramp_inc * (float)fragment_size;
+  if(ramp_target > g0) {
+    g1 = g0 + span;
+    if(g1 > ramp_target)
+      g1 = ramp_target;
+  } else if(ramp_target < g0) {
+    g1 = g0 - span;
+    if(g1 < ramp_target)
+      g1 = ramp_target;
+  }
+  float gstep = (g1 - g0) / (float)fragment_size;
+
   // Processing jackaudio outputs
   for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++) {
 #ifdef RTDEBUG
@@ -177,7 +210,13 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif	
 	(*pn_ch)->n_nae->fillOutputBuffer((*pn_ch)->n_side, outbuf);
     }
+    if(g0 != 1.0f || g1 != 1.0f) {
+      float g = g0;
+      for(int i = 0; i < fragment_size; i++, g += gstep)
+	outbuf[i] *= g;
+    }
   }
+  ramp_gain = g1;
 
   // Processing convChannels (convolver  process) output 
   for (vector<ConvChannel*>::iterator channel_p = conv_channels.begin() ; channel_p != conv_channels.end(); channel_p++) {
@@ -271,6 +310,9 @@ bool ioJack::global_init(void)
 
   sample_rate = (int)jack_get_sample_rate(jackclient);
   fragment_size = jack_get_buffer_size(jackclient);
+  /* 32 ms of ramp: long enough that the fade carries no audible step of its
+     own, short enough to fit well inside the service's TimeoutStopSec. */
+  ramp_inc = 1.0f / (0.032f * (float)sample_rate);
   if (fragment_size < 32) {
     throw std::runtime_error("Fragment size is too small\n");
     return false;
@@ -561,9 +603,29 @@ const char **ioJack::get_jack_output_ports(void)
   return jack_get_ports(jackclient, NULL, JACK_DEFAULT_AUDIO_TYPE, JackPortIsOutput);
 }
 
+/* The wait is bounded because the callback is not guaranteed to run at all: if
+   the server died or never activated us, ramp_gain never moves and this would
+   hang the shutdown. 200 ms is six times the ramp itself and still well inside
+   the service's TimeoutStopSec. */
+void ioJack::fadeOut(int timeout_ms)
+{
+  if(!has_started || jackclient == NULL)
+    return;
+  ramp_target = 0.0f;
+  for(int waited = 0; waited < timeout_ms && ramp_gain > 0.0f; waited++)
+    usleep(1000);
+}
+
 void ioJack::synch_stop(void)
 {
+  if(jackclient == NULL)
+    return;
+  /* Fade before deactivating. Once the client is gone JACK feeds the hardware
+     ports zeros, so leaving on a non-zero sample is a step straight to the
+     converters -- the tail of the music cut mid-waveform. */
+  fadeOut();
   has_started = false;
   jack_deactivate(jackclient);
   jack_client_close(jackclient);
+  jackclient = NULL;
 }    
