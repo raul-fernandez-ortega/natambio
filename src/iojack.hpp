@@ -59,7 +59,17 @@ private:
   vector<struct jack_port*> jack_inputs;
   vector<struct jack_port*> jack_outputs;
   Convproc *convproc;
-  
+
+  /* Output ramp. Every output buffer is scaled by a gain the callback slews
+     towards ramp_target, interpolated sample by sample, so neither the first
+     period after jack_activate() nor the last one before jack_deactivate()
+     steps the signal: a step is a click, and through a subwoofer a thump.
+     ramp_target is written by the main thread and ramp_gain read back by it
+     (fadeOut()); both are single words touched by exactly one writer. */
+  volatile float ramp_target;   /* 1.0 running, 0.0 muted -- main thread writes */
+  volatile float ramp_gain;     /* current gain -- RT thread writes */
+  float ramp_inc;               /* per-sample slew, set from the sample rate */
+
 public:
   
   ioJack(string clientName, bool n_quiet);
@@ -91,6 +101,12 @@ public:
   
   int synch_start(void);
   void synch_stop(void);
+
+  /* Ramp the outputs down to silence and wait for the RT callback to get there,
+     up to timeout_ms (it returns at once if no callback is running, e.g. the
+     server is gone). synch_stop() calls it, so every path that closes the
+     client fades out first. */
+  void fadeOut(int timeout_ms = 200);
 
   // Both return JACK's own status: 0 on success, EEXIST if the connection is
   // already made (already broken, for disconnect), any other non-zero on failure.
