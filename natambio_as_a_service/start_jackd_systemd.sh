@@ -7,9 +7,10 @@
 # and can restart it. Output goes to the journal (no file redirection).
 #
 # Card support:
-#   USB      — detected via USB_CARD_ID / USB_EXPECTED. USB_EXPECTED matches the
-#              card name as reported by /proc/asound/cards, allowing the script to
-#              pick the right interface when more than one USB audio device is present.
+#   USB      — the supported cards are listed in USB_CARDS, matched by name against
+#              /proc/asound/cards. The ALSA card id is read from that same line
+#              rather than fixed here, so the script picks the right interface when
+#              more than one USB audio device is present.
 #   FireWire — each supported card is identified by its GUID. The GUIDs are listed
 #              as constants below; the script matches them at runtime against the
 #              devices enumerated on the FireWire bus (via FFADO).
@@ -18,14 +19,31 @@ SAMPLERATE=48000
 BUFFERSIZE=256
 SCRIPTDIR=$HOME/control_scripts
 
-USB_CARD_ID=USB
-USB_EXPECTED="Scarlett 6i6 USB"
+# Supported USB (ALSA, class-compliant) cards, in priority order. Each entry is
+# "human name::egrep-pattern". The pattern is looked up in the header line of
+# /proc/asound/cards and the real ALSA card id (the text in brackets) is taken
+# from there, because it is not fixed: the Scarlett 6i6 shows up as [USB] and the
+# Behringer UMC204HD as [U192k]. This way it starts with whichever one is plugged
+# in, without pinning the id by hand.
+USB_CARDS=(
+    "Focusrite Scarlett 6i6::Scarlett 6i6"
+    "Behringer UMC204HD::UMC204HD"
+)
+
+# Prints the ALSA card id (the text in brackets) of the first card whose header
+# line in /proc/asound/cards matches the egrep pattern $1.
+alsa_card_id_by_desc() {
+    awk -v pat="$1" '/^[[:space:]]*[0-9]+[[:space:]]*\[/ && $0 ~ pat {
+        s=$0; sub(/^[^[]*\[/,"",s); sub(/[[:space:]]*\].*$/,"",s); print s; exit
+    }' /proc/asound/cards 2>/dev/null
+}
 
 AUDIOFIRE4_GUID1=0x001486069aba050d
 AUDIOFIRE4_GUID2=0x0014860f9628513b
 AUDIOFIRE8_GUID=0x00148603d7f40d23
 FA66_GUID=0x0040ab0000c36f49
 FA101_GUID=0x0040ab0000c22497
+MOTU_GUID=0x0001f200000841eb
 
 export LADSPA_PATH=$HOME/.ladspa
 
@@ -50,17 +68,24 @@ kill_stale_ffado_dbus_server() {
     sleep 0.3
 }
 
-# Priority 1: Focusrite Scarlett 6i6 USB (ALSA) -> direct exec
-if grep -q "\[$USB_CARD_ID *\].*$USB_EXPECTED" /proc/asound/cards 2>/dev/null; then
-    echo "Booting with Focusrite $USB_EXPECTED"
-    exec /usr/bin/jackd -R -P70 -dalsa -dhw:$USB_CARD_ID -r$SAMPLERATE -p$BUFFERSIZE -n3
-fi
+# Priority 1: a supported USB ALSA card (Focusrite Scarlett 6i6 / Behringer
+# UMC204HD). Starts with the first one present, using its real ALSA id.
+for entry in "${USB_CARDS[@]}"; do
+    name=${entry%%::*}
+    pat=${entry##*::}
+    cid=$(alsa_card_id_by_desc "$pat")
+    if [ -n "$cid" ]; then
+        echo "Booting with $name (ALSA hw:$cid)"
+        exec /usr/bin/jackd -R -P70 -dalsa -dhw:$cid -r$SAMPLERATE -p$BUFFERSIZE -n3
+    fi
+done
 
-echo "Scarlett 6i6 USB no encontrada. Probando firewire..."
+echo "Ninguna tarjeta USB soportada. Probando firewire..."
 
 # Detect ALL supported cards present on the bus.
 #   AF4_GUIDS : list of AudioFire4 units (1 or 2; chained and synchronised via SPDIF)
-#   FW_DEVICE/FW_GUID : first AF8 / FA66 / FA101 found, if applicable (single device)
+#   FW_DEVICE/FW_GUID : first AF8 / FA66 / FA101 / MOTU found, if applicable
+#                       (single device)
 AF4_GUIDS=()
 FW_DEVICE=""
 FW_GUID=""
@@ -72,6 +97,7 @@ for g in /sys/bus/firewire/devices/*/guid; do
         $AUDIOFIRE8_GUID)                    FW_DEVICE=af8;   FW_GUID=${guid#0x} ;;
         $FA66_GUID)                          FW_DEVICE=fa66;  FW_GUID=${guid#0x} ;;
         $FA101_GUID)                         FW_DEVICE=fa101; FW_GUID=${guid#0x} ;;
+        $MOTU_GUID)                          FW_DEVICE=motu;  FW_GUID=${guid#0x} ;;
     esac
 done
 
@@ -109,7 +135,7 @@ if [ -z "$FW_DEVICE" ]; then
 fi
 
 if [ -z "$FW_DEVICE" ]; then
-    echo "Error: no hay tarjeta soportada (Scarlett 6i6 USB / AudioFire4 / AudioFire8 / Edirol FA66 / Edirol FA101). jackd no arranca." >&2
+    echo "Error: no hay tarjeta soportada (Scarlett 6i6 USB / Behringer UMC204HD / AudioFire4 / AudioFire8 / Edirol FA66 / Edirol FA101 / MOTU UltraLite). jackd no arranca." >&2
     exit 1
 fi
 
@@ -130,6 +156,25 @@ case "$FW_DEVICE" in
         ;;
     fa66)
         echo "Edirol FA66 (GUID $FW_GUID)"
+        ;;
+    motu)
+        # MOTU UltraLite (FFADO): configured with dbus commands BEFORE jackd, the
+        # same way as the AudioFire units. We kill any leftover ffado-dbus-server,
+        # do a bus reset, bring up a temporary ffado-dbus-server, run the sync
+        # script with the GUID and kill it again so that jackd takes over a clean
+        # FireWire backend.
+        kill_stale_ffado_dbus_server
+        echo "Firewire bus reset..."
+        ffado-test BusReset
+        sleep 1
+        echo "Starting ffado-dbus-server..."
+        ffado-dbus-server &
+        FFADO_PID=$!
+        sleep 1
+        echo "MOTU UltraLite (GUID $FW_GUID)"
+        bash $SCRIPTDIR/MOTU_Ultralite_sync.sh $FW_GUID
+        kill -9 "$FFADO_PID" 2>/dev/null
+        sleep 1
         ;;
     fa101)
         # Edirol FA-101 (BeBoB): clock is "Device Controlled" — the source
