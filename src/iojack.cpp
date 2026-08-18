@@ -137,7 +137,7 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     // Check for convChannels input connected to this jackaudio input
     for(vector<ConvChannel*>::iterator channel_p = (*jack_p)->channels.begin() ; channel_p != (*jack_p)->channels.end(); channel_p++) {
 #ifdef RTDEBUG
-	std::cout << "ioJack callback: passing input data to  convolver: " << (*channel_p)->get_index() << std::endl;
+        std::cout << "ioJack callback: passing input data to  convolver: " << (*channel_p)->get_index() << std::endl;
 #endif	
       (*channel_p)->fillInputBuffer((*jack_p)->port_name, inpbuf);
     }
@@ -145,9 +145,9 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     // Check for NAE input channels conected to this jackaudio input
     for(vector<nae_channel*>::iterator nae_ch = (*jack_p)->nae_channels.begin() ; nae_ch != (*jack_p)->nae_channels.end(); nae_ch++) {
 #ifdef RTDEBUG
-	std::cout << "ioJack callback: passing input data to NAE: " << (*nae_ch)->n_nae->getName() << std::endl;
+        std::cout << "ioJack callback: passing input data to NAE: " << (*nae_ch)->n_nae->getName() << std::endl;
 #endif	
-	(*nae_ch)->n_nae->fillInputBuffer((*nae_ch)->n_side, inpbuf);
+        (*nae_ch)->n_nae->fillInputBuffer((*nae_ch)->n_side, inpbuf);
     }
   }
   
@@ -208,12 +208,12 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #ifdef RTDEBUG
       std::cout << "ioJack callback: passing input data to nae: " << (*pn_ch)->n_nae->getName() << "/" << (*pn_ch)->n_side << std::endl;
 #endif	
-	(*pn_ch)->n_nae->fillOutputBuffer((*pn_ch)->n_side, outbuf);
+        (*pn_ch)->n_nae->fillOutputBuffer((*pn_ch)->n_side, outbuf);
     }
     if(g0 != 1.0f || g1 != 1.0f) {
       float g = g0;
       for(int i = 0; i < fragment_size; i++, g += gstep)
-	outbuf[i] *= g;
+        outbuf[i] *= g;
     }
   }
   ramp_gain = g1;
@@ -300,7 +300,7 @@ bool ioJack::global_init(void)
   const char *granted_name = jack_get_client_name(jackclient);
   if (granted_name != NULL && strcmp(granted_name, client_name) != 0) {
     std::cerr << "ioJack: JACK client name \"" << client_name << "\" was already in use; "
-	      << "running as \"" << granted_name << "\"" << std::endl;
+              << "running as \"" << granted_name << "\"" << std::endl;
     char *adopted = strdup(granted_name);
     if (adopted != NULL) {
       free(client_name);
@@ -328,13 +328,13 @@ bool ioJack::global_init(void)
   // to main(), so the user sees this message instead of an uncaught-exception abort.
   if (jack_is_realtime(jackclient) == 0) {
     std::cerr << "ioJack: JACK is running without realtime scheduling (neither SCHED_FIFO\n"
-	      << "        nor SCHED_RR). natambio requires a realtime JACK server and will\n"
-	      << "        not start without one.\n"
-	      << "        Start the server with realtime scheduling enabled, for example:\n"
-	      << "            jackd -R -P 70 -d alsa -d hw:0 -r 48000 -p 256 -n 3\n"
-	      << "        If jackd refuses to go realtime, check that the user may take\n"
-	      << "        realtime priorities (membership of the audio group and the\n"
-	      << "        rtprio/memlock limits in /etc/security/limits.d)." << std::endl;
+              << "        nor SCHED_RR). natambio requires a realtime JACK server and will\n"
+              << "        not start without one.\n"
+              << "        Start the server with realtime scheduling enabled, for example:\n"
+              << "            jackd -R -P 70 -d alsa -d hw:0 -r 48000 -p 256 -n 3\n"
+              << "        If jackd refuses to go realtime, check that the user may take\n"
+              << "        realtime priorities (membership of the audio group and the\n"
+              << "        rtprio/memlock limits in /etc/security/limits.d)." << std::endl;
     return false;
   }
 
@@ -418,8 +418,8 @@ bool ioJack::ConnectInputPort(string port_name, string dest_name)
     return true;
   }
   std::cerr << "ioJack: could not connect input port " << dest_name << " -----> " << connect_port_name
-	    << " (JACK returned " << connected << "). Check that " << dest_name
-	    << " exists and is a source port (jack_lsp)." << std::endl;
+            << " (JACK returned " << connected << "). Check that " << dest_name
+            << " exists and is a source port (jack_lsp)." << std::endl;
   return false;
 }
 
@@ -442,8 +442,8 @@ bool ioJack::ConnectOutputPort(string port_name, string dest_name)
     return true;
   }
   std::cerr << "ioJack: could not connect output port " << connect_port_name << " -----> " << dest_name
-	    << " (JACK returned " << connected << "). Check that " << dest_name
-	    << " exists and is a sink port (jack_lsp)." << std::endl;
+            << " (JACK returned " << connected << "). Check that " << dest_name
+            << " exists and is a sink port (jack_lsp)." << std::endl;
   return false;
 }
 
@@ -467,7 +467,7 @@ bool ioJack::connectInputConvPort(string port_name, ConvChannel* channel)
   for (std::vector<struct jack_port*>::iterator it = jack_inputs.begin() ; it != jack_inputs.end(); ++it) 
     if((*it)->port_name == port_name) {
       if(!quiet)
-	std::cout << "ioJack: Connected jackaudio input port "<< port_name << " to convolver port index " << channel->get_index() << std::endl;
+        std::cout << "ioJack: Connected jackaudio input port "<< port_name << " to convolver port index " << channel->get_index() << std::endl;
       (*it)->channels.push_back(channel);
       found = true;
     }
@@ -482,7 +482,7 @@ bool ioJack::connectOutputConvPort(string port_name, ConvChannel* channel)
   for (std::vector<struct jack_port*>::iterator it = jack_outputs.begin() ; it != jack_outputs.end(); ++it) 
     if((*it)->port_name == port_name) {
       if(!quiet)
-	std::cout << "ioJack: Connected jackaudio output port "<< port_name << " to convolver port index " << channel->get_index() << std::endl;
+        std::cout << "ioJack: Connected jackaudio output port "<< port_name << " to convolver port index " << channel->get_index() << std::endl;
       (*it)->channels.push_back(channel);
       found = true;
     }
@@ -497,7 +497,7 @@ bool ioJack::connectInputNaePort(enum side n_side, string port_name, NAE* n_nae)
   for (std::vector<struct jack_port*>::iterator it = jack_inputs.begin() ; it != jack_inputs.end(); ++it) 
     if((*it)->port_name == port_name) {
       if(!quiet)
-	std::cout << "ioJack: Connected jackaudio input port "<< port_name << " to NAE channel " << n_nae->getChannelIn(n_side) << std::endl;
+        std::cout << "ioJack: Connected jackaudio input port "<< port_name << " to NAE channel " << n_nae->getChannelIn(n_side) << std::endl;
       struct nae_channel *n_nae_ch =  new struct nae_channel;
       n_nae_ch->n_side = n_side;
       n_nae_ch->n_nae = n_nae;
@@ -515,7 +515,7 @@ bool ioJack::connectOutputNaePort(enum side n_side, string port_name, NAE* n_nae
   for (std::vector<struct jack_port*>::iterator it = jack_outputs.begin() ; it != jack_outputs.end(); ++it) 
     if((*it)->port_name == port_name) {
       if(!quiet)
-	std::cout << "ioJack: Connected jackaudio output port "<< port_name << " to NAE channel " << n_nae->getChannelOut(n_side) << std::endl;
+        std::cout << "ioJack: Connected jackaudio output port "<< port_name << " to NAE channel " << n_nae->getChannelOut(n_side) << std::endl;
       struct nae_channel *n_nae_ch =  new struct nae_channel;
       n_nae_ch->n_side = n_side;
       n_nae_ch->n_nae = n_nae;

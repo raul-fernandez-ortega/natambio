@@ -46,23 +46,23 @@ int main(int argc,char *argv[])
     NatAmbio *n_NatAmbio = new NatAmbio();
 
     for (n = 1; n < argc; n++) {
-	if (strcmp(argv[n], "-quiet") == 0) {
-	    quiet = true;
-	} else {
-	    if (config_filename != NULL) {
-		break;
-	    }
-	    config_filename = argv[n];
-	}
+        if (strcmp(argv[n], "-quiet") == 0) {
+            quiet = true;
+        } else {
+            if (config_filename != NULL) {
+                break;
+            }
+            config_filename = argv[n];
+        }
     }
     if (n != argc) {
-	fprintf(stderr, PRESENTATION_STRING);
-	fprintf(stderr, USAGE_STRING, argv[0]);
-	return 0;
+        fprintf(stderr, PRESENTATION_STRING);
+        fprintf(stderr, USAGE_STRING, argv[0]);
+        return 0;
     }
     
     if(!quiet) {
-	fprintf(stdout, PRESENTATION_STRING);
+        fprintf(stdout, PRESENTATION_STRING);
     }
 
     if(quiet)
@@ -92,26 +92,26 @@ int main(int argc,char *argv[])
        used to abandon it registered. */
     try {
       if(!(n_NatAmbio->configXML(config_filename))) {
-	delete n_NatAmbio;
-	exit(1);
+        delete n_NatAmbio;
+        exit(1);
       }
       if(!stop && !(n_NatAmbio->jackStart())) {
-	delete n_NatAmbio;
-	exit(1);
+        delete n_NatAmbio;
+        exit(1);
       }
       if(!stop && !(n_NatAmbio->startConvProc())) {
-	delete n_NatAmbio;
-	exit(1);
+        delete n_NatAmbio;
+        exit(1);
       }
       if(!stop && !(n_NatAmbio->connectPorts())) {
-	fprintf(stderr, "natambio: some JACK connections requested by the configuration "
-		"could not be made; refusing to run with an incomplete signal path.\n");
-	delete n_NatAmbio;
-	exit(1);
+        fprintf(stderr, "natambio: some JACK connections requested by the configuration "
+                "could not be made; refusing to run with an incomplete signal path.\n");
+        delete n_NatAmbio;
+        exit(1);
       }
       if(stop) {          /* interrupted while starting up */
-	delete n_NatAmbio;
-	exit(1);
+        delete n_NatAmbio;
+        exit(1);
       }
     }
     catch (const std::exception &e) {
@@ -124,7 +124,7 @@ int main(int argc,char *argv[])
     while(!stop) {
       usleep (100000);
       if(n_NatAmbio->convprocCheckStop())
-	stop = true;
+        stop = true;
     }
     delete n_NatAmbio;
     exit(0);

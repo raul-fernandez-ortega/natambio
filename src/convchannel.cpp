@@ -112,7 +112,7 @@ void ConvChannel::fillInputBuffer(string port_name, float* buffer)
   for (std::vector<iobuffer*>::iterator it = jack_inp.begin() ; it != jack_inp.end(); ++it) 
     if((*it)->port_name == port_name) {
 #ifdef RTDEBUG
-	std::cout << "ConvChannel: copying input buffer for convolver " << index << " connected to jack port name " << port_name << std::endl;
+        std::cout << "ConvChannel: copying input buffer for convolver " << index << " connected to jack port name " << port_name << std::endl;
 #endif
       (*it)->buffer = buffer;
     }
@@ -158,7 +158,7 @@ void ConvChannel::processInput(int bufsize)
       std::cout << "ConvChannel: processing input from jack port " << (*inbuffer)->port_name << " to bypass " << index << std::endl;
 #endif
       for(int i = 0; i < bufsize; i++)
-	p_bypass[i] += (*inbuffer)->buffer[i];
+        p_bypass[i] += (*inbuffer)->buffer[i];
     }
     // Bypass other convolver process outputs 
     for (vector<ConvChannel*>::iterator o_conv_i = o_conv_inp.begin() ; o_conv_i != o_conv_inp.end(); o_conv_i++) {
@@ -189,7 +189,7 @@ void ConvChannel::processInput(int bufsize)
       std::cout << "ConvChannel: processing input from jack port " << (*inbuffer)->port_name << " to convprov " << index << std::endl;
 #endif
       for(int i = 0; i < bufsize; i++)
-	p_in[i] += (*inbuffer)->buffer[i];
+        p_in[i] += (*inbuffer)->buffer[i];
     }
      //Process other convproc outputs to convproc input
     for (vector<ConvChannel*>::iterator o_conv_i = o_conv_inp.begin() ; o_conv_i != o_conv_inp.end(); o_conv_i++) {
