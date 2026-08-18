@@ -222,7 +222,7 @@ múltiplos escalares de la *misma* señal:
 ```math
 l = a\,c, \qquad r = b\,c
 \qquad \Longrightarrow \qquad
-\operatorname{corr}(l, r) = \operatorname{sgn}(a\,b) = \pm 1
+\mathrm{corr}(l, r) = \mathrm{sgn}(a\,b) = \pm 1
 ```
 
 No hay valores intermedios posibles. No es improbable: es imposible.
@@ -231,8 +231,8 @@ No hay valores intermedios posibles. No es improbable: es imposible.
 $\mathbf{u}_1 = (\cos\theta,\ \sin\theta)$ y $\mathbf{u}_2 = (-\sin\theta,\ \cos\theta)$:
 
 ```math
-\operatorname{sgn}(u_{1l}\,u_{1r}) = \operatorname{sgn}(\cos\theta\,\sin\theta), \qquad
-\operatorname{sgn}(u_{2l}\,u_{2r}) = \operatorname{sgn}(-\sin\theta\,\cos\theta)
+\mathrm{sgn}(u_{1l}\,u_{1r}) = \mathrm{sgn}(\cos\theta\,\sin\theta), \qquad
+\mathrm{sgn}(u_{2l}\,u_{2r}) = \mathrm{sgn}(-\sin\theta\,\cos\theta)
 ```
 
 **Siempre opuestos.** Una componente sale con correlación $+1$ y la otra con $-1$, en cualquier
@@ -448,9 +448,9 @@ panoramización de cada fuente. Trompeta y batería siguen en $\varphi = 45°$ y
 que el modelo etiqueta como *localizado pero apenas abre*, y el residuo se va al centro del disco.
 
 **Y el motivo tiene mecanismo.** El XTC modifica la razón entre los dos modos propios. Cuando
-ambos modos transportan la **misma forma de onda** —que es lo que significa $\operatorname{corr} =
+ambos modos transportan la **misma forma de onda** —que es lo que significa $\mathrm{corr} =
 \pm 1$— cambiar esa razón cambia la posición de la imagen. Cuando transportan formas de onda
-**independientes** —$\operatorname{corr} = 0$— cambiar la razón sólo reequilibra un campo difuso:
+**independientes** —$\mathrm{corr} = 0$— cambiar la razón sólo reequilibra un campo difuso:
 no hay imagen que mover.
 
 Conviene el matiz: el cancelador sí actúa sobre una señal de correlación nula, puesto que escala
@@ -509,7 +509,7 @@ PanAmbio.** Fuera de esa arquitectura no significa nada.
 ### A.8.2 Qué hace
 
 ```math
-\beta = 0.55 + 0.45\,\bigl|\operatorname{corr}(L, R)\bigr|
+\beta = 0.55 + 0.45\,\bigl|\mathrm{corr}(L, R)\bigr|
 \qquad\text{medida sobre una ventana larga}
 ```
 
@@ -537,7 +537,7 @@ Escalar S por $\beta$ equivale, en coordenadas L/R, a aplicar a la entrada la ma
 ```
 
 que es el **control de anchura estéreo** de toda la vida: $\beta = 1$ es la identidad, $\beta = 0$
-es mono. Puede comprobarse que $`\mathbf{T}\,\mathbf{W}_{\beta} = \operatorname{diag}(1,\beta)\,\mathbf{T}`$,
+es mono. Puede comprobarse que $`\mathbf{T}\,\mathbf{W}_{\beta} = \mathrm{diag}(1,\beta)\,\mathbf{T}`$,
 siendo $\mathbf{T}$ la transformada M/S.
 
 Así que beta, descrito con precisión, es un **control de anchura estéreo adaptativo, gobernado por
@@ -553,7 +553,7 @@ día de hoy siguen sin justificación:
 - Por qué los coeficientes son 0.55 y 0.45, es decir, por qué el rango útil de $\beta$ resultó ser
   $[0.55,\ 1]$.
 - Por qué la ventana de medida de la correlación es de 20 bloques.
-- Por qué se usa el **valor absoluto** de la correlación. Con $|\operatorname{corr}|$, una
+- Por qué se usa el **valor absoluto** de la correlación. Con $|\mathrm{corr}|$, una
   grabación fuertemente *anti*correlada recibe poca reducción de S, igual que una fuertemente
   correlada. Si el criterio pretendido era "cuanto más lateral, menos S", el valor absoluto lo hace
   ciego al signo. Puede ser correcto o puede ser un residuo del proceso de desarrollo; no está
@@ -607,7 +607,7 @@ Y ahí la decorrelación no es una preferencia estética, es la única herramien
 > espera, y por tanto exige conocer y controlar los caminos de transmisión.
 
 Un sistema multialtavoz no conoce sus caminos de transmisión ni pretende controlarlos. Por eso
-$\operatorname{corr} = 0$ es, para esa arquitectura, la respuesta correcta.
+$\mathrm{corr} = 0$ es, para esa arquitectura, la respuesta correcta.
 
 Hay además una segunda razón, independiente: **el upmix expande el número de canales**. Pasar de
 2 a 5 obliga a producir material que no está en la grabación, y la decorrelación es exactamente
@@ -667,13 +667,13 @@ Bajo el modelo PAE con $k > 0$ y energías ambientales iguales, la correlación 
 reconstruible es
 
 ```math
-\operatorname{corr}(x_0, x_1) = \frac{k\,P_p}{\sqrt{(P_p + P_a)\,(k^{2}P_p + P_a)}}
+\mathrm{corr}(x_0, x_1) = \frac{k\,P_p}{\sqrt{(P_p + P_a)\,(k^{2}P_p + P_a)}}
 ```
 
 Bajo la descomposición ortogonal de NAE, con potencias $P_1 \ge P_2$ y ángulo principal $\theta$,
 
 ```math
-\operatorname{corr}(x_0, x_1) =
+\mathrm{corr}(x_0, x_1) =
 \frac{(P_1 - P_2)\,\sin\theta\,\cos\theta}
 {\sqrt{\bigl(P_1\cos^{2}\theta + P_2\sin^{2}\theta\bigr)\bigl(P_1\sin^{2}\theta + P_2\cos^{2}\theta\bigr)}}
 ```
@@ -692,7 +692,7 @@ dos que definen "ambiente" según un criterio pensado para otra arquitectura de 
 
 ### A.9.6 Lo que la literatura hace y NatAmbio no puede hacer
 
-Ninguno de los estimadores estudiados alcanza $\operatorname{corr} = 0$ en el ambiente extraído.
+Ninguno de los estimadores estudiados alcanza $\mathrm{corr} = 0$ en el ambiente extraído.
 La conclusión de la propia literatura es que hacen falta técnicas de posprocesado —decorrelación y
 reescalado— para conseguirlo.
 
