@@ -32,7 +32,8 @@ Contents:
 ## Usage
 
 ```sh
-python pca4drc.py <impulse_directory> <output_len> [--normalize true|false] [--align peak|xcorr]
+python pca4drc.py <impulse_directory> <output_len> [--normalize true|false]
+                  [--align peak|xcorr] [--impulse-glob PATTERN]
 ```
 
 - `impulse_directory`: folder with the already-measured impulse responses, in
@@ -98,34 +99,61 @@ well.
 
 ## Level reference: `--level-normalize`
 
-The principal component is defined up to an arbitrary scale factor, and that
-factor is **different for every way**: it depends on the covariance structure of
-that way's own impulse set, on the peak normalization of step 5, and on the mean
-subtraction and windowing of steps 3-4. DRC then normalizes its own stages as
-well (`ISNormType`, `PSNormType`, `MSNormType`), so the filter it produces
-carries no memory of how loud that way actually plays. Measure four ways, run
-them through the chain and their relative levels no longer mean anything: on a
-four-way system the arbitrary factor differed by 5 dB between ways.
+The principal component is defined up to an arbitrary scale factor, and that factor
+is **different for every way**: it depends on the covariance structure of that way's
+own impulse set, on the peak normalisation of step 5 and on the mean subtraction and
+windowing of steps 3-4. DRC then normalises its own stages too (`ISNormType`,
+`PSNormType`, `MSNormType`), so the filter it produces carries no memory of how loud
+that way actually plays. Measure four ways, put them through the chain, and their
+relative levels stop meaning anything: on a four-way system the arbitrary factor
+varied by 5 dB between them.
 
-No DRC normalization type fixes this, because S, E, M and P are all anti-clipping
-criteria computed from the filter itself. The reference has to be restored on the
-finished filters:
+No DRC normalisation type solves it, since S, E, M and P are anti-clipping criteria
+computed from the filter itself. The reference has to be restored on the finished
+filters, and it is taken **from the measurements themselves**:
 
 ```sh
 python pca4drc.py --level-normalize i_*/rms.wav [--ref-band LO HI] [--in-place] [--dry-run]
 ```
 
-Each filter is scaled so that its energy-average gain over the reference band
-(`--ref-band`, 200-2000 Hz by default) is exactly 0 dB, i.e. unity gain for
-band-limited noise in that band. The filter then changes the frequency response
-only, and the relative levels between ways stay the ones the system had before
-correction, so any level calibration already made downstream remains valid. The
-scaled filters are written next to the originals with a `_lvl` suffix
-(`--suffix`), or over them with `--in-place`.
+Each filter is scaled so that **the in-band power its way delivers after correction
+equals the one it delivered when measured**. Both are computed as power averages over
+the measurement positions -- the arithmetic mean of the per-position powers, which is
+the energy the way puts into the listening region -- rather than as the mean of the
+per-position differences in dB, which would weight every point alike however little
+it contributes. The two disagree by over a decibel on modal material.
 
-The report prints, per filter, the gain applied, how much the filter still varies
-inside the reference band, and the three figures the convolver needs for
-headroom: peak sample, `sum|h|` and the highest gain of the magnitude response.
+The measurements are read from the filter's own directory, which is where the
+measurement chain leaves them; `--impulse-glob` (default `*_impulse_*.wav`) says how
+they are named.
+
+Nothing is assumed about the shape of the filter, and that is what makes the method
+exact. Normalising the filter against white noise -- the earlier criterion -- assumes
+it is flat inside the band; a correction filter is roughly the inverse of the
+response it corrects, so the two are anti-correlated there and the error depends on
+how much each way's response varies inside the band. On a real four-way system that
+criterion left up to **1.9 dB** of mismatch between ways, where the present one gives
+**0.00 dB** by construction.
+
+The reference is the balance the system had **when it was measured**, and is worth
+whatever that balance was worth. The reference band has to lie inside the passband of
+every way compared.
+
+The report prints, per filter, the measured level, the level it would have after
+correction without scaling, the gain applied, how much that level varied between
+measurement positions, and the three figures a convolver needs in order to leave
+headroom: the sample peak, `sum|h|` and the highest gain of the magnitude response.
+
+## Choosing the measurements: `--impulse-glob`
+
+Both the PCA and `--level-normalize` take **only the files matching the pattern**,
+`*_impulse_*.wav` by default, rather than every `.wav` in the directory. The reason
+is that DRC leaves its own outputs (`rms.wav`, `rps.wav`) in that same folder: read
+everything and the first pass over a clean directory is fine, but **any re-run feeds
+the previous filters back into the PCA as if they were measurements**. It shows in
+the report, where the impulse count does not add up and the residual misalignment
+shoots up. If your measurements are named differently, pass the pattern with this
+option.
 
 ## Sweep generation: `sweepgen.py`
 

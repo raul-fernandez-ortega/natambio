@@ -10,7 +10,9 @@ and saves the resulting PCA components in WAV format.
 
 Algorithm:
 
-  1. Reads all impulse responses (.wav) from an input directory with soundfile.
+  1. Reads the measured impulse responses from an input directory with
+     soundfile, matched by name (`--impulse-glob`) so that DRC's own outputs
+     left in the same directory are not read back in as measurements.
   2. Locates the peak (absolute maximum) of each impulse.
   3. Rewrites each impulse as a signal of length `output_len` centred on its
      peak, optionally refines that centring by covariance maximisation (see
@@ -53,16 +55,29 @@ Level reference:
   3-4. DRC then normalises its own stages too, so the filter it produces
   carries no memory of how loud that way actually plays. Levels measured on a
   set of ways therefore stop being comparable once they go through the
-  PCA + DRC chain.
+  PCA + DRC chain: on a real four-way set the arbitrary factor varied 5 dB.
 
-  The `--level-normalize` mode restores a defined reference on the finished
-  filters: each filter is scaled so that its energy-average gain over a
-  reference band (200-2000 Hz by default) is exactly 0 dB, i.e. unity gain for
-  band-limited noise in that band. The filter then changes the frequency
-  response only, leaving the relative levels of the system as they were before
-  correction, so any level calibration already done downstream stays valid.
-  How exactly they are left depends on how much each filter still varies
-  inside the band, which the report prints alongside the gain applied.
+  The `--level-normalize` mode restores the reference from the measurements
+  themselves. Each filter is scaled so that the in-band power its way delivers
+  AFTER correction equals the one it delivered when measured, both taken as
+  power averages over the measurement positions -- the arithmetic mean of the
+  per-position powers, which is the energy the way puts into the listening
+  region, rather than the mean of the per-position differences in dB, which
+  weights every position alike however little it contributes. The two disagree
+  by over a decibel on modal material.
+
+  Nothing is assumed about the shape of the filter, which is what makes this
+  exact. Normalising a filter against white noise instead assumes it is flat
+  inside the band; a correction filter is roughly the inverse of the response
+  it corrects, so the two are anti-correlated there and the residual error
+  depends on how much each way's response varies inside the band. On simulated
+  four-way material that approximation left up to 1.8 dB of mismatch between
+  ways.
+
+  The reference is the balance the system had when it was measured, and is
+  only as good as that balance was. The measurements have to sit beside their
+  filter (`--impulse-glob`), and the reference band has to lie inside the
+  passband of every way compared.
 
 Usage:
     python pca4drc.py <impulse_directory> <output_len> [--align peak|xcorr]
@@ -77,6 +92,7 @@ Author : Raul Fernandez Ortega
 
 import os
 import sys
+import glob
 import argparse
 import numpy as np
 import soundfile as sf
@@ -204,17 +220,20 @@ def fractional_shift(signal, shift):
 class PCA:
     """PCA decomposition of a set of impulse responses (pyDRC-free)."""
 
-    def __init__(self, impulse_dir, output_len, align="peak"):
+    def __init__(self, impulse_dir, output_len, align="peak",
+                 impulse_glob="*_impulse_*.wav"):
         self.impulse_dir = impulse_dir
         self.output_len = output_len
         self.align = align
 
-        # Collect .wav files (sorted for reproducible component ordering).
+        # Only the measured responses, matched by name: DRC leaves its own
+        # outputs (rms.wav, rps.wav) in this same directory, and taking every
+        # .wav would feed those back in as if they were measurements on any
+        # re-run. Sorted for reproducible component ordering.
         self.DataFileList = []
-        for fileName in sorted(os.listdir(impulse_dir)):
-            if fileName.lower().endswith(".wav"):
-                print(f"Found impulse file {fileName}")
-                self.DataFileList.append(os.path.join(impulse_dir, fileName))
+        for path in sorted(glob.glob(os.path.join(impulse_dir, impulse_glob))):
+            print(f"Found impulse file {os.path.basename(path)}")
+            self.DataFileList.append(path)
         self.Size = len(self.DataFileList)
         self.SampleRate = None
         self.DataArray = np.zeros((self.Size, self.output_len), np.double)
@@ -384,20 +403,80 @@ def filter_headroom(fir, sample_rate):
             20.0 * np.log10(peak_gain))
 
 
-def level_normalize(path, band_lo, band_hi, suffix, in_place, dry_run):
-    """Scale one filter to 0 dB energy-average gain over the reference band.
+def measured_band_powers(paths, band_lo, band_hi, fft_len):
+    """In-band power of every measured impulse response, on a common grid.
 
-    Reads `path` (a mono WAV FIR filter, typically the rms.wav produced by
-    DRC), scales it and writes the result next to it as <name><suffix>.wav, or
-    over the original when `in_place` is set. Returns the report row so the
-    caller can print the whole set as one table."""
+    Returns the per-position powers and the spectra, so the caller can reuse
+    the transforms to work out what the filter does to the same measurements
+    without transforming them twice."""
+    powers = []
+    spectra = []
+    rate = None
+    for path in paths:
+        signal, sample_rate = sf.read(path, dtype="float64")
+        if signal.ndim > 1:
+            signal = signal[:, 0]
+        if rate is None:
+            rate = sample_rate
+        elif sample_rate != rate:
+            raise SystemExit(f"'{path}' is at {sample_rate} Hz and the previous "
+                             f"measurements at {rate} Hz.")
+        spectrum = np.abs(np.fft.rfft(signal, fft_len))
+        spectra.append(spectrum)
+        freq = np.fft.rfftfreq(fft_len, 1.0 / rate)
+        band = (freq >= band_lo) & (freq < band_hi)
+        if not band.any():
+            raise SystemExit(f"no FFT bin falls inside {band_lo}-{band_hi} Hz.")
+        powers.append(np.mean(spectrum[band] ** 2))
+    return np.array(powers), np.array(spectra), rate
+
+
+def level_normalize(path, impulse_paths, band_lo, band_hi, suffix,
+                    in_place, dry_run):
+    """Scale one filter so that the way it corrects keeps its measured level.
+
+    The filter is scaled so that the in-band power its way delivers AFTER
+    correction equals the one it delivered when measured. Both are power
+    averages over the measurement positions: the arithmetic mean of the
+    per-position powers, which is the energy the way puts into the listening
+    region, rather than the mean of the per-position level differences in dB,
+    which weights every position alike regardless of how much it contributes.
+
+    Nothing is assumed about the shape of the filter. The gain is worked out
+    from what the filter actually does to the responses that were measured,
+    which is why this is exact where normalising the filter against white
+    noise is only an approximation: a correction filter is roughly the inverse
+    of the response it corrects, so the two are anti-correlated inside the
+    band and the error depends on how much each way's response varies there."""
     fir, sample_rate = sf.read(path, dtype="float64")
     if fir.ndim > 1:
         raise SystemExit(f"'{path}' has {fir.shape[1]} channels; "
                          f"filters must be mono.")
-    gain, spread = band_gain_db(fir, sample_rate, band_lo, band_hi)
-    scaled = fir * (10.0 ** (-gain / 20.0))
+    longest = max([len(fir)] + [sf.info(p).frames for p in impulse_paths])
+    fft_len = 1 << int(np.ceil(np.log2(2 * max(longest, 2))))
+
+    powers, spectra, rate = measured_band_powers(impulse_paths, band_lo,
+                                                 band_hi, fft_len)
+    if rate != sample_rate:
+        raise SystemExit(f"'{path}' is at {sample_rate} Hz and its measurements "
+                         f"at {rate} Hz.")
+    freq = np.fft.rfftfreq(fft_len, 1.0 / sample_rate)
+    band = (freq >= band_lo) & (freq < band_hi)
+    filter_spectrum = np.abs(np.fft.rfft(fir, fft_len))
+
+    measured = powers.mean()
+    corrected = np.mean([np.mean((filter_spectrum[band] * s[band]) ** 2)
+                         for s in spectra])
+    if not measured > 0.0 or not corrected > 0.0:
+        raise SystemExit(f"'{path}': no energy in {band_lo}-{band_hi} Hz, in the "
+                         f"filter or in its measurements. The reference band "
+                         f"must lie inside the way's passband.")
+    gain = np.sqrt(measured / corrected)
+    scaled = fir * gain
     peak, l1_db, peak_gain_db = filter_headroom(scaled, sample_rate)
+    # How much the way's level varies from one position to another: how well
+    # defined the level being preserved is in the first place.
+    spread = np.std(10.0 * np.log10(np.maximum(powers, 1e-30)))
 
     out_path = path
     if not in_place:
@@ -405,28 +484,45 @@ def level_normalize(path, band_lo, band_hi, suffix, in_place, dry_run):
         out_path = stem + suffix + ext
     if not dry_run:
         sf.write(out_path, scaled.astype(np.float32), sample_rate, subtype="FLOAT")
-    return {"path": path, "out": out_path, "applied": -gain, "spread": spread,
+    return {"path": path, "out": out_path, "count": len(impulse_paths),
+            "measured": 10.0 * np.log10(measured),
+            "corrected": 10.0 * np.log10(corrected),
+            "applied": 20.0 * np.log10(gain), "spread": spread,
             "peak": peak, "l1_db": l1_db, "peak_gain_db": peak_gain_db}
 
 
 def run_level_normalize(parsed):
     """--level-normalize mode: rescale the given filters and report."""
+    jobs = []
     for path in parsed.level_normalize:
         if not os.path.isfile(path):
             raise SystemExit(f"'{path}' is not a file. --level-normalize takes "
                              f"filter files only; impulse_dir and output_len "
                              f"do not apply to it.")
+        # The measurements of a way live beside its filter, which is where the
+        # measurement script leaves both.
+        directory = os.path.dirname(os.path.abspath(path))
+        found = sorted(glob.glob(os.path.join(directory, parsed.impulse_glob)))
+        found = [p for p in found if os.path.abspath(p) != os.path.abspath(path)]
+        if not found:
+            raise SystemExit(
+                f"no measurement matching '{parsed.impulse_glob}' next to "
+                f"'{path}'. The level reference is taken from the responses the "
+                f"way measured, so they have to be there; use --impulse-glob if "
+                f"they are named differently.")
+        jobs.append((path, found))
+
     band_lo, band_hi = parsed.ref_band
     if not 0.0 <= band_lo < band_hi:
         raise SystemExit(f"invalid reference band {band_lo}-{band_hi} Hz.")
 
     print(f"Level normalization, reference band {band_lo:g}-{band_hi:g} Hz "
-          f"(policy: 0 dB energy-average gain in band)")
+          f"(policy: each way keeps the in-band level it measured)")
     if parsed.dry_run:
         print("Dry run: nothing is written.")
-    rows = [level_normalize(path, band_lo, band_hi, parsed.suffix,
+    rows = [level_normalize(path, impulses, band_lo, band_hi, parsed.suffix,
                             parsed.in_place, parsed.dry_run)
-            for path in parsed.level_normalize]
+            for path, impulses in jobs]
 
     # One filter per way, and they are usually all called rms.wav: label each
     # row with its parent directory when the file names alone would not tell
@@ -436,11 +532,14 @@ def run_level_normalize(parsed):
         names = [os.path.join(os.path.basename(os.path.dirname(os.path.abspath(r["path"]))),
                               os.path.basename(r["path"])) for r in rows]
     width = max([len("filter")] + [len(n) for n in names])
-    print(f"{'filter':<{width}}  {'applied':>11}  {'in-band':>8}  {'peak':>7}  "
-          f"{'sum|h|':>11}  {'max gain':>11}  output")
+    print(f"{'filter':<{width}}  {'pos':>3}  {'measured':>11}  {'corrected':>11}  "
+          f"{'applied':>11}  {'pos spread':>10}  {'peak':>7}  {'sum|h|':>11}  "
+          f"{'max gain':>11}  output")
     for name, r in zip(names, rows):
-        print(f"{name:<{width}}  {r['applied']:+8.2f} dB  {r['spread']:6.2f} dB  "
-              f"{r['peak']:7.3f}  {r['l1_db']:+8.2f} dB  {r['peak_gain_db']:+8.2f} dB  "
+        print(f"{name:<{width}}  {r['count']:3d}  {r['measured']:+8.2f} dB  "
+              f"{r['corrected']:+8.2f} dB  {r['applied']:+8.2f} dB  "
+              f"{r['spread']:7.2f} dB  {r['peak']:7.3f}  {r['l1_db']:+8.2f} dB  "
+              f"{r['peak_gain_db']:+8.2f} dB  "
               f"{'(dry run)' if parsed.dry_run else r['out']}")
 
     clipping = [n for n, r in zip(names, rows) if r["peak"] > 1.0]
@@ -449,11 +548,12 @@ def run_level_normalize(parsed):
               + "; some convolvers and file formats need it below 1.0.")
     print(f"Leave at least {max(r['peak_gain_db'] for r in rows):.1f} dB of "
           f"digital headroom before the convolver.")
-    print("Every filter now has 0 dB gain for band-limited noise in the "
-          "reference band, so the relative levels between ways stay the ones "
-          "the system had before correction. The 'in-band' column is how much "
-          "each filter still varies inside the band: that is the margin within "
-          "which the level reference depends on the signal used to judge it.")
+    print("Each way now delivers, after correction, the in-band level it "
+          "delivered when measured, so the relative levels between ways are "
+          "the ones the system had at measurement time -- which is the "
+          "reference, and is only as good as the balance the system had then. "
+          "The 'pos spread' column is how much that level varied from one "
+          "measurement position to another.")
 
 
 def main():
@@ -468,6 +568,11 @@ def main():
                         metavar="true|false",
                         help="Normalize the components by the peak of the principal one (true) "
                              "or save the raw PCA values (false). Default: true")
+    parser.add_argument("--impulse-glob", default="*_impulse_*.wav", metavar="PATTERN",
+                        help="How the measured impulse responses are named. Applies both to "
+                             "the PCA and to --level-normalize, and keeps DRC's own outputs "
+                             "(rms.wav, rps.wav), which sit in the same directory, from being "
+                             "read back in as measurements. Default: *_impulse_*.wav")
     parser.add_argument("--align", choices=["peak", "xcorr"], default="peak",
                         help="How the impulses are aligned before the PCA: 'peak' centres each "
                              "one on its own sample peak; 'xcorr' refines that centring to a "
@@ -477,10 +582,13 @@ def main():
         "level normalization",
         "Rescale finished DRC filters (rms.wav) to a defined level reference "
         "instead of running the PCA. The PCA + DRC chain loses the level "
-        "relation between ways; this restores it.")
+        "relation between ways; this restores it from the measurements "
+        "themselves.")
     level.add_argument("--level-normalize", nargs="+", metavar="FILTER.WAV",
-                       help="Scale each given filter to 0 dB energy-average gain over the "
-                            "reference band. Runs on its own: no PCA is performed.")
+                       help="Scale each given filter so that its way keeps, after correction, "
+                            "the in-band level it measured. The measurements are read from "
+                            "the filter's own directory. Runs on its own: no PCA is performed.")
+
     level.add_argument("--ref-band", nargs=2, type=float, default=(200.0, 2000.0),
                        metavar=("LO", "HI"),
                        help="Reference band in Hz. Default: 200 2000")
@@ -507,12 +615,15 @@ def main():
     if parsed.output_len <= 0:
         raise SystemExit("output_len must be a positive integer.")
 
-    pca = PCA(parsed.impulse_dir, parsed.output_len, align=parsed.align)
+    pca = PCA(parsed.impulse_dir, parsed.output_len, align=parsed.align,
+              impulse_glob=parsed.impulse_glob)
     # PCA needs at least 2 impulses (one observation has no covariance). With
     # fewer, skip with a warning but exit cleanly so a batch pipeline continues.
     if pca.Size < 2:
-        print(f"WARNING: only {pca.Size} impulse(s) in '{parsed.impulse_dir}'; "
-              f"PCA needs at least 2. Skipping PCA.", file=sys.stderr)
+        print(f"WARNING: only {pca.Size} impulse(s) matching "
+              f"'{parsed.impulse_glob}' in '{parsed.impulse_dir}'; PCA needs at "
+              f"least 2. Use --impulse-glob if they are named differently. "
+              f"Skipping PCA.", file=sys.stderr)
         return
     pca.process()
     # Output goes into a 'pca4drc' subdirectory of the input directory.
