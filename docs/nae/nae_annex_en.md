@@ -222,7 +222,7 @@ multiples of the *same* signal:
 ```math
 l = a\,c, \qquad r = b\,c
 \qquad \Longrightarrow \qquad
-\operatorname{corr}(l, r) = \operatorname{sgn}(a\,b) = \pm 1
+\mathrm{corr}(l, r) = \mathrm{sgn}(a\,b) = \pm 1
 ```
 
 No intermediate values are possible. It is not improbable: it is impossible.
@@ -231,8 +231,8 @@ No intermediate values are possible. It is not improbable: it is impossible.
 $\mathbf{u}_1 = (\cos\theta,\ \sin\theta)$ and $\mathbf{u}_2 = (-\sin\theta,\ \cos\theta)$:
 
 ```math
-\operatorname{sgn}(u_{1l}\,u_{1r}) = \operatorname{sgn}(\cos\theta\,\sin\theta), \qquad
-\operatorname{sgn}(u_{2l}\,u_{2r}) = \operatorname{sgn}(-\sin\theta\,\cos\theta)
+\mathrm{sgn}(u_{1l}\,u_{1r}) = \mathrm{sgn}(\cos\theta\,\sin\theta), \qquad
+\mathrm{sgn}(u_{2l}\,u_{2r}) = \mathrm{sgn}(-\sin\theta\,\cos\theta)
 ```
 
 **Always opposite.** One component comes out with correlation $+1$ and the other with $-1$, in any
@@ -445,9 +445,9 @@ of each source. Trumpet and drums remain at $\varphi = 45°$ and $135°$, the co
 as *localized but barely opens*, and the residue goes to the center of the disc.
 
 **And the reason has a mechanism.** The XTC modifies the ratio between the two eigenmodes. When
-both modes carry the **same waveform** —which is what $\operatorname{corr} = \pm 1$ means— changing
+both modes carry the **same waveform** —which is what $\mathrm{corr} = \pm 1$ means— changing
 that ratio changes the position of the image. When they carry **independent** waveforms
-—$\operatorname{corr} = 0$— changing the ratio only rebalances a diffuse field: there is no image
+—$\mathrm{corr} = 0$— changing the ratio only rebalances a diffuse field: there is no image
 to move.
 
 A qualification is in order: the canceller does act on a signal of zero correlation, since it
@@ -506,7 +506,7 @@ PanAmbio.** Outside that architecture it means nothing.
 ### A.8.2 What it does
 
 ```math
-\beta = 0.55 + 0.45\,\bigl|\operatorname{corr}(L, R)\bigr|
+\beta = 0.55 + 0.45\,\bigl|\mathrm{corr}(L, R)\bigr|
 \qquad\text{measured over a long window}
 ```
 
@@ -537,7 +537,7 @@ input:
 
 which is the familiar **stereo width control**: $\beta = 1$ is the identity, $\beta = 0$ is mono.
 It can be verified that
-$`\mathbf{T}\,\mathbf{W}_{\beta} = \operatorname{diag}(1,\beta)\,\mathbf{T}`$, with $\mathbf{T}$
+$`\mathbf{T}\,\mathbf{W}_{\beta} = \mathrm{diag}(1,\beta)\,\mathbf{T}`$, with $\mathbf{T}$
 the M/S transform.
 
 So beta, described precisely, is an **adaptive stereo width control, governed by the measured
@@ -553,7 +553,7 @@ criterion. To this day the following remain unjustified:
 - Why the coefficients are 0.55 and 0.45, that is, why the useful range of $\beta$ turned out to be
   $[0.55,\ 1]$.
 - Why the correlation measurement window is 20 blocks.
-- Why the **absolute value** of the correlation is used. With $|\operatorname{corr}|$, a strongly
+- Why the **absolute value** of the correlation is used. With $|\mathrm{corr}|$, a strongly
   *anti*-correlated recording receives little S reduction, just like a strongly correlated one. If
   the intended criterion was "the more lateral, the less S", the absolute value makes it blind to
   the sign. It may be right, or it may be a residue of the development process; it has not been
@@ -607,7 +607,7 @@ works:
 > and therefore requires knowing and controlling the transmission paths.
 
 A multi-loudspeaker system neither knows its transmission paths nor intends to control them. That
-is why $\operatorname{corr} = 0$ is, for that architecture, the correct answer.
+is why $\mathrm{corr} = 0$ is, for that architecture, the correct answer.
 
 There is also a second, independent reason: **upmixing expands the channel count**. Going from 2 to
 5 obliges one to produce material that is not in the recording, and decorrelation is precisely the
@@ -667,13 +667,13 @@ Under the PAE model with $k > 0$ and equal ambient energies, the reconstructible
 correlation is
 
 ```math
-\operatorname{corr}(x_0, x_1) = \frac{k\,P_p}{\sqrt{(P_p + P_a)\,(k^{2}P_p + P_a)}}
+\mathrm{corr}(x_0, x_1) = \frac{k\,P_p}{\sqrt{(P_p + P_a)\,(k^{2}P_p + P_a)}}
 ```
 
 Under NAE's orthogonal decomposition, with powers $P_1 \ge P_2$ and principal angle $\theta$,
 
 ```math
-\operatorname{corr}(x_0, x_1) =
+\mathrm{corr}(x_0, x_1) =
 \frac{(P_1 - P_2)\,\sin\theta\,\cos\theta}
 {\sqrt{\bigl(P_1\cos^{2}\theta + P_2\sin^{2}\theta\bigr)\bigl(P_1\sin^{2}\theta + P_2\cos^{2}\theta\bigr)}}
 ```
@@ -693,7 +693,7 @@ architecture.
 
 ### A.9.6 What the literature does and NatAmbio cannot
 
-None of the estimators studied achieves $\operatorname{corr} = 0$ in the extracted ambience. The
+None of the estimators studied achieves $\mathrm{corr} = 0$ in the extracted ambience. The
 literature's own conclusion is that post-processing techniques —decorrelation and rescaling— are
 needed to achieve it.
 
