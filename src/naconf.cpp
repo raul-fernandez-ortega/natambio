@@ -106,7 +106,7 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
       coeff->filename = (char*)cnt;
       slashpos = coeff->filename.find("~");
       if(slashpos != string::npos)
-	coeff->filename.replace(slashpos,1,homedir);
+        coeff->filename.replace(slashpos,1,homedir);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"channel")) {
       coeff->channel = strtol((char*)cnt, NULL, 10) - 1;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
@@ -140,14 +140,14 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
       memset(&probe, 0, sizeof(probe));
       SNDFILE *pf = sf_open(coeff->filename.c_str(), SFM_READ, &probe);
       if(pf != NULL) {
-	coeff->length = (coeff->skip > 0) ? probe.frames - coeff->skip : probe.frames;
-	if(coeff->length < 0)
-	  coeff->length = 0;
-	sf_close(pf);
-	if(!quiet)
-	  std::cout << "Coeff '" << coeff->name << "': <length> not set, using full file ("
-		    << coeff->length << " samples"
-		    << (coeff->skip > 0 ? ", skip subtracted" : "") << ")." << std::endl;
+        coeff->length = (coeff->skip > 0) ? probe.frames - coeff->skip : probe.frames;
+        if(coeff->length < 0)
+          coeff->length = 0;
+        sf_close(pf);
+        if(!quiet)
+          std::cout << "Coeff '" << coeff->name << "': <length> not set, using full file ("
+                    << coeff->length << " samples"
+                    << (coeff->skip > 0 ? ", skip subtracted" : "") << ")." << std::endl;
       }
       // If the probe fails the file is likely missing; sndfile_read() reports it.
     }
@@ -168,21 +168,21 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
       sf_count_t full = 0;
       bool resolvable = true;
       for (vector<string>::iterator nm = coeff->convol_coeffs.begin();
-	   nm != coeff->convol_coeffs.end(); ++nm) {
-	struct coeff *src = find_coeff(*nm);
-	if (src == NULL || src->length <= 0) { resolvable = false; break; }
-	full += src->length;
+           nm != coeff->convol_coeffs.end(); ++nm) {
+        struct coeff *src = find_coeff(*nm);
+        if (src == NULL || src->length <= 0) { resolvable = false; break; }
+        full += src->length;
       }
       if (resolvable)
-	coeff->length = full - (sf_count_t)(coeff->convol_coeffs.size() - 1);
+        coeff->length = full - (sf_count_t)(coeff->convol_coeffs.size() - 1);
     }
     if(!quiet) {
       std::cout << "Derived coeff '" << coeff->name << "' from "
-		<< coeff->convol_coeffs.size() << " convol_coeff(s)";
+                << coeff->convol_coeffs.size() << " convol_coeff(s)";
       if(!length_defined && coeff->length > 0)
-	std::cout << ", assumed full convolution length " << coeff->length << " samples";
+        std::cout << ", assumed full convolution length " << coeff->length << " samples";
       else if(!length_defined)
-	std::cout << ", length resolved later (references a generated coeff)";
+        std::cout << ", length resolved later (references a generated coeff)";
       std::cout << "." << std::endl;
     }
   }
@@ -412,7 +412,7 @@ static bool parse_xtc_side(xmlNodePtr xmlnode, struct xtc_side *side, const char
   if (missing != NULL) {
     char msg[160];
     snprintf(msg, sizeof(msg),
-	     "Error: xtc_asym <%s><%s> is required but not defined.", which, missing);
+             "Error: xtc_asym <%s><%s> is required but not defined.", which, missing);
     parse_error(msg);
     return false;
   }
@@ -463,22 +463,22 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     } else {
       xmlChar *cnt = xmlNodeGetContent(xmlnode);
       if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
-	xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
+        xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay")) {
-	// Optional in both blocks; matters more here, since the integer path
-	// rounds the two ITDs independently and the round-trip period inherits
-	// both errors.
-	int v = parse_bool_tag((char*)cnt);
-	if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
+        // Optional in both blocks; matters more here, since the integer path
+        // rounds the two ITDs independently and the round-trip period inherits
+        // both errors.
+        int v = parse_bool_tag((char*)cnt);
+        if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
-	xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
-	has_model_delay = true;
+        xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
+        has_model_delay = true;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
-	xtc->direct_name = (char*)cnt;
+        xtc->direct_name = (char*)cnt;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_left_filter_name")) {
-	xtc->cross_left_name = (char*)cnt;
+        xtc->cross_left_name = (char*)cnt;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_right_filter_name")) {
-	xtc->cross_right_name = (char*)cnt;
+        xtc->cross_right_name = (char*)cnt;
       }
       xmlFree(cnt);
     }
@@ -528,15 +528,15 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     std::cout << "\tCross left filter name: " << xtc->cross_left_name << std::endl;
     std::cout << "\tCross right filter name: " << xtc->cross_right_name << std::endl;
     std::cout << "\tLeft:  ITD " << xtc->left.itd_us << " us"
-	      << itd_samples_note(xtc->left.itd_us, jack_sample_rate, xtc->frac_delay)
-	      << ", ILD " << xtc->left.ild_db
-	      << " dB, alpha " << xtc->left.ild_alpha
-	      << ", azimuth " << xtc->left.azimuth_deg << " degrees" << std::endl;
+              << itd_samples_note(xtc->left.itd_us, jack_sample_rate, xtc->frac_delay)
+              << ", ILD " << xtc->left.ild_db
+              << " dB, alpha " << xtc->left.ild_alpha
+              << ", azimuth " << xtc->left.azimuth_deg << " degrees" << std::endl;
     std::cout << "\tRight: ITD " << xtc->right.itd_us << " us"
-	      << itd_samples_note(xtc->right.itd_us, jack_sample_rate, xtc->frac_delay)
-	      << ", ILD " << xtc->right.ild_db
-	      << " dB, alpha " << xtc->right.ild_alpha
-	      << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
+              << itd_samples_note(xtc->right.itd_us, jack_sample_rate, xtc->frac_delay)
+              << ", ILD " << xtc->right.ild_db
+              << " dB, alpha " << xtc->right.ild_alpha
+              << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
     // The round-trip period is what bounds the ladder, and it is where the two
     // per-side roundings compound: the integer path rounds each side and then
     // adds, so 8.640 + 6.720 comes out as 9 + 7 = 16, not 15.
@@ -896,8 +896,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   }
   if(nae->pan_scale != 0) {
     std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("
-	      << ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
-	      << ")" << std::endl;
+              << ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
+              << ")" << std::endl;
   }
   if(!nae->left_out.empty())
     std::cout << "\tLeft channel output: " << nae->left_out << std::endl;
@@ -930,14 +930,14 @@ bool NaConf::parse_jackinput(xmlNodePtr xmlnode)
       newjackport->name.clear();
       newjackport->destname.clear();
       while(xmlchild != NULL) {
-	xmlChar *cnt2 = xmlNodeGetContent(xmlchild);
-	if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
-	  newjackport->name = (char*)cnt2;
-	} else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
-	  newjackport->destname = (char*)cnt2;
-	}
-	xmlFree(cnt2);
-	xmlchild = xmlchild->next;
+        xmlChar *cnt2 = xmlNodeGetContent(xmlchild);
+        if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
+          newjackport->name = (char*)cnt2;
+        } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
+          newjackport->destname = (char*)cnt2;
+        }
+        xmlFree(cnt2);
+        xmlchild = xmlchild->next;
       }
       this->jackclient->inports.push_back(newjackport);
     }
@@ -983,14 +983,14 @@ bool NaConf::parse_jackoutput(xmlNodePtr xmlnode)
       newjackport->name.clear();
       newjackport->destname.clear();
       while(xmlchild != NULL) {
-	xmlChar *cnt = xmlNodeGetContent(xmlchild);
-	if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
-	  newjackport->name = (char*)cnt;
-	} else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
-	  newjackport->destname = (char*)cnt;
-	}
-	xmlFree(cnt);
-	xmlchild = xmlchild->next;
+        xmlChar *cnt = xmlNodeGetContent(xmlchild);
+        if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
+          newjackport->name = (char*)cnt;
+        } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
+          newjackport->destname = (char*)cnt;
+        }
+        xmlFree(cnt);
+        xmlchild = xmlchild->next;
       }
       this->jackclient->outports.push_back(newjackport);
     }
@@ -1032,8 +1032,8 @@ bool NaConf::sndfile_read(struct coeff *coeff)
   // The impulse response must be at the JACK sample rate (probed before parsing).
   if(coeff->snfinfo.samplerate != jack_sample_rate) {
     std::cerr << "Error: coeff '" << coeff->name << "' file sample rate ("
-	      << coeff->snfinfo.samplerate << " Hz) differs from the JACK sample rate ("
-	      << jack_sample_rate << " Hz): " << coeff->filename << std::endl;
+              << coeff->snfinfo.samplerate << " Hz) differs from the JACK sample rate ("
+              << jack_sample_rate << " Hz): " << coeff->filename << std::endl;
     sf_close(infile);
     return false;
   }
@@ -1175,18 +1175,18 @@ bool NaConf::build_xtc_coeffs(void)
     // apart.
     for (size_t i = 0; i < n; i++) {
       if (find_coeff(names[i]) != NULL) {
-	snprintf(msg, sizeof(msg), "Error: %s filter name '%s' already used by another coeff.",
-		 kind, names[i].c_str());
-	parse_error(msg);
-	return false;
+        snprintf(msg, sizeof(msg), "Error: %s filter name '%s' already used by another coeff.",
+                 kind, names[i].c_str());
+        parse_error(msg);
+        return false;
       }
       for (size_t j = i + 1; j < n; j++) {
-	if (names[i] == names[j]) {
-	  snprintf(msg, sizeof(msg), "Error: %s filter name '%s' is used twice in the same block.",
-		   kind, names[i].c_str());
-	  parse_error(msg);
-	  return false;
-	}
+        if (names[i] == names[j]) {
+          snprintf(msg, sizeof(msg), "Error: %s filter name '%s' is used twice in the same block.",
+                   kind, names[i].c_str());
+          parse_error(msg);
+          return false;
+        }
       }
     }
 
@@ -1214,17 +1214,17 @@ bool NaConf::build_xtc_coeffs(void)
       right.ild_alpha   = r->right.ild_alpha;
       right.azimuth_deg = r->right.azimuth_deg;
       rc = process_asym(&left, &right, jack_sample_rate, r->filter_len,
-			r->frac_delay ? 1 : 0, r->model_delay,
-			buf[0], buf[1], buf[2]);
+                        r->frac_delay ? 1 : 0, r->model_delay,
+                        buf[0], buf[1], buf[2]);
     } else {
       rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
-		   jack_sample_rate, r->filter_len,
-		   r->frac_delay ? 1 : 0, r->model_delay, buf[0], buf[1]);
+                   jack_sample_rate, r->filter_len,
+                   r->frac_delay ? 1 : 0, r->model_delay, buf[0], buf[1]);
     }
     if (rc != 0) {
       for (size_t i = 0; i < n; i++) free(buf[i]);
       snprintf(msg, sizeof(msg), "Error: %s filter generation failed (rc=%d) for '%s'.",
-	       kind, rc, r->direct_name.c_str());
+               kind, rc, r->direct_name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1238,7 +1238,7 @@ bool NaConf::build_xtc_coeffs(void)
     for (size_t i = 0; i < n; i++) free(buf[i]);
     if (coeff_failed) {
       for (size_t i = 0; i < n; i++)
-	if (made[i]) { free(made[i]->coeffs); delete made[i]; }
+        if (made[i]) { free(made[i]->coeffs); delete made[i]; }
       parse_error("Error: could not allocate memory for xtc coeffs.");
       return false;
     }
@@ -1248,7 +1248,7 @@ bool NaConf::build_xtc_coeffs(void)
     if (!quiet) {
       std::cout << "Built " << kind << " coeffs";
       for (size_t i = 0; i < n; i++)
-	std::cout << (i == 0 ? " '" : ", '") << names[i] << "'";
+        std::cout << (i == 0 ? " '" : ", '") << names[i] << "'";
       std::cout << " (" << r->filter_len << " samples each)." << std::endl;
     }
   }
@@ -1292,7 +1292,7 @@ bool NaConf::build_lowhigh_coeffs(void)
 
     if (find_coeff(lh->low_name) != NULL || find_coeff(lh->high_name) != NULL) {
       snprintf(msg, sizeof(msg), "Error: low_and_high_filter name '%s'/'%s' already used by another coeff.",
-	       lh->low_name.c_str(), lh->high_name.c_str());
+               lh->low_name.c_str(), lh->high_name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1317,7 +1317,7 @@ bool NaConf::build_lowhigh_coeffs(void)
     if (rc != 0) {
       free(low_lin); free(high_lin); free(low_min); free(high_min);
       snprintf(msg, sizeof(msg), "Error: firwin2 failed (rc=%d) for low_and_high_filter '%s'.",
-	       rc, lh->low_name.c_str());
+               rc, lh->low_name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1335,7 +1335,7 @@ bool NaConf::build_lowhigh_coeffs(void)
     if (rc != 0) {
       free(low_lin); free(high_lin); free(low_min); free(high_min);
       snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
-	       rc, lh->low_name.c_str());
+               rc, lh->low_name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1343,7 +1343,7 @@ bool NaConf::build_lowhigh_coeffs(void)
     if (rc != 0) {
       free(low_lin); free(high_lin); free(low_min); free(high_min);
       snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
-	       rc, lh->high_name.c_str());
+               rc, lh->high_name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1362,7 +1362,7 @@ bool NaConf::build_lowhigh_coeffs(void)
 
     if (!quiet)
       std::cout << "Built low/high filter coeffs '" << lh->low_name << "' and '" << lh->high_name
-		<< "' (" << n << " samples each)." << std::endl;
+                << "' (" << n << " samples each)." << std::endl;
   }
 
   return true;
@@ -1384,7 +1384,7 @@ bool NaConf::build_loudness_coeffs(void)
 
     if (find_coeff(ld->name) != NULL) {
       snprintf(msg, sizeof(msg), "Error: loudness filter name '%s' already used by another coeff.",
-	       ld->name.c_str());
+               ld->name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1395,7 +1395,7 @@ bool NaConf::build_loudness_coeffs(void)
     int rc = loudness_diff_curve(ld->model.c_str(), ld->phon, ld->ref_phon, &cfreq, &cdb, &cn);
     if (rc != 0) {
       snprintf(msg, sizeof(msg), "Error: loudness model '%s' failed (rc=%d) for filter '%s'.",
-	       ld->model.c_str(), rc, ld->name.c_str());
+               ld->model.c_str(), rc, ld->name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1419,7 +1419,7 @@ bool NaConf::build_loudness_coeffs(void)
     if (rc != 0) {
       free(lin); free(min);
       snprintf(msg, sizeof(msg), "Error: firwin2 failed (rc=%d) for loudness filter '%s'.",
-	       rc, ld->name.c_str());
+               rc, ld->name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1427,7 +1427,7 @@ bool NaConf::build_loudness_coeffs(void)
     if (rc != 0) {
       free(lin); free(min);
       snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for loudness filter '%s'.",
-	       rc, ld->name.c_str());
+               rc, ld->name.c_str());
       parse_error(msg);
       return false;
     }
@@ -1442,7 +1442,7 @@ bool NaConf::build_loudness_coeffs(void)
 
     if (!quiet)
       std::cout << "Built loudness coeff '" << ld->name << "' (" << n << " samples, model "
-		<< ld->model << ", " << ld->phon << "-" << ld->ref_phon << " phon)." << std::endl;
+                << ld->model << ", " << ld->phon << "-" << ld->ref_phon << " phon)." << std::endl;
   }
 
   return true;
@@ -1472,23 +1472,23 @@ bool NaConf::build_convol_coeffs(void)
     for (vector<string>::iterator nm = dst->convol_coeffs.begin(); nm != dst->convol_coeffs.end(); ++nm) {
       struct coeff *src = find_coeff(*nm);
       if (src == NULL) {
-	snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' of coeff '%s' not found.",
-		 nm->c_str(), dst->name.c_str());
-	parse_error(msg);
-	return false;
+        snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' of coeff '%s' not found.",
+                 nm->c_str(), dst->name.c_str());
+        parse_error(msg);
+        return false;
       }
       if (src->coeffs == NULL || src->length <= 0) {
-	snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' of coeff '%s' has no data "
-		 "(it must be declared before it).", nm->c_str(), dst->name.c_str());
-	parse_error(msg);
-	return false;
+        snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' of coeff '%s' has no data "
+                 "(it must be declared before it).", nm->c_str(), dst->name.c_str());
+        parse_error(msg);
+        return false;
       }
       if (src_samplerate != 0 && src->snfinfo.samplerate != src_samplerate) {
-	snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' sample rate (%d) of coeff '%s' "
-		 "differs from the other convol_coeffs (%d).",
-		 nm->c_str(), src->snfinfo.samplerate, dst->name.c_str(), src_samplerate);
-	parse_error(msg);
-	return false;
+        snprintf(msg, sizeof(msg), "Error: convol_coeff '%s' sample rate (%d) of coeff '%s' "
+                 "differs from the other convol_coeffs (%d).",
+                 nm->c_str(), src->snfinfo.samplerate, dst->name.c_str(), src_samplerate);
+        parse_error(msg);
+        return false;
       }
       src_samplerate = src->snfinfo.samplerate;
       sources.push_back(src);
@@ -1510,18 +1510,18 @@ bool NaConf::build_convol_coeffs(void)
       double *b   = (double*) malloc((size_t) b_len * sizeof(double));
       double *out = (double*) malloc((size_t) out_len * sizeof(double));
       if (b == NULL || out == NULL) {
-	free(acc); free(b); free(out);
-	parse_error("Error: could not allocate memory for coeff convolution.");
-	return false;
+        free(acc); free(b); free(out);
+        parse_error("Error: could not allocate memory for coeff convolution.");
+        return false;
       }
       for (int i = 0; i < b_len; i++)
-	b[i] = (double) sources[s]->coeffs[i];
+        b[i] = (double) sources[s]->coeffs[i];
       if (fft_convolve_truncate(acc, acc_len, b, b_len, out, out_len) != 0) {
-	free(acc); free(b); free(out);
-	snprintf(msg, sizeof(msg), "Error: fft_convolve_truncate failed building coeff '%s'.",
-		 dst->name.c_str());
-	parse_error(msg);
-	return false;
+        free(acc); free(b); free(out);
+        snprintf(msg, sizeof(msg), "Error: fft_convolve_truncate failed building coeff '%s'.",
+                 dst->name.c_str());
+        parse_error(msg);
+        return false;
       }
       free(acc);
       free(b);
@@ -1548,7 +1548,7 @@ bool NaConf::build_convol_coeffs(void)
 
     if (!quiet)
       std::cout << "Built derived coeff '" << dst->name << "' (" << dst->length
-		<< " samples) from " << dst->convol_coeffs.size() << " input coeff(s)." << std::endl;
+                << " samples) from " << dst->convol_coeffs.size() << " input coeff(s)." << std::endl;
   }
 
   return true;
@@ -1590,19 +1590,19 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
   while (xmlnode !=NULL) {
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"natambio")) {
       if(!quiet) 
-	std::cout << "<natambio> token found." << std::endl;
+        std::cout << "<natambio> token found." << std::endl;
       xmlnatambio = xmlnode;
       break;
     } else {
       xmlchildren = xmlnode->children;
       while (xmlchildren != NULL) {
-	if (!xmlStrcmp(xmlchildren->name, (const xmlChar *)"natambio")) {
-	  if(!quiet)
-	    std::cout << "<natambio> token found." << std::endl;
-	  xmlnatambio = xmlchildren;
-	  break;
-	}	
-	xmlchildren = xmlchildren->next;
+        if (!xmlStrcmp(xmlchildren->name, (const xmlChar *)"natambio")) {
+          if(!quiet)
+            std::cout << "<natambio> token found." << std::endl;
+          xmlnatambio = xmlchildren;
+          break;
+        }	
+        xmlchildren = xmlchildren->next;
       }
     }
     xmlnode = xmlnode->next;
@@ -1617,64 +1617,64 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
   while (xmlnode != NULL)  {
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"coeff")) {
       if((n_coeff = parse_coeff(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->coefslist.push_back(n_coeff);
+        this->coefslist.push_back(n_coeff);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"xtc")) {
       if((n_xtc = parse_xtc(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->xtclist.push_back(n_xtc);
+        this->xtclist.push_back(n_xtc);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"xtc_asym")) {
       if((n_xtc = parse_xtc_asym(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->xtclist.push_back(n_xtc);
+        this->xtclist.push_back(n_xtc);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"low_and_high_filter")) {
       if((n_lowhigh = parse_lowhigh(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->lowhighlist.push_back(n_lowhigh);
+        this->lowhighlist.push_back(n_lowhigh);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"loudness")) {
       if((n_loudness = parse_loudness(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->loudnesslist.push_back(n_loudness);
+        this->loudnesslist.push_back(n_loudness);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"convol")) {
       if((n_convol = parse_convol(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->convollist.push_back(n_convol);
+        this->convollist.push_back(n_convol);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"nae")) {
       if((n_nae = parse_nae(xmlnode->children))==NULL) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       } else
-	this->naelist.push_back(n_nae);
+        this->naelist.push_back(n_nae);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"jack_input")) {
       if(!(parse_jackinput(xmlnode->children))) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       }
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"jack_output")) {
       if(!(parse_jackoutput(xmlnode->children))) {
-	xmlCleanupParser();
-	xmlFreeDoc(xmlconf);
-	return false;
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
       }
     }
     xmlnode = xmlnode->next;

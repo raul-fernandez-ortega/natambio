@@ -425,7 +425,7 @@ void NAE::thr_process(void)
     covM.sum_y_array[covsteps - 1] = 0;
 
     if(mode) {
-      // ambient mode only
+      // beta mode only
       icorrv.sum_xy_array[ICORRL - 1] = 0;
       icorrv.sum_x2_array[ICORRL - 1] = 0;
       icorrv.sum_y2_array[ICORRL - 1] = 0;
@@ -436,25 +436,25 @@ void NAE::thr_process(void)
       // acts before anything else looks at the signal, so the weighting this
       // correlation drives follows the width too.
       for (int i = 0; i < sample_count; i++) {
-	double l = pan_a*left_in[i] + pan_b*right_in[i];
-	double r = pan_b*left_in[i] + pan_a*right_in[i];
-	icorrv.sum_xy_array[ICORRL - 1] += l * r;
-	icorrv.sum_x2_array[ICORRL - 1] += l * l;
-	icorrv.sum_y2_array[ICORRL - 1] += r * r;
-	icorrv.sum_x_array[ICORRL - 1] += l;
-	icorrv.sum_y_array[ICORRL - 1] += r;
+        double l = pan_a*left_in[i] + pan_b*right_in[i];
+        double r = pan_b*left_in[i] + pan_a*right_in[i];
+        icorrv.sum_xy_array[ICORRL - 1] += l * r;
+        icorrv.sum_x2_array[ICORRL - 1] += l * l;
+        icorrv.sum_y2_array[ICORRL - 1] += r * r;
+        icorrv.sum_x_array[ICORRL - 1] += l;
+        icorrv.sum_y_array[ICORRL - 1] += r;
       }
       for(int i = 0; i < ICORRL; i++) {
-	c_sum_xy += icorrv.sum_xy_array[i];
-	c_sum_x2 += icorrv.sum_x2_array[i];
-	c_sum_y2 += icorrv.sum_y2_array[i];
-	c_sum_x += icorrv.sum_x_array[i];
-	c_sum_y += icorrv.sum_y_array[i];
+        c_sum_xy += icorrv.sum_xy_array[i];
+        c_sum_x2 += icorrv.sum_x2_array[i];
+        c_sum_y2 += icorrv.sum_y2_array[i];
+        c_sum_x += icorrv.sum_x_array[i];
+        c_sum_y += icorrv.sum_y_array[i];
       }
       if(ICORRL*sample_count*c_sum_x2 <= c_sum_x*c_sum_x || ICORRL*sample_count*c_sum_y2 <= c_sum_y*c_sum_y)
-	icorr = 1;
+        icorr = 1;
       else 
-	icorr = fabs(ICORRL*sample_count*c_sum_xy - c_sum_x*c_sum_y) / sqrt((ICORRL*sample_count*c_sum_x2 - c_sum_x*c_sum_x)* (ICORRL*sample_count*c_sum_y2 - c_sum_y*c_sum_y));
+        icorr = fabs(ICORRL*sample_count*c_sum_xy - c_sum_x*c_sum_y) / sqrt((ICORRL*sample_count*c_sum_x2 - c_sum_x*c_sum_x)* (ICORRL*sample_count*c_sum_y2 - c_sum_y*c_sum_y));
       side_weight = NAE_BETA_1 + icorr * NAE_BETA_2;
     }
     else {
@@ -500,41 +500,41 @@ void NAE::thr_process(void)
     
     // Output: ambient
     if(mode) {
-      // Rear ambient calculation
+      // Beta ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
-	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
-	pca.c2_side[i] += c2_factor * eigvectors[1][1];
+        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+        pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
-	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
-	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-	left_out[i]  = gain_c2_rear*c2_left;
-	right_out[i] = gain_c2_rear*c2_right;
-	c2_left_out[i] = left_out[i];
-	c2_right_out[i] = right_out[i];
+        c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+        c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
+        left_out[i]  = gain_c2_rear*c2_left;
+        right_out[i] = gain_c2_rear*c2_right;
+        c2_left_out[i] = left_out[i];
+        c2_right_out[i] = right_out[i];
       }
     } else {
-      // Main / Front calculation
+      // Alpha / Front main and ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
-	c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
-	c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-	pca.c1_mid[i] += c1_factor * eigvectors[0][0];
-	pca.c1_side[i] += c1_factor * eigvectors[0][1];
-	pca.c2_mid[i] += c2_factor * eigvectors[1][0];
-	pca.c2_side[i] += c2_factor * eigvectors[1][1];
+        c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
+        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+        pca.c1_mid[i] += c1_factor * eigvectors[0][0];
+        pca.c1_side[i] += c1_factor * eigvectors[0][1];
+        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+        pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
       for(int  i = 0; i < sample_count; i++) {
-	c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
-	c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
-	c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
-	c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-	left_out[i]  = gain_c1*c1_left + gain_c2*c2_left;
-	right_out[i] = gain_c1*c1_right + gain_c2*c2_right;
-	c1_left_out[i] = gain_c1*c1_left;
+        c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
+        c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
+        c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+        c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
+        left_out[i]  = gain_c1*c1_left + gain_c2*c2_left;
+        right_out[i] = gain_c1*c1_right + gain_c2*c2_right;
+        c1_left_out[i] = gain_c1*c1_left;
         c1_right_out[i] = gain_c1*c1_right;
-	c2_left_out[i] = gain_c2*c2_left;
-	c2_right_out[i] = gain_c2*c2_right;
+        c2_left_out[i] = gain_c2*c2_left;
+        c2_right_out[i] = gain_c2*c2_right;
       }
     }
     
