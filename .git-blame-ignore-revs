@@ -1,0 +1,10 @@
+# Revisions to skip when assigning blame: whitespace-only, no code changed.
+#
+# GitHub honours this file automatically. For local use, once per clone:
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+# or simply pass -w to git blame, which skips whitespace either way.
+
+# style: indent with spaces, so blocks read the same in any editor
+# Leading tabs expanded to the spaces they stood for across the six src/*.cpp;
+# git diff -w over the whole change was empty.
+51640744bf95f6a83258ba7cab5795c60d12a47a
