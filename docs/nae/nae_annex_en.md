@@ -286,7 +286,7 @@ orthonormal basis; the overlap smooths the split between components, not the sum
 
 ## A.7 · The perceptual space of the components
 
-![Perceptual circle of rank-1 pairs](circulo_perceptual_rango1.svg)
+![Perceptual circle of rank-1 pairs](images/circulo_perceptual_rango1.svg)
 
 Since $C_1$ and $C_2$ are both rank 1, each has **a single degree of freedom**: its direction.
 Decomposing $(1, \rho)$ in the basis $\{(1,1), (1,-1)\}$, with weights $(1+\rho)/2$ and

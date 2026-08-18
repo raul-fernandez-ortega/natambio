@@ -287,7 +287,7 @@ entre componentes, no la suma.
 
 ## A.7 · El espacio perceptual de las componentes
 
-![Círculo perceptual de los pares de rango 1](circulo_perceptual_rango1.svg)
+![Círculo perceptual de los pares de rango 1](images/circulo_perceptual_rango1.svg)
 
 Como $C_1$ y $C_2$ son ambas de rango 1, cada una tiene **un solo grado de libertad**: su
 dirección. Descomponiendo $(1, \rho)$ en la base $\{(1,1), (1,-1)\}$, con pesos $(1+\rho)/2$ y
