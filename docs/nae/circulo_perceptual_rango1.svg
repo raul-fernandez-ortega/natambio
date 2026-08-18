@@ -1,0 +1,112 @@
+<svg viewBox="0 0 900 640" xmlns="http://www.w3.org/2000/svg" role="img"
+     font-family="Helvetica, Arial, sans-serif">
+<title>Círculo perceptual de los pares estéreo de rango 1</title>
+<desc>Circunferencia que representa todas las direcciones posibles de un par estéreo de rango 1 en el plano Mid/Side. El semicírculo superior corresponde a señales correladas y el inferior a anticorreladas. Arriba, Mid puro con ILD cero, máxima localización. Abajo, Side puro con ILD cero, máxima deslocalización. A izquierda y derecha, panoramización extrema con ILD infinito. Entre la panoramización extrema y Side puro se sitúa el máximo de lateralidad percibida, en un ILD por determinar.</desc>
+
+<rect width="900" height="640" fill="#fbfbf9"/>
+
+<text x="450" y="38" text-anchor="middle" font-size="19" font-weight="600" fill="#1f2430">
+  El espacio de un par estéreo de rango 1</text>
+<text x="450" y="60" text-anchor="middle" font-size="13.5" fill="#5c6474">
+  Todas las combinaciones de [1,1] y [1,−1] · ángulo del círculo = 2φ, con tan φ = (1−ρ)/(1+ρ)</text>
+
+<!-- semicírculos -->
+<path d="M 215 290 A 145 145 0 0 1 505 290 Z" fill="#4a7fb5" fill-opacity="0.10"/>
+<path d="M 215 290 A 145 145 0 0 0 505 290 Z" fill="#c96442" fill-opacity="0.10"/>
+
+<circle cx="360" cy="290" r="145" fill="none" stroke="#8a92a3" stroke-width="1.6"/>
+<line x1="215" y1="290" x2="505" y2="290" stroke="#8a92a3" stroke-width="1.2" stroke-dasharray="6 4"/>
+
+<text x="360" y="248" text-anchor="middle" font-size="12.5" font-weight="600" fill="#3d6fa3">corr = +1</text>
+<text x="360" y="345" text-anchor="middle" font-size="12.5" font-weight="600" fill="#b4552f">corr = −1</text>
+
+<!-- flecha de recorrido -->
+<path d="M 300 168 A 145 145 0 0 0 224 246" fill="none" stroke="#8a92a3" stroke-width="1.2"/>
+<path d="M 227 238 L 223 250 L 234 247 Z" fill="#8a92a3"/>
+<text x="243" y="196" font-size="11" fill="#8a92a3">φ creciente</text>
+
+<!-- ============ PUNTOS INHERENTES AL MODELO ============ -->
+
+<!-- ARRIBA: M puro -->
+<circle cx="360" cy="145" r="7.5" fill="#1f2430"/>
+<line x1="360" y1="137" x2="360" y2="108" stroke="#1f2430" stroke-width="1"/>
+<text x="360" y="98" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1f2430">MÁXIMA LOCALIZACIÓN</text>
+<text x="360" y="115" text-anchor="middle" font-size="12" fill="#5c6474">centrado y compacto</text>
+<text x="360" y="167" text-anchor="middle" font-size="11.5" fill="#1f2430">φ = 0°  ·  [1, 1]</text>
+<text x="360" y="182" text-anchor="middle" font-size="11.5" fill="#5c6474">ILD 0 dB</text>
+
+<!-- ABAJO: S puro -->
+<circle cx="360" cy="435" r="7.5" fill="#1f2430"/>
+<line x1="360" y1="443" x2="360" y2="472" stroke="#1f2430" stroke-width="1"/>
+<text x="360" y="488" text-anchor="middle" font-size="13.5" font-weight="700" fill="#1f2430">MÁXIMA DESLOCALIZACIÓN</text>
+<text x="360" y="505" text-anchor="middle" font-size="12" fill="#5c6474">centro elevado — el "aura"</text>
+<text x="360" y="521" text-anchor="middle" font-size="11.5" fill="#8a92a3">= altavoz con polaridad invertida</text>
+<text x="360" y="418" text-anchor="middle" font-size="11.5" fill="#1f2430">φ = 90°  ·  [1, −1]</text>
+<text x="360" y="403" text-anchor="middle" font-size="11.5" fill="#5c6474">ILD 0 dB</text>
+
+<!-- ============ PUNTOS POR ACOTAR ============ -->
+
+<!-- IZQUIERDA: panning extremo -->
+<circle cx="215" cy="290" r="7.5" fill="#fbfbf9" stroke="#c96442" stroke-width="2.5"/>
+<line x1="207" y1="290" x2="176" y2="290" stroke="#c96442" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="170" y="274" text-anchor="end" font-size="12.5" font-weight="600" fill="#b4552f">punto menos abierto</text>
+<text x="170" y="291" text-anchor="end" font-size="12" fill="#5c6474">su posición la fija el XTC,</text>
+<text x="170" y="306" text-anchor="end" font-size="12" fill="#5c6474">no la de los altavoces</text>
+<text x="170" y="323" text-anchor="end" font-size="11.5" font-style="italic" fill="#b4552f">sin cuantificar en grados</text>
+<text x="228" y="272" font-size="11.5" fill="#1f2430">φ = 45°</text>
+<text x="228" y="287" font-size="11.5" fill="#5c6474">ILD ∞</text>
+
+<!-- DERECHA: panning extremo -->
+<circle cx="505" cy="290" r="7.5" fill="#fbfbf9" stroke="#c96442" stroke-width="2.5"/>
+<line x1="513" y1="290" x2="544" y2="290" stroke="#c96442" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="550" y="288" font-size="11.5" fill="#1f2430">φ = 135°  ·  ILD ∞</text>
+<text x="550" y="304" font-size="12" fill="#5c6474">(espejo)</text>
+
+<!-- ABAJO-IZQUIERDA: máxima lateralidad -->
+<circle cx="250" cy="385" r="7.5" fill="#fbfbf9" stroke="#c96442" stroke-width="2.5"/>
+<line x1="244" y1="391" x2="216" y2="418" stroke="#c96442" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="210" y="424" text-anchor="end" font-size="13.5" font-weight="700" fill="#b4552f">MÁXIMA LATERALIDAD</text>
+<text x="210" y="441" text-anchor="end" font-size="12" fill="#5c6474">abre más allá de los altavoces</text>
+<text x="210" y="459" text-anchor="end" font-size="11.5" fill="#1f2430">ILD ≈ 7,7 – 9,5 dB · φ ≈ 63–67°</text>
+<text x="210" y="475" text-anchor="end" font-size="11.5" font-style="italic" fill="#b4552f">medido · invariante al ILD del XTC</text>
+
+<!-- ABAJO-DERECHA: espejo -->
+<circle cx="470" cy="385" r="7.5" fill="#fbfbf9" stroke="#c96442" stroke-width="2.5"/>
+<line x1="476" y1="391" x2="504" y2="418" stroke="#c96442" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="510" y="424" font-size="11.5" fill="#5c6474">espejo · φ ≈ 113–117°</text>
+
+<!-- ============ LEYENDA ============ -->
+<line x1="600" y1="120" x2="600" y2="530" stroke="#e2e0da" stroke-width="1"/>
+
+<text x="630" y="140" font-size="13.5" font-weight="700" fill="#1f2430">Cómo leerlo</text>
+
+<circle cx="640" cy="172" r="6.5" fill="#1f2430"/>
+<text x="658" y="169" font-size="12" font-weight="600" fill="#1f2430">Inherente al modelo</text>
+<text x="658" y="185" font-size="11.5" fill="#5c6474">Los dos extremos del eje</text>
+<text x="658" y="200" font-size="11.5" fill="#5c6474">de foco. No dependen de</text>
+<text x="658" y="215" font-size="11.5" fill="#5c6474">la configuración.</text>
+
+<circle cx="640" cy="248" r="6.5" fill="#fbfbf9" stroke="#c96442" stroke-width="2.5"/>
+<text x="658" y="245" font-size="12" font-weight="600" fill="#b4552f">Medido, no derivado</text>
+<text x="658" y="261" font-size="11.5" fill="#5c6474">El máximo de lateralidad no</text>
+<text x="658" y="276" font-size="11.5" fill="#5c6474">se mueve al cambiar el ILD</text>
+<text x="658" y="291" font-size="11.5" fill="#5c6474">del filtro entre 8 y 20 dB.</text>
+
+<text x="630" y="330" font-size="12.5" font-weight="600" fill="#1f2430">La estructura</text>
+<text x="630" y="352" font-size="11.5" fill="#5c6474">· El semicírculo superior es</text>
+<text x="630" y="367" font-size="11.5" fill="#5c6474">  contenido correlado; el</text>
+<text x="630" y="382" font-size="11.5" fill="#5c6474">  inferior, anticorrelado.</text>
+<text x="630" y="404" font-size="11.5" fill="#5c6474">· El diámetro horizontal es</text>
+<text x="630" y="419" font-size="11.5" fill="#5c6474">  la panoramización extrema:</text>
+<text x="630" y="434" font-size="11.5" fill="#5c6474">  cruzarlo cambia el signo.</text>
+<text x="630" y="456" font-size="11.5" fill="#5c6474">· Arriba y abajo son ambos</text>
+<text x="630" y="471" font-size="11.5" fill="#5c6474">  "centrado", pero de dos</text>
+<text x="630" y="486" font-size="11.5" fill="#5c6474">  maneras opuestas.</text>
+<text x="630" y="508" font-size="11.5" fill="#5c6474">· La lateralidad no es</text>
+<text x="630" y="523" font-size="11.5" fill="#5c6474">  monótona: es una joroba.</text>
+
+<text x="450" y="572" text-anchor="middle" font-size="11.5" fill="#8a92a3">
+  Un par de rango 1 sólo tiene un grado de libertad: su dirección. Añadir la componente ortogonal</text>
+<text x="450" y="588" text-anchor="middle" font-size="11.5" fill="#8a92a3">
+  saca el punto fuera de la circunferencia — ésa es la segunda dimensión, la excentricidad.</text>
+</svg>
