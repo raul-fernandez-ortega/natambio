@@ -32,7 +32,8 @@ Contenido:
 ## Uso
 
 ```sh
-python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false] [--align peak|xcorr]
+python pca4drc.py <directorio_impulsos> <output_len> [--normalize true|false]
+                  [--align peak|xcorr] [--impulse-glob PATRON]
 ```
 
 - `directorio_impulsos`: carpeta con las respuestas impulsivas ya medidas, en
@@ -108,25 +109,50 @@ sistema de cuatro vías el factor arbitrario variaba 5 dB entre ellas.
 
 Ningún tipo de normalización de DRC lo resuelve, porque S, E, M y P son criterios
 anticlipping calculados a partir del propio filtro. La referencia hay que
-restituirla sobre los filtros ya terminados:
+restituirla sobre los filtros ya terminados, y se toma **de las propias medidas**:
 
 ```sh
 python pca4drc.py --level-normalize i_*/rms.wav [--ref-band LO HI] [--in-place] [--dry-run]
 ```
 
-Cada filtro se escala para que su ganancia media en energía sobre la banda de
-referencia (`--ref-band`, 200-2000 Hz por defecto) sea exactamente 0 dB, es decir,
-ganancia unidad para ruido limitado a esa banda. El filtro pasa así a cambiar solo
-la respuesta en frecuencia, y los niveles relativos entre vías se quedan como los
-tenía el sistema antes de corregir, con lo que cualquier calibración de nivel
-hecha aguas abajo sigue siendo válida. Los filtros escalados se escriben junto a
-los originales con el sufijo `_lvl` (`--suffix`), o encima de ellos con
-`--in-place`.
+Cada filtro se escala para que **la potencia en banda que su vía entrega después de
+corregir iguale la que entregaba al medir**. Ambas se calculan como promedio de
+potencias sobre las posiciones de medida —la media aritmética de las potencias por
+posición, que es la energía que la vía aporta a la zona de escucha—, y no como media
+de las diferencias por posición en dB, que pesaría igual cada punto por poco que
+contribuya. Las dos difieren en más de un decibelio sobre material con rizado modal.
 
-El informe imprime, por filtro, la ganancia aplicada, cuánto varía todavía el
-filtro dentro de la banda de referencia y las tres cifras que necesita el
-convolucionador para dejar headroom: pico de muestra, `suma|h|` y la ganancia
-máxima de la respuesta de magnitud.
+Las medidas se leen del directorio del propio filtro, que es donde las deja la
+cadena de medición; `--impulse-glob` (por defecto `*_impulse_*.wav`) dice cómo se
+llaman.
+
+No se supone nada sobre la forma del filtro, y eso es lo que hace el método exacto.
+Normalizar el filtro contra ruido blanco —el criterio anterior— supone que es plano
+dentro de la banda; un filtro de corrección es aproximadamente el inverso de la
+respuesta que corrige, así que están anticorrelados ahí dentro y el error depende de
+cuánto varíe la respuesta de cada vía en la banda. Sobre un sistema real de cuatro
+vías ese criterio dejaba hasta **1.9 dB** de desajuste entre vías, mientras que el
+actual da **0.00 dB** por construcción.
+
+La referencia es el equilibrio que el sistema tenía **al medir**, y vale lo que
+valiera aquel equilibrio. La banda de referencia tiene que caer dentro del paso de
+todas las vías comparadas.
+
+El informe imprime, por filtro, el nivel medido, el nivel que tendría corregido sin
+escalar, la ganancia aplicada, cuánto varió ese nivel entre posiciones de medida y
+las tres cifras que necesita el convolucionador para dejar headroom: pico de muestra,
+`suma|h|` y la ganancia máxima de la respuesta de magnitud.
+
+## Selección de las medidas: `--impulse-glob`
+
+Tanto el PCA como `--level-normalize` toman **solo los ficheros que casan con el
+patrón**, por defecto `*_impulse_*.wav`, y no todos los `.wav` del directorio. La
+razón es que DRC deja sus propias salidas (`rms.wav`, `rps.wav`) en esa misma
+carpeta: leyendo todo, la primera pasada sobre un directorio limpio sale bien pero
+**cualquier reejecución realimenta los filtros anteriores dentro del PCA como si
+fueran medidas**. Se nota en el informe, porque el número de impulsivas no cuadra y
+el desalineamiento residual se dispara. Si tus medidas se llaman de otro modo, pasa
+el patrón con esta opción.
 
 ## Generación del sweep: `sweepgen.py`
 
