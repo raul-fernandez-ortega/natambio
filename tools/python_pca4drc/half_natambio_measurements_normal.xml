@@ -9,12 +9,6 @@
       <port>
 	<name>front_input_right</name>
       </port>      
-      <port>
-	<name>rear_input_left</name>
-      </port>
-      <port>
-	<name>rear_input_right</name>
-      </port> 
     </jack_input>
     <jack_output> 
       <port>
@@ -31,16 +25,16 @@
       <coeff_name>delta</coeff_name>
       <from_input>front_input_left</from_input>
       <to_output>front_output_left</to_output>
-      <attenuation></attenuation>
-      <delay></delay>
+      <gain>0.0</gain>
+      <delay>0</delay>
     </convol>
     <convol>
       <name>front_right</name>
       <coeff_name>delta</coeff_name>
       <from_input>front_input_right</from_input>
       <to_output>front_output_right</to_output>
-      <attenuation></attenuation>
-      <delay></delay>
+      <gain>0.0</gain>
+      <delay>0</delay>
     </convol>
   </natambio>
 </main>
