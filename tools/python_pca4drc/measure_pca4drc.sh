@@ -258,9 +258,16 @@ check_capture() {
 run_ecasound_capture() {
     # $1 output port (natambio input), $2 output gain (dB),
     # $3 input gain (dB), $4 output WAV file.
+    # jack_multi and not jack_auto: jack_auto resolves its argument with
+    # jack_get_ports(), which matches port names only, so an alias such as
+    # system:capture_1 (all the FFADO backend gives is aliases of
+    # firewire_pcm:<guid>_...) matches nothing, ecasound registers its ports
+    # without connecting them and records digital silence without complaining.
+    # jack_multi connects each named port with jack_connect(), which does
+    # resolve aliases, and takes real names just the same.
     ecasound -t:"$REC_SECONDS" \
-        -a:1 -i "$SWEEP" -a:1 -o:jack_auto,"$1" -a:1 -eadb:"$2" \
-        -a:2 -i:jack_auto,"$IN_MEAS" -a:2 -f:f32_le,1,48000 \
+        -a:1 -i "$SWEEP" -a:1 -o:jack_multi,"$1" -a:1 -eadb:"$2" \
+        -a:2 -i:jack_multi,"$IN_MEAS" -a:2 -f:f32_le,1,48000 \
         -o:"$4" -a:2 -eadb:"$3" -ev
 }
 
@@ -454,20 +461,41 @@ select_input_port() {
         return 0
     fi
 
-    # Source JACK ports (captures). The ecasound ones are excluded in case it is
-    # already running, so as not to autoconnect to its own output.
+    # Source JACK ports (captures). jack_lsp has no switch to list only sources
+    # -- the '-o' this used to pass does not exist in JACK2's jack_lsp, which
+    # left the list empty and the menu silently skipped -- so the properties of
+    # every port are read and the audio ones marked 'output' (a source: a
+    # capture) are kept. The ecasound ones are excluded in case it is already
+    # running, so as not to autoconnect to its own output.
     local ports=()
-    mapfile -t ports < <(jack_lsp -o 2>/dev/null | grep -v -i '^ecasound:')
+    mapfile -t ports < <(jack_lsp -t -p 2>/dev/null | awk '
+        /^[^ \t]/            { port = $0; src = 0; next }
+        /properties:.*output/ { src = 1; next }
+        /audio$/              { if (src) print port; next }' \
+        | grep -v -i '^ecasound:')
     if [ "${#ports[@]}" -eq 0 ]; then
         echo "WARNING: there are no JACK capture ports available; IN_MEAS=$IN_MEAS is used."
         return 0
     fi
 
+    # Aliases, to show next to each port: with the FFADO backend the real names
+    # are firewire_pcm:<guid>_..., and it is the alias (system:capture_N) that
+    # says which socket of the card each one is.
+    local -A alias_of=()
+    local line cur=""
+    while IFS= read -r line; do
+        case "$line" in
+            [!$' \t']*) cur="$line" ;;
+            *)           [ -n "$cur" ] && alias_of["$cur"]="${line#"${line%%[![:space:]]*}"}" ;;
+        esac
+    done < <(jack_lsp -A 2>/dev/null)
+
     echo
     echo "Available JACK capture ports (microphone source):"
     local idx
     for idx in "${!ports[@]}"; do
-        printf "  %2d) %s\n" "$((idx + 1))" "${ports[$idx]}"
+        printf "  %2d) %s%s\n" "$((idx + 1))" "${ports[$idx]}" \
+            "${alias_of[${ports[$idx]}]:+   [${alias_of[${ports[$idx]}]}]}"
     done
     echo "   0) keep the current value"
 
