@@ -36,6 +36,7 @@ extern "C" {
  *     get  [port ...]                 report the gains as they are now
  *     mute                            silence every output, gains untouched
  *     unmute                          bring them back
+ *     toggle                          whichever of the two is not the case now
  *
  * The number is signed, so "up -1.0" and "down 1.0" are the same instruction;
  * "down" exists so that a script that computes a positive step reads the way it
@@ -53,7 +54,9 @@ extern "C" {
  *
  * "mute" and "unmute" take nothing at all and apply to every output at once.
  * The ports' own gains are untouched, so up/down and get go on working through
- * a mute and the levels come back exactly as they were.
+ * a mute and the levels come back exactly as they were. "toggle" is the pair of
+ * them for a caller with one button: it flips the flag here rather than making
+ * the caller read it and decide, and answers with the state it landed on.
  *
  * A command that names a port that does not exist changes and reports NOTHING,
  * as does an up/down that names one twice: half a trimmed speaker pair is worse

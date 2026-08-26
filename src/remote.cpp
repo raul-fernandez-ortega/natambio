@@ -40,7 +40,7 @@ extern "C" {
 /* The whole grammar in one place: both the usage error and the unknown-command
    one quote it, and each answer stays the single line the protocol promises. */
 static const char *REMOTE_GRAMMAR =
-  "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | mute | unmute";
+  "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | mute | unmute | toggle";
 
 static std::string usage_error(void)
 {
@@ -302,15 +302,27 @@ std::string Remote::runCommand(const std::string& line)
   if(strcasecmp(cmd.c_str(), "get") == 0)
     return reportGains(is);
 
-  if(strcasecmp(cmd.c_str(), "mute") == 0 || strcasecmp(cmd.c_str(), "unmute") == 0) {
-    /* Neither takes an argument. A name after them is refused rather than
+  if(strcasecmp(cmd.c_str(), "mute") == 0 || strcasecmp(cmd.c_str(), "unmute") == 0 ||
+     strcasecmp(cmd.c_str(), "toggle") == 0) {
+    /* None takes an argument. A name after them is refused rather than
        ignored: someone who writes "mute sub_output_left" means to silence one
        port, and letting that quietly mute everything is the worst way to find
        out it does not. */
     std::string extra;
     if(is >> extra)
       return "error: " + cmd + " takes no arguments; it applies to every output\n";
-    bool on = (strcasecmp(cmd.c_str(), "mute") == 0);
+    /* "toggle" exists for the one caller that has a single button and no room
+       for two: it reads the flag and flips it HERE, on the manager thread that
+       is the only writer. A client doing the same with a "get" followed by a
+       "mute" decides on a state that may have changed between the two lines.
+       The reply is the state it landed on -- "ok mute" or "ok unmute", the same
+       two answers as ever -- so a button keeps itself in step with one command
+       and no query. */
+    bool on;
+    if(strcasecmp(cmd.c_str(), "toggle") == 0)
+      on = !naJack->isMuted();
+    else
+      on = (strcasecmp(cmd.c_str(), "mute") == 0);
     naJack->setMute(on);
     return on ? "ok mute\n" : "ok unmute\n";
   }
