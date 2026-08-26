@@ -33,9 +33,11 @@
          editing this file and restarting:
 
            echo "up -1.0 sub_output_left sub_output_right" | nc -w 1 localhost 7000
+           echo "get" | nc -w 1 localhost 7000
 
-         Relative and slewed, so it can sit behind a key binding.  Remove the
-         tag and no socket is opened.  See the <remote> section of
+         Relative and slewed, so it can sit behind a key binding; "get" reads
+         the gains back, which is the only record of a balance found by ear.
+         Remove the tag and no socket is opened.  See the <remote> section of
          docs/README.CONFIG. -->
     <remote>7000</remote>
 

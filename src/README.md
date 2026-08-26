@@ -211,6 +211,7 @@ per line:
 ```
 up   <dB> <port> [port ...]      raise those ports' gains by <dB>
 down <dB> <port> [port ...]      lower them by <dB>
+get  [port ...]                  report the gains as they are now
 ```
 
 ```sh
@@ -222,11 +223,22 @@ both are **relative** to the gain the port has at that moment — send the line
 twice and the port ends up 2 dB away.  Input and output port names may be mixed
 in one line.  The result is clamped to `[-120, +20]` dB.
 
-Every line is answered: `ok <port> <dB>` per port, carrying the gain it ends up
-with, or one `error: ...` line.  A command that fails changes nothing — a
-mistyped name in a list does not leave half a speaker pair trimmed.  The change
-is slewed at the rate of the start/stop fade, so it is heard as a fade and not
-as a click.
+`get` takes no number and changes nothing; with no names at all it reports every
+port, inputs first and then outputs.  It is the other half of a balance found by
+ear — the trims are made with `up`/`down` and then read back, being the only
+record of what was found.  A whole session is written out with a bare `get` and
+put back later by turning it into commands:
+
+```sh
+echo "get" | nc -w 1 localhost 7000 | awk '$3 != "0.000" { print "up", $3, $2 }'
+```
+
+Every line is answered: `ok <port> <dB>` per port, carrying the gain it has once
+the command is done — the same shape for all three commands — or one
+`error: ...` line.  A command that fails changes and reports nothing: a mistyped
+name in a list does not leave half a speaker pair trimmed, and an answer is
+either complete or an error.  A change is slewed at the rate of the start/stop
+fade, so it is heard as a fade and not as a click.
 
 The socket is bound to `127.0.0.1` and the commands carry no credential:
 anything that can reach the port owns the volume of the system.  Reach it from

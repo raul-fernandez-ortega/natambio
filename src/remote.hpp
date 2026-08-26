@@ -14,6 +14,7 @@ extern "C" {
 
 }
 
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@ extern "C" {
  *
  *     up   <dB> <port> [port ...]     raise those ports' gains by <dB>
  *     down <dB> <port> [port ...]     lower them by <dB>
+ *     get  [port ...]                 report the gains as they are now
  *
  * The number is signed, so "up -1.0" and "down 1.0" are the same instruction;
  * "down" exists so that a script that computes a positive step reads the way it
@@ -42,11 +44,15 @@ extern "C" {
  *
  *     echo "up -1.0 front_output_left front_output_right" | nc -w 1 localhost 7000
  *
- * A command that names a port that does not exist, or names one twice, changes
- * NOTHING: half a trimmed speaker pair is worse than an untrimmed one. Every
- * line is answered, one reply line per port on success ("ok <port> <dB>", the
- * gain the port ends up with) or a single "error: ..." line, so a caller that
- * reads the socket back knows what happened.
+ * "get" takes no number, and with no names at all it reports every port, which
+ * is how a balance arrived at by ear gets written down.
+ *
+ * A command that names a port that does not exist changes and reports NOTHING,
+ * as does an up/down that names one twice: half a trimmed speaker pair is worse
+ * than an untrimmed one. Every line is answered, one reply line per port on
+ * success -- "ok <port> <dB>", the gain the port has once the command is done,
+ * the same shape for all three commands -- or a single "error: ..." line, so a
+ * caller that reads the socket back knows what happened.
  */
 class Remote {
 
@@ -68,6 +74,7 @@ private:
   void acceptLoop(void);
   void serve(int fd);
   std::string runCommand(const std::string& line);
+  std::string reportGains(std::istringstream& is);
 
 public:
 

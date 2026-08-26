@@ -38,7 +38,7 @@ extern "C" {
 #define REMOTE_IO_TIMEOUT_S  2
 
 static const char *REMOTE_USAGE =
-  "error: usage: up|down <dB> <port> [port ...]\n";
+  "error: usage: up|down <dB> <port> [port ...] | get [port ...]\n";
 
 Remote::Remote(int n_port, ioJack *n_jack, bool n_quiet)
 {
@@ -248,6 +248,36 @@ void Remote::serve(int fd)
   }
 }
 
+/* "get [port ...]": report what the gains are, in the same "ok <port> <dB>"
+   shape the up/down replies use, so a caller parses one format either way.
+   With no names it reports every port -- which is how a balance found by ear
+   gets written down, and how a caller with no copy of the configuration finds
+   out what there is to ask about. A name repeated in the list is answered
+   twice and harms nothing, so unlike up/down it is not refused: only a name
+   that exists nowhere is, and then nothing at all is reported, so an answer is
+   either complete or an error. */
+std::string Remote::reportGains(std::istringstream& is)
+{
+  std::vector<std::string> names;
+  std::string name;
+
+  while(is >> name)
+    names.push_back(name);
+  if(names.empty())
+    names = naJack->portNames();
+
+  std::vector<double> gains(names.size(), 0.0);
+  for(size_t i = 0; i < names.size(); i++)
+    if(!naJack->portGain(names[i], &gains[i]))
+      return "error: no JACK port named '" + names[i] + "'\n";
+
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+  for(size_t i = 0; i < names.size(); i++)
+    reply << "ok " << names[i] << " " << gains[i] << "\n";
+  return reply.str();
+}
+
 std::string Remote::runCommand(const std::string& line)
 {
   std::istringstream is(line);
@@ -256,13 +286,16 @@ std::string Remote::runCommand(const std::string& line)
   if(!(is >> cmd))
     return "";                  /* blank line: nothing asked, nothing said */
 
+  if(strcasecmp(cmd.c_str(), "get") == 0)
+    return reportGains(is);
+
   double sign;
   if(strcasecmp(cmd.c_str(), "up") == 0)
     sign = 1.0;
   else if(strcasecmp(cmd.c_str(), "down") == 0)
     sign = -1.0;
   else
-    return "error: unknown command '" + cmd + "'; expected up or down\n";
+    return "error: unknown command '" + cmd + "'; expected up, down or get\n";
 
   std::string arg;
   if(!(is >> arg))

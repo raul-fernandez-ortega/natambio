@@ -161,6 +161,9 @@ public:
      the callback slews to it rather than stepping. */
   bool portGain(string port_name, double *gain_db);
   bool adjustPortGain(string port_name, double delta_db, double *new_gain_db);
+  /* Every registered port, inputs first and then outputs, each in the order it
+     was declared in the configuration. What a bare "get" reports. */
+  vector<string> portNames(void);
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

@@ -459,6 +459,16 @@ struct jack_port *ioJack::findPort(string port_name)
   return NULL;
 }
 
+vector<string> ioJack::portNames(void)
+{
+  vector<string> names;
+  for (vector<jack_port*>::iterator jack_p = jack_inputs.begin() ; jack_p != jack_inputs.end(); jack_p++)
+    names.push_back((*jack_p)->port_name);
+  for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++)
+    names.push_back((*jack_p)->port_name);
+  return names;
+}
+
 bool ioJack::portGain(string port_name, double *gain_db)
 {
   struct jack_port *p = findPort(port_name);
