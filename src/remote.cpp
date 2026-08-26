@@ -37,8 +37,15 @@ extern "C" {
    keep every other client waiting for as long as it cared to. */
 #define REMOTE_IO_TIMEOUT_S  2
 
-static const char *REMOTE_USAGE =
-  "error: usage: up|down <dB> <port> [port ...] | get [port ...]\n";
+/* The whole grammar in one place: both the usage error and the unknown-command
+   one quote it, and each answer stays the single line the protocol promises. */
+static const char *REMOTE_GRAMMAR =
+  "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | mute | unmute";
+
+static std::string usage_error(void)
+{
+  return std::string("error: usage: ") + REMOTE_GRAMMAR + "\n";
+}
 
 Remote::Remote(int n_port, ioJack *n_jack, bool n_quiet)
 {
@@ -272,6 +279,12 @@ std::string Remote::reportGains(std::istringstream& is)
       return "error: no JACK port named '" + names[i] + "'\n";
 
   std::ostringstream reply;
+  /* Said first, and not as an "ok <port> <dB>" line: while mute is on these
+     gains are what the ports will go back to, not what is coming out, and a
+     get that did not say so would be reporting a level nobody can hear. A
+     caller that filters on "ok " skips the line without being taught to. */
+  if(naJack->isMuted())
+    reply << "muted\n";
   reply << std::fixed << std::setprecision(3);
   for(size_t i = 0; i < names.size(); i++)
     reply << "ok " << names[i] << " " << gains[i] << "\n";
@@ -289,17 +302,38 @@ std::string Remote::runCommand(const std::string& line)
   if(strcasecmp(cmd.c_str(), "get") == 0)
     return reportGains(is);
 
+  if(strcasecmp(cmd.c_str(), "mute") == 0 || strcasecmp(cmd.c_str(), "unmute") == 0) {
+    /* Neither takes an argument. A name after them is refused rather than
+       ignored: someone who writes "mute sub_output_left" means to silence one
+       port, and letting that quietly mute everything is the worst way to find
+       out it does not. */
+    std::string extra;
+    if(is >> extra)
+      return "error: " + cmd + " takes no arguments; it applies to every output\n";
+    bool on = (strcasecmp(cmd.c_str(), "mute") == 0);
+    naJack->setMute(on);
+    return on ? "ok mute\n" : "ok unmute\n";
+  }
+
+  /* Sign, and where the command gets its ports from: named on the line, or a
+     whole direction at once. The four grouped forms exist because "every
+     output" and "every input" are the two lists worth having a name for -- one
+     is the volume of the system, the other the level it is fed at -- and
+     spelling them out port by port is both tedious and a chance to miss one. */
   double sign;
-  if(strcasecmp(cmd.c_str(), "up") == 0)
-    sign = 1.0;
-  else if(strcasecmp(cmd.c_str(), "down") == 0)
-    sign = -1.0;
+  enum { NAMED, ALL_INPUTS, ALL_OUTPUTS } scope;
+  if(strcasecmp(cmd.c_str(), "up") == 0)             { sign =  1.0; scope = NAMED; }
+  else if(strcasecmp(cmd.c_str(), "down") == 0)      { sign = -1.0; scope = NAMED; }
+  else if(strcasecmp(cmd.c_str(), "upin") == 0)      { sign =  1.0; scope = ALL_INPUTS; }
+  else if(strcasecmp(cmd.c_str(), "downin") == 0)    { sign = -1.0; scope = ALL_INPUTS; }
+  else if(strcasecmp(cmd.c_str(), "upout") == 0)     { sign =  1.0; scope = ALL_OUTPUTS; }
+  else if(strcasecmp(cmd.c_str(), "downout") == 0)   { sign = -1.0; scope = ALL_OUTPUTS; }
   else
-    return "error: unknown command '" + cmd + "'; expected up, down or get\n";
+    return "error: unknown command '" + cmd + "'; usage: " + REMOTE_GRAMMAR + "\n";
 
   std::string arg;
   if(!(is >> arg))
-    return REMOTE_USAGE;
+    return usage_error();
   char *end = NULL;
   double delta = strtod(arg.c_str(), &end);
   if(end == arg.c_str() || *end != '\0' || !std::isfinite(delta))
@@ -307,22 +341,32 @@ std::string Remote::runCommand(const std::string& line)
 
   std::vector<std::string> names;
   std::string name;
-  while(is >> name)
-    names.push_back(name);
-  if(names.empty())
-    return REMOTE_USAGE;
 
-  /* Resolve the whole list before touching anything. A command that names one
-     port wrongly is a mistake in the command, and applying it to the rest
-     would leave a speaker pair or a crossover split by that mistake -- worse
-     than doing nothing and saying so. Repeats are refused for the same reason:
-     the caller who wrote a name twice meant it once, not twice as loud. */
-  for(size_t i = 0; i < names.size(); i++) {
-    if(!naJack->portGain(names[i], NULL))
-      return "error: no JACK port named '" + names[i] + "'\n";
-    for(size_t j = 0; j < i; j++)
-      if(names[j] == names[i])
-        return "error: port '" + names[i] + "' listed twice\n";
+  if(scope == NAMED) {
+    while(is >> name)
+      names.push_back(name);
+    if(names.empty())
+      return usage_error();
+
+    /* Resolve the whole list before touching anything. A command that names one
+       port wrongly is a mistake in the command, and applying it to the rest
+       would leave a speaker pair or a crossover split by that mistake -- worse
+       than doing nothing and saying so. Repeats are refused for the same reason:
+       the caller who wrote a name twice meant it once, not twice as loud. */
+    for(size_t i = 0; i < names.size(); i++) {
+      if(!naJack->portGain(names[i], NULL))
+        return "error: no JACK port named '" + names[i] + "'\n";
+      for(size_t j = 0; j < i; j++)
+        if(names[j] == names[i])
+          return "error: port '" + names[i] + "' listed twice\n";
+    }
+  } else {
+    /* The list is the command; a name after it would be a caller who thinks
+       this trims that one port, and it does not. */
+    if(is >> name)
+      return "error: " + cmd + " takes no port names; it applies to every "
+             + (scope == ALL_INPUTS ? "input" : "output") + "\n";
+    names = (scope == ALL_INPUTS) ? naJack->inputPortNames() : naJack->outputPortNames();
   }
 
   std::ostringstream reply;

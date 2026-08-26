@@ -211,7 +211,13 @@ per line:
 ```
 up   <dB> <port> [port ...]      raise those ports' gains by <dB>
 down <dB> <port> [port ...]      lower them by <dB>
+upin    <dB>                     raise every input port by <dB>
+downin  <dB>                     lower every input port by <dB>
+upout   <dB>                     raise every output port by <dB>
+downout <dB>                     lower every output port by <dB>
 get  [port ...]                  report the gains as they are now
+mute                             silence every output, gains untouched
+unmute                           bring them back
 ```
 
 ```sh
@@ -223,9 +229,25 @@ both are **relative** to the gain the port has at that moment — send the line
 twice and the port ends up 2 dB away.  Input and output port names may be mixed
 in one line.  The result is clamped to `[-120, +20]` dB.
 
+The four grouped forms take a number and nothing else — a port named after one
+is refused, not ignored.  Being relative like the rest they move the whole
+balance bodily and leave it as it was: `downout 3` on a system whose rear ports
+sit at +6 dB leaves them at +3, still 6 dB above the front.
+
+`mute` and `unmute` take nothing at all.  Mute takes every output to −120 dB
+whatever its own gain and leaves those gains untouched — they are what the ports
+return to, and what `get` keeps reporting meanwhile, so the other commands go on
+working through a mute and take effect when it is lifted.  Both directions are
+faded at the rate of any other gain change: cutting or restoring a signal
+mid-waveform is a discontinuity the size of whatever sample was playing, a click
+either way round.  The flag applies to the **outputs**, where the sound stops;
+the inputs keep running so that the convolution tails and the NAE window are not
+drained into silence, which would make unmuting rebuild them over a filter
+length instead of coming straight back.
+
 `get` takes no number and changes nothing; with no names at all it reports every
-port, inputs first and then outputs.  It is the other half of a balance found by
-ear — the trims are made with `up`/`down` and then read back, being the only
+port, inputs first and then outputs, and says `muted` on a line of its own while
+mute is on.  It is the other half of a balance found by ear — the trims are made with `up`/`down` and then read back, being the only
 record of what was found.  A whole session is written out with a bare `get` and
 put back later by turning it into commands:
 
