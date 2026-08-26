@@ -13,11 +13,13 @@ natambio_SOURCES = \
 	iojack.cpp      \
 	convchannel.cpp \
 	nae.cpp         \
+	remote.cpp      \
 	natambio.hpp    \
 	naconf.hpp      \
 	iojack.hpp      \
 	convchannel.hpp \
 	nae.hpp         \
+	remote.hpp      \
 	structs.hpp
 
 natambio_CPPFLAGS = \

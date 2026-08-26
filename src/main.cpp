@@ -109,6 +109,10 @@ int main(int argc,char *argv[])
         delete n_NatAmbio;
         exit(1);
       }
+      if(!stop && !(n_NatAmbio->remoteStart())) {
+        delete n_NatAmbio;
+        exit(1);
+      }
       if(stop) {          /* interrupted while starting up */
         delete n_NatAmbio;
         exit(1);

@@ -134,14 +134,20 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif
     inpbuf = (float *)jack_port_get_buffer((*jack_p)->port, fragment_size);
 
-    /* Apply the port's <gain>. JACK's input buffer is shared with every other
-       client reading the same source port, so it is never scaled in place: the
-       scaled samples go to the port's own buffer and everything downstream
-       reads that instead. At unity there is no copy at all. */
-    if((*jack_p)->gain != 1.0f) {
+    /* Apply the port's <gain>, slewed across the period towards its target so
+       that a change arriving from the remote manager fades rather than steps.
+       JACK's input buffer is shared with every other client reading the same
+       source port, so it is never scaled in place: the scaled samples go to
+       the port's own buffer and everything downstream reads that instead. At
+       unity, with nothing to slew towards, there is no copy at all. */
+    float iga = (*jack_p)->gain;
+    float igb = slewGain(iga, (*jack_p)->gain_target);
+    (*jack_p)->gain = igb;
+    if(iga != 1.0f || igb != 1.0f) {
       float *scaled = (*jack_p)->gain_buf.data();
-      float g = (*jack_p)->gain;
-      for(int i = 0; i < fragment_size; i++)
+      float g = iga;
+      float gstep = (igb - iga) / (float)fragment_size;
+      for(int i = 0; i < fragment_size; i++, g += gstep)
         scaled[i] = inpbuf[i] * g;
       inpbuf = scaled;
     }
@@ -241,8 +247,11 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
      once. The ramp itself is left alone: ramp_gain must keep tracking the fade,
      not the fade times a port gain. */
   for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++) {
-    float pg0 = g0 * (*jack_p)->gain;
-    float pg1 = g1 * (*jack_p)->gain;
+    float oga = (*jack_p)->gain;
+    float ogb = slewGain(oga, (*jack_p)->gain_target);
+    (*jack_p)->gain = ogb;
+    float pg0 = g0 * oga;
+    float pg1 = g1 * ogb;
     if(pg0 == 1.0f && pg1 == 1.0f)
       continue;
     outbuf = (float *)jack_port_get_buffer((*jack_p)->port, fragment_size);
@@ -397,12 +406,14 @@ bool ioJack::addInputPort(string port_name, double gain_db)
   jack_inputs.push_back(new jack_port);
   jack_inputs.back()->port = new_jack_input;
   jack_inputs.back()->port_name = port_name;
-  jack_inputs.back()->gain = (float)FROM_DB(gain_db);
-  /* Only a port that actually scales needs the private copy, and it is
-     allocated here, out of the RT thread. fragment_size is already known:
-     global_init() runs before any port is added. */
-  if(jack_inputs.back()->gain != 1.0f)
-    jack_inputs.back()->gain_buf.resize(fragment_size);
+  jack_inputs.back()->gain_db = gain_db;
+  jack_inputs.back()->gain_target = (float)FROM_DB(gain_db);
+  jack_inputs.back()->gain = jack_inputs.back()->gain_target;
+  /* Every input port gets its private copy, allocated here, out of the RT
+     thread, whether or not this gain needs it: the remote manager can take any
+     port off unity later and the callback cannot allocate. fragment_size is
+     already known -- global_init() runs before any port is added. */
+  jack_inputs.back()->gain_buf.resize(fragment_size);
   
   if(!quiet) 
     std::cout << "ioJack: New jack input port added: " << client_name << ":" << port_name
@@ -424,11 +435,61 @@ bool ioJack::addOutputPort(string port_name, double gain_db)
   jack_outputs.back()->port_name = port_name;
   /* Outputs own their buffer, so the gain is folded into the fade ramp the
      callback already applies in place: no copy needed. */
-  jack_outputs.back()->gain = (float)FROM_DB(gain_db);
+  jack_outputs.back()->gain_db = gain_db;
+  jack_outputs.back()->gain_target = (float)FROM_DB(gain_db);
+  jack_outputs.back()->gain = jack_outputs.back()->gain_target;
 
   if(!quiet) 
     std::cout << "ioJack: New jack output port added: " << client_name << ":" << port_name
               << " (gain " << gain_db << " dB)" << std::endl;
+  return true;
+}
+
+/* Find a registered port by name, inputs and outputs alike: JACK names are
+   unique within a client, so one namespace is enough and the caller does not
+   have to know which direction a name belongs to. NULL if there is none. */
+struct jack_port *ioJack::findPort(string port_name)
+{
+  for (vector<jack_port*>::iterator jack_p = jack_inputs.begin() ; jack_p != jack_inputs.end(); jack_p++)
+    if((*jack_p)->port_name == port_name)
+      return *jack_p;
+  for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++)
+    if((*jack_p)->port_name == port_name)
+      return *jack_p;
+  return NULL;
+}
+
+bool ioJack::portGain(string port_name, double *gain_db)
+{
+  struct jack_port *p = findPort(port_name);
+  if(p == NULL)
+    return false;
+  if(gain_db != NULL)
+    *gain_db = p->gain_db;
+  return true;
+}
+
+/* Add delta_db to a port's gain. Called from the remote manager's thread: it
+   owns gain_db, and the single word the RT callback reads from it is
+   gain_target, written last and in one store. The callback slews to it, so
+   what comes out is a fade of a few tens of milliseconds rather than a step.
+   The clamp is not a matter of taste: these commands are relative, so nothing
+   else stops a repeated "up" from arriving at a gain that damages a driver. */
+bool ioJack::adjustPortGain(string port_name, double delta_db, double *new_gain_db)
+{
+  struct jack_port *p = findPort(port_name);
+  if(p == NULL)
+    return false;
+  double g = p->gain_db + delta_db;
+  if(g > NA_PORT_GAIN_MAX_DB) g = NA_PORT_GAIN_MAX_DB;
+  if(g < NA_PORT_GAIN_MIN_DB) g = NA_PORT_GAIN_MIN_DB;
+  p->gain_db = g;
+  p->gain_target = (float)FROM_DB(g);
+  if(new_gain_db != NULL)
+    *new_gain_db = g;
+  if(!quiet)
+    std::cout << "ioJack: port " << port_name << " gain now " << std::fixed
+              << std::setprecision(3) << g << " dB" << std::endl;
   return true;
 }
 

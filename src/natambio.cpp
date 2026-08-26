@@ -11,6 +11,7 @@ NatAmbio::NatAmbio(void)
 {
   quiet = false;
   naJack = NULL;
+  naRemote = NULL;
   naConf = new NaConf();
   convproc = new Convproc();
   options = 0;
@@ -99,6 +100,24 @@ bool NatAmbio::jackStart(void)
       naJack = NULL;
       return false;
     }
+  }
+  return true;
+}
+
+/* Open the gain manager's TCP port, if the configuration asked for one. Runs
+ * after the ports exist, since that is what the commands name, and failure to
+ * bind is fatal on purpose: the usual reason is another natambio already
+ * holding the port, and an instance that runs without the control it was
+ * configured with would quietly take its orders somewhere else. */
+bool NatAmbio::remoteStart(void)
+{
+  if(naConf->remote_port == 0)
+    return true;                /* no <remote>: no socket, which is the default */
+  naRemote = new Remote(naConf->remote_port, naJack, quiet);
+  if(!(naRemote->start())) {
+    delete naRemote;
+    naRemote = NULL;
+    return false;
   }
   return true;
 }
@@ -503,6 +522,11 @@ bool NatAmbio::convprocCheckStop(void)
 
 NatAmbio::~NatAmbio(void)
 {
+  // The manager thread goes first of all: it holds a pointer to naJack and
+  // reaches into its ports, so it must be stopped and joined before anything
+  // below frees what it reads.
+  delete naRemote;
+  naRemote = NULL;
   // Tear down JACK first: deleting naJack deactivates and closes the client
   // (ioJack::synch_stop()), which guarantees the RT process callback has stopped
   // and won't run again. Only then is it safe to free the ConvChannels and the

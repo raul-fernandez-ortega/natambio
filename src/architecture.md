@@ -65,7 +65,8 @@ main()
   ├─ NatAmbio::jackStart()     → create JACK client, register ports
   ├─ NatAmbio::startConvProc() → initialize zita-convolver, create ConvChannels
   ├─ NatAmbio::startNAE() → create NAE instances, spawn RT threads
-  └─ NatAmbio::connectPorts()  → connect JACK ports to external destinations
+  ├─ NatAmbio::connectPorts()  → connect JACK ports to external destinations
+  └─ NatAmbio::remoteStart()   → open the gain manager's TCP port, if <remote>
 ```
 
 ### Real-Time Processing Loop (per audio buffer)
@@ -239,6 +240,7 @@ Manages the JACK client lifecycle and the real-time process callback.
 
 Key responsibilities:
 - Register input and output ports (`addInputPort`, `addOutputPort`)
+- Own the port gains, and slew them when they change (`portGain`, `adjustPortGain`)
 - Wire ports to `ConvChannel` and `NAE` instances
 - Drive the audio processing pipeline on every buffer cycle
 - Detect and timestamp xrun (buffer underrun) events
@@ -246,6 +248,27 @@ Key responsibilities:
 
 Static JACK callbacks (`jack_process_callback`, `xrun_callback`, etc.) delegate to
 member functions via the `void *arg` → `this` pattern.
+
+---
+
+### `Remote` — Gain Manager (`remote.hpp / remote.cpp`)
+
+A line-based TCP server, opened only when the configuration carries a `<remote>`
+tag naming a port, that changes port gains while natambio runs:
+`up|down <dB> <port> [port ...]`, relative to the gain each port has at that
+moment.  See the `<remote>` section of `README.md` for the protocol.
+
+It runs in one plain (non-RT) thread of its own that accepts and serves
+connections sequentially.  The thread blocks `SIGINT`/`SIGTERM` so the main
+thread keeps handling them, and shutdown wakes it out of `poll()` through a
+pipe rather than by flagging a variable it would not look at until something
+arrived on the socket.
+
+The only thing it touches in the audio path is `ioJack::adjustPortGain()`,
+which writes the port's dB value (its own, no other thread reads it) and then,
+in one store, the single float the RT callback reads.  The callback slews
+towards it, so the change is a fade rather than a step.  `~NatAmbio` deletes
+this before the `ioJack` it points at.
 
 ---
 
@@ -334,7 +357,7 @@ Helper functions in `nae.cpp`:
 | `lowhigh` | low_name, high_name, frequency, db_octave, gain, filter_len | Crossover filter generator: produces a complementary low-pass/high-pass coeff pair via `dsp.c`'s `firwin2()` + `minimum_phase()` (at the JACK sample rate) |
 | `loudness` | name, model, phon, ref_phon, filter_len | Equal-loudness filter generator: produces one minimum-phase coeff from an isophonic-curve model (`loudness.c`) via `firwin2()` + `minimum_phase()` (at the JACK sample rate) |
 | `convol` | index, name, coeff_name, delay, scale, from_inputs/convols/nae, to_outputs | Convolver routing |
-| `jackport` | name, destname | JACK port + external connection destination |
+| `jackport` | name, destname, gain | JACK port + external connection destination + port gain in dB |
 | `jackclient` | name, inports, outports | JACK client with all its ports |
 
 ---

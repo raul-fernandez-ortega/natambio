@@ -12,6 +12,7 @@
 #include "convchannel.hpp"
 #include "iojack.hpp"
 #include "nae.hpp"
+#include "remote.hpp"
 
 #include <vector>
 #include <string>
@@ -28,6 +29,7 @@ private:
   vector<NAE*> NAEs;
   NaConf *naConf;
   ioJack *naJack;
+  Remote *naRemote;
   vector<ConvChannel*> convChannels;
   int sampleRate;
 
@@ -39,6 +41,7 @@ public:
   int queryJackSampleRate(void);
   bool configXML(string fileName);
   bool jackStart(void);
+  bool remoteStart(void);
   bool connectPorts(void);
   bool startConvProc(void);
   bool startNAE(void);

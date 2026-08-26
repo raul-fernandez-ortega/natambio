@@ -23,8 +23,21 @@
       Balance surround vs. front level with the <gain> of the two rear output
       ports: it scales everything summed into the port, so it covers the direct
       and cross convols of that speaker in one number.  They start at +6 dB,
-      which is a plausible starting point and nothing more.
+      which is a plausible starting point and nothing more.  The <remote> block
+      below lets that number, and the sub's, be moved from a shell while the
+      music plays, which is the only sensible way to find them.
     -->
+
+    <!-- Gain manager on 127.0.0.1:7000.  With this many ways to drive, the
+         balance between them is set by ear while listening rather than by
+         editing this file and restarting:
+
+           echo "up -1.0 sub_output_left sub_output_right" | nc -w 1 localhost 7000
+
+         Relative and slewed, so it can sit behind a key binding.  Remove the
+         tag and no socket is opened.  See the <remote> section of
+         docs/README.CONFIG. -->
+    <remote>7000</remote>
 
     <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
     <loudness>
