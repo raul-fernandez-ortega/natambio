@@ -218,6 +218,7 @@ downout <dB>                     lower every output port by <dB>
 get  [port ...]                  report the gains as they are now
 mute                             silence every output, gains untouched
 unmute                           bring them back
+toggle                           whichever of the two is not the case now
 ```
 
 ```sh
@@ -234,13 +235,18 @@ is refused, not ignored.  Being relative like the rest they move the whole
 balance bodily and leave it as it was: `downout 3` on a system whose rear ports
 sit at +6 dB leaves them at +3, still 6 dB above the front.
 
-`mute` and `unmute` take nothing at all.  Mute takes every output to −120 dB
+`mute`, `unmute` and `toggle` take nothing at all.  Mute takes every output to −120 dB
 whatever its own gain and leaves those gains untouched — they are what the ports
 return to, and what `get` keeps reporting meanwhile, so the other commands go on
 working through a mute and take effect when it is lifted.  Both directions are
 faded at the rate of any other gain change: cutting or restoring a signal
 mid-waveform is a discontinuity the size of whatever sample was playing, a click
-either way round.  The flag applies to the **outputs**, where the sound stops;
+either way round.  `toggle` is the two of them for a caller that has one button and no room for
+two: it reads the flag and flips it inside the manager, which a client cannot do
+without a `get` first and a gap in between where the state may move.  It answers
+`ok mute` or `ok unmute` — the state it landed on, not the one it left — so a
+button stays in step on the strength of the reply alone.  The flag applies to the
+**outputs**, where the sound stops;
 the inputs keep running so that the convolution tails and the NAE window are not
 drained into silence, which would make unmuting rebuild them over a filter
 length instead of coming straight back.
