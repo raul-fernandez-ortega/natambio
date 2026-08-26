@@ -12,6 +12,13 @@
       Disconnecting either pair in qjackctl effectively mutes that component
       without stopping either client.
 
+      The amount of ambience in the mix can be set from either end: with
+      <ambience_gain> in the NAE client, or with the <gain> of the amb_L/amb_R
+      input ports here. Doing it here keeps the decomposition untouched and
+      needs only this client restarted, which is the point of splitting the
+      chain in the first place. Do not set both and expect one number: they
+      multiply.
+
       No subwoofer, no crossover — stereo monitors only.
 
       Start this client BEFORE natambio_nae so its input ports exist when
@@ -78,11 +85,16 @@
       <port>
         <name>front_R</name>
       </port>
+      <!-- Ambience level, dB: trims the component as it arrives, before it is
+           summed with the front pair inside the convols. 0 dB takes it as the
+           NAE client sent it. -->
       <port>
         <name>amb_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>amb_R</name>
+        <gain>0.0</gain>
       </port>
     </jack_input>
 

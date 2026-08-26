@@ -3,6 +3,13 @@
     <!--
       Stereo DRC only, no subwoofer, no NAE.
       One FIR DRC filter per channel, loaded from a WAV file.
+
+      Every <port> takes an optional <gain> in dB (positive amplifies, negative
+      attenuates, 0 is unity, absent is 0). On an input it scales what arrives
+      before anything downstream sees it; on an output it scales everything
+      summed into the port on the way out. They are shown at 0 dB here, where
+      they do nothing — see the 2.1 and multi-path samples for trims that
+      actually earn their keep.
     -->
 
     <coeff>
@@ -20,10 +27,12 @@
       <port>
         <name>input_left</name>
         <destname>system:capture_1</destname>
+        <gain>0.0</gain>   <!-- optional: input gain in dB, default 0 -->
       </port>
       <port>
         <name>input_right</name>
         <destname>system:capture_2</destname>
+        <gain>0.0</gain>
       </port>
     </jack_input>
 
@@ -31,10 +40,12 @@
       <port>
         <name>output_left</name>
         <destname>system:playback_1</destname>
+        <gain>0.0</gain>   <!-- optional: output gain in dB, default 0 -->
       </port>
       <port>
         <name>output_right</name>
         <destname>system:playback_2</destname>
+        <gain>0.0</gain>
       </port>
     </jack_output>
 

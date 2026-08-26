@@ -20,7 +20,10 @@
         playback_5/6  —  rear monitors (left / right)
 
       Tune <front_gain>, <ambience_gain> and <rear_gain> by ear.
-      Adjust the rear convol <gain> values to balance surround vs. front level.
+      Balance surround vs. front level with the <gain> of the two rear output
+      ports: it scales everything summed into the port, so it covers the direct
+      and cross convols of that speaker in one number.  They start at +6 dB,
+      which is a plausible starting point and nothing more.
     -->
 
     <!-- Equal-loudness compensation (70 phon playback, 90 phon mastering reference) -->
@@ -197,20 +200,29 @@
         <destname>system:playback_2</destname>
       </port>
       <port>
+        <!-- Subwoofer level against the satellites, dB. Same trim on both
+             sides unless the two subs sit in different corners. -->
         <name>sub_output_left</name>
         <destname>system:playback_3</destname>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>sub_output_right</name>
         <destname>system:playback_4</destname>
+        <gain>0.0</gain>
       </port>
       <port>
+        <!-- Surround level against the front, dB: one trim per rear speaker,
+             covering its direct and cross convols at once.  +6 dB is a
+             starting point, not a measurement — set it by ear. -->
         <name>rear_output_left</name>
         <destname>system:playback_5</destname>
+        <gain>6.0</gain>
       </port>
       <port>
         <name>rear_output_right</name>
         <destname>system:playback_6</destname>
+        <gain>6.0</gain>
       </port>
     </jack_output>
 
@@ -293,13 +305,16 @@
       <delay>0</delay>
     </convol>
 
-    <!-- Rear convols (adjust <gain> to balance surround vs. front level) -->
+    <!-- Rear convols.  The surround level lives in the <gain> of the two rear
+         output ports (it used to be +6 dB repeated on all four convols here,
+         which is the same thing said twice as often).  These gains stay at 0
+         for trimming one path against the other. -->
     <convol>
       <name>rear direct left</name>
       <coeff_name>rear direct left</coeff_name>
       <from_nae>rear_nae_left</from_nae>
       <to_output>rear_output_left</to_output>
-      <gain>6.0</gain>
+      <gain>0.0</gain>
       <delay>0</delay>
     </convol>
     <convol>
@@ -307,7 +322,7 @@
       <coeff_name>rear cross right</coeff_name>
       <from_nae>rear_nae_left</from_nae>
       <to_output>rear_output_right</to_output>
-      <gain>6.0</gain>
+      <gain>0.0</gain>
       <delay>0</delay>
     </convol>
     <convol>
@@ -315,7 +330,7 @@
       <coeff_name>rear direct right</coeff_name>
       <from_nae>rear_nae_right</from_nae>
       <to_output>rear_output_right</to_output>
-      <gain>6.0</gain>
+      <gain>0.0</gain>
       <delay>0</delay>
     </convol>
     <convol>
@@ -323,7 +338,7 @@
       <coeff_name>rear cross left</coeff_name>
       <from_nae>rear_nae_right</from_nae>
       <to_output>rear_output_left</to_output>
-      <gain>6.0</gain>
+      <gain>0.0</gain>
       <delay>0</delay>
     </convol>
 

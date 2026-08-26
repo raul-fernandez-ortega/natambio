@@ -146,6 +146,7 @@ Declares the JACK client name and all input ports.
   <port>
     <name>input_left</name>
     <destname>system:capture_1</destname>   <!-- optional: auto-connect at startup -->
+    <gain>-3.0</gain>                       <!-- optional: input gain in dB -->
   </port>
   <port>
     <name>input_right</name>
@@ -156,17 +157,22 @@ Declares the JACK client name and all input ports.
 
 `<destname>` is optional. When omitted the port is created but left unconnected.
 
+`<gain>` is optional and defaults to 0 dB. It follows the usual convention
+(positive amplifies, negative attenuates) and is applied to what arrives at the
+port, so every `<convol>` and `<nae>` fed from it sees the scaled signal.
+
 ---
 
 ### `<jack_output>` — Output Ports
 
-Declares all output ports. `<destname>` is again optional.
+Declares all output ports. `<destname>` is again optional, and so is `<gain>`.
 
 ```xml
 <jack_output>
   <port>
     <name>output_left</name>
     <destname>system:playback_1</destname>
+    <gain>-6.0</gain>                       <!-- optional: output gain in dB -->
   </port>
   <port>
     <name>output_right</name>
@@ -182,6 +188,11 @@ Declares all output ports. `<destname>` is again optional.
   </port>
 </jack_output>
 ```
+
+`<gain>` defaults to 0 dB and is the last thing applied to the port: everything
+summed into it — the `<convol>` and `<nae>` outputs — is scaled on the way out.
+A per-port trim, for matching two amplifiers or pulling a subwoofer down without
+rebuilding its coeffs. The start/stop fade keeps running underneath it.
 
 ---
 

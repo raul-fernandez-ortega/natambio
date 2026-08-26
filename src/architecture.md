@@ -73,9 +73,12 @@ main()
 ```
 ioJack::na_process_callback()   [JACK real-time thread]
   ├─ For each JACK input port:
-  │    copy buffer → linked ConvChannels and NAE inputs
+  │    apply the port <gain>, then copy → linked ConvChannels and NAE inputs
   ├─ ConvChannel::processInput()   → sum all inputs into convproc input buffer
   ├─ Convproc::process()           → zita-convolver FFT convolution
+  ├─ For each JACK output port:
+  │    sum the ConvChannel/NAE outputs, then scale by the start/stop fade ramp
+  │    times the port <gain>
   ├─ ConvChannel::processOutput()  → apply delay, scale, mix to JACK output ports
   └─ NAE::signal()            → post semaphore to each NAE thread
 

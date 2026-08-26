@@ -85,7 +85,7 @@ bool NatAmbio::jackStart(void)
   for(std::vector<struct jackport*>::iterator it = naConf->jackclient->inports.begin() ; it != naConf->jackclient->inports.end(); ++it) {
     if(!quiet) 
       cout << "NatAmbio: Creating input port " << (*it)->name << endl;
-    if(!(naJack->addInputPort((*it)->name))) {
+    if(!(naJack->addInputPort((*it)->name, (*it)->gain))) {
       delete naJack;
       naJack = NULL;
       return false;
@@ -94,7 +94,7 @@ bool NatAmbio::jackStart(void)
   for(std::vector<struct jackport*>::iterator it = naConf->jackclient->outports.begin() ; it != naConf->jackclient->outports.end(); ++it) {
     if(!quiet) 
       cout << "NatAmbio: Creating output port " << (*it)->name << endl;
-    if(!(naJack->addOutputPort((*it)->name))) {
+    if(!(naJack->addOutputPort((*it)->name, (*it)->gain))) {
       delete naJack;
       naJack = NULL;
       return false;

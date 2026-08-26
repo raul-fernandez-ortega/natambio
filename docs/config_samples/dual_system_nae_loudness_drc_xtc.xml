@@ -20,6 +20,11 @@
 
       Tune each system's <phon>/<ref_phon>, XTC geometry, NAE gains and DRC
       paths independently to match its listening position and room response.
+
+      The two systems drive different speakers and will not come out at the
+      same level. Match them with the <gain> (dB) of their output ports: one
+      number per port covers that speaker's four convols, and neither system's
+      filters have to be rebuilt to make the comparison fair.
     -->
 
     <!-- ================================================================== -->
@@ -178,21 +183,27 @@
     </jack_input>
 
     <jack_output>
+      <!-- One <gain> (dB) per port: the level match between the two systems.
+           All at 0 dB until measured. -->
       <port>
         <name>sys1_output_L</name>
         <destname>system:playback_1</destname>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>sys1_output_R</name>
         <destname>system:playback_2</destname>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>sys2_output_L</name>
         <destname>system:playback_3</destname>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>sys2_output_R</name>
         <destname>system:playback_4</destname>
+        <gain>0.0</gain>
       </port>
     </jack_output>
 

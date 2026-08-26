@@ -42,6 +42,11 @@
       <port>
         <name>output_sub</name>
         <destname>system:playback_3</destname>
+        <!-- Subwoofer level against the monitors, dB. The -3 dB on the two LP
+             convols below is the stereo sum, not a level match: this is the
+             one trim to touch when the sub is loud or shy, and it applies to
+             both branches at once without rebuilding any coeff. -->
+        <gain>0.0</gain>
       </port>
     </jack_output>
 
