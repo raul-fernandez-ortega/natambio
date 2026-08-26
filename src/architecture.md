@@ -256,8 +256,10 @@ member functions via the `void *arg` → `this` pattern.
 A line-based TCP server, opened only when the configuration carries a `<remote>`
 tag naming a port, that changes port gains while natambio runs:
 `up|down <dB> <port> [port ...]`, relative to the gain each port has at that
-moment, and `get [port ...]` to read them back.  See the `<remote>` section of
-`README.md` for the protocol.
+moment; `upin`/`downin`/`upout`/`downout <dB>` for a whole direction at once;
+`get [port ...]` to read them back; and `mute`/`unmute`, which take the outputs
+to −120 dB and back without disturbing their gains.  See the `<remote>` section
+of `README.md` for the protocol.
 
 It runs in one plain (non-RT) thread of its own that accepts and serves
 connections sequentially.  The thread blocks `SIGINT`/`SIGTERM` so the main
@@ -265,11 +267,13 @@ thread keeps handling them, and shutdown wakes it out of `poll()` through a
 pipe rather than by flagging a variable it would not look at until something
 arrived on the socket.
 
-The only thing it touches in the audio path is `ioJack::adjustPortGain()`
-(`portGain()` and `portNames()` only read),
-which writes the port's dB value (its own, no other thread reads it) and then,
-in one store, the single float the RT callback reads.  The callback slews
-towards it, so the change is a fade rather than a step.  `~NatAmbio` deletes
+The only thing it touches in the audio path is `ioJack::adjustPortGain()` and
+`setMute()` (`portGain()` and the `*PortNames()` only read).  The first writes
+the port's dB value — its own, no other thread reads it — and then, in one
+store, the single float the RT callback reads; the second writes one word the
+callback reads once per period for the whole output bus.  Either way the
+callback slews towards the new target, so a change is a fade and not a step,
+in both directions.  `~NatAmbio` deletes
 this before the `ioJack` it points at.
 
 ---

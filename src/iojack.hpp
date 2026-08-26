@@ -39,6 +39,10 @@ extern "C" {
 #define NA_PORT_GAIN_MAX_DB    20.0
 #define NA_PORT_GAIN_MIN_DB  -120.0
 
+/* Where mute puts the outputs. The same floor as a gain trimmed all the way
+   down, which is silence in any arithmetic that matters here. */
+#define NA_MUTE_DB           -120.0
+
 struct jack_port {
   jack_port_t* port;
   string port_name;
@@ -90,6 +94,13 @@ private:
   volatile float ramp_target;   /* 1.0 running, 0.0 muted -- main thread writes */
   volatile float ramp_gain;     /* current gain -- RT thread writes */
   float ramp_inc;               /* per-sample slew, set from the sample rate */
+
+  /* Mute: one word, written by the manager thread and read by the RT callback,
+     the same single-writer discipline as ramp_target. Both directions are
+     slewed like any other gain change -- cutting or restoring a signal
+     mid-waveform is a discontinuity the size of whatever sample was playing,
+     which is a click either way round. */
+  volatile int mute_target;
 
   struct jack_port *findPort(string port_name);
 
@@ -159,11 +170,23 @@ public:
      delta_db to whatever the gain currently is, clamps the result to
      [NA_PORT_GAIN_MIN_DB, NA_PORT_GAIN_MAX_DB] and reports it in new_gain_db;
      the callback slews to it rather than stepping. */
+  /* Mute takes the OUTPUT ports to NA_MUTE_DB, whatever their own gains, and
+     leaves those gains alone: they are what the ports go back to, and what
+     portGain() keeps reporting meanwhile. The inputs are deliberately left
+     running -- silencing them too would add nothing audible and would drain
+     the convolution tails and the NAE's window into silence, so that unmuting
+     would rebuild them over a filter length instead of coming straight back. */
+  void setMute(bool on);
+  bool isMuted(void) { return mute_target != 0; };
+
   bool portGain(string port_name, double *gain_db);
   bool adjustPortGain(string port_name, double delta_db, double *new_gain_db);
-  /* Every registered port, inputs first and then outputs, each in the order it
-     was declared in the configuration. What a bare "get" reports. */
-  vector<string> portNames(void);
+  /* Registered port names, each group in the order the configuration declared
+     it: what a bare "get" reports, and what the commands that address a whole
+     direction at once (upin/downin, upout/downout) operate on. */
+  vector<string> inputPortNames(void);
+  vector<string> outputPortNames(void);
+  vector<string> portNames(void);   /* inputs first, then outputs */
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

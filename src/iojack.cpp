@@ -21,6 +21,7 @@ ioJack::ioJack(string clientName, bool n_quiet)
   ramp_gain = 0.0f;
   ramp_target = 1.0f;
   ramp_inc = 1.0f / 1536.0f;
+  mute_target = 0;
   if (client_name == NULL) 
     client_name = strdup(DEFAULT_CLIENTNAME);
   if(!quiet)
@@ -246,9 +247,17 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
      Each port's <gain> is folded into the period's ramp so the buffer is walked
      once. The ramp itself is left alone: ramp_gain must keep tracking the fade,
      not the fade times a port gain. */
+  /* Mute, read once for the whole bus so that every output leaves and rejoins
+     it together. It only changes where each port is heading: the slew below is
+     the same one a gain change uses, so muting fades out and unmuting fades
+     back in over the same few tens of milliseconds. */
+  int muted = mute_target;
+  float mute_gain = (float)FROM_DB(NA_MUTE_DB);
+
   for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++) {
+    float otgt = muted ? mute_gain : (*jack_p)->gain_target;
     float oga = (*jack_p)->gain;
-    float ogb = slewGain(oga, (*jack_p)->gain_target);
+    float ogb = slewGain(oga, otgt);
     (*jack_p)->gain = ogb;
     float pg0 = g0 * oga;
     float pg1 = g1 * ogb;
@@ -459,13 +468,37 @@ struct jack_port *ioJack::findPort(string port_name)
   return NULL;
 }
 
-vector<string> ioJack::portNames(void)
+/* Called from the manager thread. One store into the word the callback reads;
+   the ports' own gains are not touched, so up/down and get go on meaning what
+   they meant and the ports come back to exactly where they were. */
+void ioJack::setMute(bool on)
+{
+  mute_target = on ? 1 : 0;
+  if(!quiet)
+    std::cout << "ioJack: outputs " << (on ? "muted" : "unmuted") << std::endl;
+}
+
+vector<string> ioJack::inputPortNames(void)
 {
   vector<string> names;
   for (vector<jack_port*>::iterator jack_p = jack_inputs.begin() ; jack_p != jack_inputs.end(); jack_p++)
     names.push_back((*jack_p)->port_name);
+  return names;
+}
+
+vector<string> ioJack::outputPortNames(void)
+{
+  vector<string> names;
   for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++)
     names.push_back((*jack_p)->port_name);
+  return names;
+}
+
+vector<string> ioJack::portNames(void)
+{
+  vector<string> names = inputPortNames();
+  vector<string> outs = outputPortNames();
+  names.insert(names.end(), outs.begin(), outs.end());
   return names;
 }
 

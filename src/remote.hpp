@@ -34,6 +34,8 @@ extern "C" {
  *     up   <dB> <port> [port ...]     raise those ports' gains by <dB>
  *     down <dB> <port> [port ...]     lower them by <dB>
  *     get  [port ...]                 report the gains as they are now
+ *     mute                            silence every output, gains untouched
+ *     unmute                          bring them back
  *
  * The number is signed, so "up -1.0" and "down 1.0" are the same instruction;
  * "down" exists so that a script that computes a positive step reads the way it
@@ -45,7 +47,13 @@ extern "C" {
  *     echo "up -1.0 front_output_left front_output_right" | nc -w 1 localhost 7000
  *
  * "get" takes no number, and with no names at all it reports every port, which
- * is how a balance arrived at by ear gets written down.
+ * is how a balance arrived at by ear gets written down. While mute is on it
+ * says so on a line of its own before the gains, which are then what the ports
+ * will go back to rather than what is coming out.
+ *
+ * "mute" and "unmute" take nothing at all and apply to every output at once.
+ * The ports' own gains are untouched, so up/down and get go on working through
+ * a mute and the levels come back exactly as they were.
  *
  * A command that names a port that does not exist changes and reports NOTHING,
  * as does an up/down that names one twice: half a trimmed speaker pair is worse
