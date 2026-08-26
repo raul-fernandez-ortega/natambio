@@ -256,7 +256,8 @@ member functions via the `void *arg` → `this` pattern.
 A line-based TCP server, opened only when the configuration carries a `<remote>`
 tag naming a port, that changes port gains while natambio runs:
 `up|down <dB> <port> [port ...]`, relative to the gain each port has at that
-moment.  See the `<remote>` section of `README.md` for the protocol.
+moment, and `get [port ...]` to read them back.  See the `<remote>` section of
+`README.md` for the protocol.
 
 It runs in one plain (non-RT) thread of its own that accepts and serves
 connections sequentially.  The thread blocks `SIGINT`/`SIGTERM` so the main
@@ -264,7 +265,8 @@ thread keeps handling them, and shutdown wakes it out of `poll()` through a
 pipe rather than by flagging a variable it would not look at until something
 arrived on the socket.
 
-The only thing it touches in the audio path is `ioJack::adjustPortGain()`,
+The only thing it touches in the audio path is `ioJack::adjustPortGain()`
+(`portGain()` and `portNames()` only read),
 which writes the port's dB value (its own, no other thread reads it) and then,
 in one store, the single float the RT callback reads.  The callback slews
 towards it, so the change is a fade rather than a step.  `~NatAmbio` deletes
