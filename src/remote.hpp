@@ -45,7 +45,17 @@ extern "C" {
  * declared in <jack_input> and <jack_output>; inputs and outputs may be mixed
  * in the same line.
  *
- *     echo "up -1.0 front_output_left front_output_right" | nc -w 1 localhost 7000
+ *     echo "up -1.0 front_output_left front_output_right" | nc -q0 localhost 7000
+ *
+ * "-q0" and not "-w 1": the reply is written at once, but this end does not
+ * close the connection -- it goes back to recv() for the next line -- so a
+ * client waiting for end-of-input waits out its own timeout instead. -q0 sends
+ * the command and discards the answer. To read the answer without waiting at
+ * all, open the socket from the shell (bash's /dev/tcp) and read exactly the
+ * lines the command produces: one per port NAMED, so the count is known before
+ * sending. Only a bare "get" and the four grouped forms have a count the caller
+ * cannot know in advance, since the ports they answer for are not on the line;
+ * mute, unmute and toggle name none either but answer with one line. README.md.
  *
  * "get" takes no number, and with no names at all it reports every port, which
  * is how a balance arrived at by ear gets written down. While mute is on it

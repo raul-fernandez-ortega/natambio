@@ -222,7 +222,26 @@ toggle                           whichever of the two is not the case now
 ```
 
 ```sh
-echo "up -1.0 front_output_left front_output_right" | nc -w 1 localhost 7000
+echo "up -1.0 front_output_left front_output_right" | nc -q0 localhost 7000
+```
+
+`-q0`, not `-w 1`.  The manager answers at once, but it does not close the
+connection — it goes back to `recv` for the next line — so a client that waits
+for end-of-input waits out its own timeout instead, a second or two spent on a
+reply that arrived in microseconds (and `nc.traditional` applies `-w` twice, so
+`-w 1` costs two seconds).  `-q0` leaves as soon as stdin ends: the command is
+sent, the answer discarded, which is what a key binding wants.
+
+To read the answer and still pay nothing, open the socket from the shell and
+read the lines the command is going to produce.  `up`, `down` and `get` answer
+one line per port **named**, so the count is known before sending and the read
+ends by counting rather than by waiting:
+
+```sh
+exec 3<>/dev/tcp/localhost/7000
+echo "up -1.0 front_output_left front_output_right" >&3
+read -u 3 a; read -u 3 b; echo "$a"; echo "$b"
+exec 3<&- 3>&-
 ```
 
 The number is signed, so `up -1.0` and `down 1.0` are the same instruction, and
@@ -258,8 +277,19 @@ record of what was found.  A whole session is written out with a bare `get` and
 put back later by turning it into commands:
 
 ```sh
-echo "get" | nc -w 1 localhost 7000 | awk '$3 != "0.000" { print "up", $3, $2 }'
+exec 3<>/dev/tcp/localhost/7000
+echo "get" >&3
+while read -t 0.05 -u 3 line; do echo "$line"; done \
+    | awk '$3 != "0.000" { print "up", $3, $2 }'
+exec 3<&- 3>&-
 ```
+
+A bare `get` is the one case where the count cannot be known in advance — the
+caller is asking precisely because it does not have the list of ports — so here
+the read does end on a timeout.  The four grouped forms are in the same position
+for the same reason.  `mute`, `unmute` and `toggle` name no ports either but are
+answered with a single line, so they need no timeout; neither does anything that
+names its ports.
 
 Every line is answered: `ok <port> <dB>` per port, carrying the gain it has once
 the command is done — the same shape for all three commands — or one
