@@ -49,7 +49,7 @@ VPATH    = $(LIBDIR)
 
 INC      = $(LIBINCLUDES) -I$(LIBDIR)
 
-NATAMBIO_O = main.o natambio.o iojack.o convchannel.o naconf.o nae.o dsp.o xtc.o xtc_asym.o binaural_cues.o loudness.o
+NATAMBIO_O = main.o natambio.o iojack.o convchannel.o naconf.o nae.o remote.o dsp.o xtc.o xtc_asym.o binaural_cues.o loudness.o
 NATAMBIO_D = $(NATAMBIO_O:.o=.d)
 
 .PHONY: all install uninstall clean

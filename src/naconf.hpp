@@ -52,6 +52,7 @@ private:
   struct s_nae* parse_nae(xmlNodePtr xmlnode);
   bool parse_jackinput(xmlNodePtr xmlnode);
   bool parse_jackoutput(xmlNodePtr xmlnode);
+  bool parse_remote(xmlNodePtr xmlnode);
   bool parse_setting(xmlNodePtr xmlnode);
   bool sndfile_read(struct coeff* coeff);
   struct coeff* find_coeff(string name);
@@ -69,6 +70,10 @@ public:
   vector<struct convol*> convollist;
   vector<struct s_nae*> naelist;
   struct jackclient* jackclient;
+  /* TCP port of the gain manager (remote.cpp), from <remote>. 0 means the tag
+     was absent, which is the only way to say "open no socket": there is no
+     default port, on purpose. */
+  int remote_port;
   
   NaConf(void);
   ~NaConf(void);

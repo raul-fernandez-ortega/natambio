@@ -196,6 +196,48 @@ rebuilding its coeffs. The start/stop fade keeps running underneath it.
 
 ---
 
+### `<remote>` — TCP Port for the Gain Manager
+
+Optional, at most once.  The whole content of the tag is the TCP port to listen
+on; without the tag no socket is opened.
+
+```xml
+<remote>7000</remote>
+```
+
+The manager changes the `<gain>` of JACK ports while natambio runs, one command
+per line:
+
+```
+up   <dB> <port> [port ...]      raise those ports' gains by <dB>
+down <dB> <port> [port ...]      lower them by <dB>
+```
+
+```sh
+echo "up -1.0 front_output_left front_output_right" | nc -w 1 localhost 7000
+```
+
+The number is signed, so `up -1.0` and `down 1.0` are the same instruction, and
+both are **relative** to the gain the port has at that moment — send the line
+twice and the port ends up 2 dB away.  Input and output port names may be mixed
+in one line.  The result is clamped to `[-120, +20]` dB.
+
+Every line is answered: `ok <port> <dB>` per port, carrying the gain it ends up
+with, or one `error: ...` line.  A command that fails changes nothing — a
+mistyped name in a list does not leave half a speaker pair trimmed.  The change
+is slewed at the rate of the start/stop fade, so it is heard as a fade and not
+as a click.
+
+The socket is bound to `127.0.0.1` and the commands carry no credential:
+anything that can reach the port owns the volume of the system.  Reach it from
+another machine with `ssh -L 7000:localhost:7000 user@host`, which puts the
+authentication where it belongs.  natambio refuses to start if the port cannot
+be bound.
+
+Implemented in `remote.hpp` / `remote.cpp`.
+
+---
+
 ### `<coeff>` — Convolution Coefficient Set
 
 A coeff is obtained either by loading a channel from an audio file, or by

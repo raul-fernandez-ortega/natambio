@@ -19,6 +19,13 @@ at `0.0` — a placeholder for a measurement, exactly like the DRC filenames
 above.  Levels are trimmed here; the `<gain>` of a `<convol>` remains the way to
 trim one path inside a port.
 
+Those same gains can be moved while natambio runs, which is how the measurement
+is actually made: add a `<remote>` tag naming a TCP port and send it
+`up`/`down` commands relative to the gain each port has at that moment.
+[`full_dipoles_sub.xml`](full_dipoles_sub.xml) shows it — the config with the
+most ways to balance against each other is the one that least wants a restart
+per decibel.  See the `<remote>` section of [`../README.CONFIG`](../README.CONFIG).
+
 ## NatAmbio as a flexible DSP engine and software patch panel
 
 The way NatAmbio is written makes it much more than a fixed processing chain.

@@ -44,6 +44,7 @@ NaConf::NaConf(void)
   jackclient->name = "natambio";
   n_convprocs = 0;
   jack_sample_rate = 0;
+  remote_port = 0;
 }
 
 NaConf::~NaConf(void)
@@ -883,6 +884,38 @@ bool NaConf::parse_jackoutput(xmlNodePtr xmlnode)
   return true;
 }
 
+/* Parse <remote>, whose whole content is the TCP port the gain manager listens
+ * on: <remote>7000</remote>. No tag, no socket -- see Remote (remote.cpp) for
+ * what is served on it and why it is bound to loopback. */
+bool NaConf::parse_remote(xmlNodePtr xmlnode)
+{
+  xmlChar *cnt = xmlNodeGetContent(xmlnode);
+  string text = (cnt == NULL) ? "" : (char*)cnt;
+  xmlFree(cnt);
+
+  // The content of an element carries the layout of the file with it: a tag
+  // written on its own lines arrives wrapped in whitespace.
+  size_t b = text.find_first_not_of(" \t\r\n");
+  size_t e = text.find_last_not_of(" \t\r\n");
+  text = (b == string::npos) ? "" : text.substr(b, e - b + 1);
+
+  if(text.empty()) {
+    parse_error("Error: <remote> is empty; it must name the TCP port to listen on.");
+    return false;
+  }
+  char *end = NULL;
+  long p = strtol(text.c_str(), &end, 10);
+  if(end == text.c_str() || *end != '\0' || p < 1 || p > 65535) {
+    parse_error(("Error: <remote> port '" + text + "' is not a TCP port number (1-65535).").c_str());
+    return false;
+  }
+  this->remote_port = (int) p;
+
+  if(!quiet)
+    std::cout << "Remote control port: " << this->remote_port << " (loopback)" << std::endl;
+  return true;
+}
+
 bool NaConf::sndfile_read(struct coeff *coeff)
 {
   SNDFILE* infile;
@@ -1536,6 +1569,14 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
       }
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"jack_output")) {
       if(!(parse_jackoutput(xmlnode->children))) {
+        xmlCleanupParser();
+        xmlFreeDoc(xmlconf);
+        return false;
+      }
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"remote")) {
+      // The port number is the element's own content, so this one is passed
+      // the node itself rather than its children.
+      if(!(parse_remote(xmlnode))) {
         xmlCleanupParser();
         xmlFreeDoc(xmlconf);
         return false;
