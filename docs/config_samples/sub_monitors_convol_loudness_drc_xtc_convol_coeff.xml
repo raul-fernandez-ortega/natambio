@@ -15,7 +15,8 @@
       The loudness filter contributes its low-frequency boost to the sub path;
       the HP component of the curve is irrelevant below 120 Hz but harmless
       (it is buried under the LP rolloff).  Omit loudness from the sub coeffs
-      if you prefer to drive bass level by ear via the <gain> tag alone.
+      if you prefer to drive bass level by ear via the <gain> of the output_sub
+      port alone.
         loudness × DRC left  × LP  →  input_left  → output_sub  (-3 dB)
         loudness × DRC right × LP  →  input_right → output_sub  (-3 dB)
     -->
@@ -139,6 +140,11 @@
       <port>
         <name>output_sub</name>
         <destname>system:playback_3</destname>
+        <!-- Subwoofer level against the monitors, dB. The -3 dB on the two LP
+             convols below is the stereo sum, not a level match: this is the
+             one trim to touch when the sub is loud or shy, and it applies to
+             both branches at once without rebuilding any coeff. -->
+        <gain>0.0</gain>
       </port>
     </jack_output>
 

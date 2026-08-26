@@ -36,6 +36,14 @@ extern "C" {
 struct jack_port {
   jack_port_t* port;
   string port_name;
+  /* The port's <gain>, already linear (FROM_DB of the dB in the XML): the RT
+     callback multiplies by it, so the conversion is done once, at registration. */
+  float gain;
+  /* Inputs only, and only when gain != 1: JACK's input buffer is shared with
+     every other client reading the same port and must not be scaled in place,
+     so the scaled copy goes here. Sized at registration; the callback only
+     writes into it. */
+  vector<float> gain_buf;
   vector<ConvChannel*> channels;
   vector<struct nae_channel*> nae_channels;
 };
@@ -75,8 +83,8 @@ public:
   ioJack(string clientName, bool n_quiet);
   
   bool global_init(void);
-  bool addInputPort(string port_name);
-  bool addOutputPort(string port_name);
+  bool addInputPort(string port_name, double gain_db = 0.0);
+  bool addOutputPort(string port_name, double gain_db = 0.0);
   bool ConnectInputPort(string port_name, string dest_name);
   bool ConnectOutputPort(string port_name, string dest_name);
   void addConvChannel(ConvChannel* conv_channel);

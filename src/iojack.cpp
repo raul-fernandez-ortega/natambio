@@ -133,7 +133,19 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     std::cout << "ioJack callback: processing input for: " << (*jack_p)->port_name << std::endl;
 #endif
     inpbuf = (float *)jack_port_get_buffer((*jack_p)->port, fragment_size);
-    
+
+    /* Apply the port's <gain>. JACK's input buffer is shared with every other
+       client reading the same source port, so it is never scaled in place: the
+       scaled samples go to the port's own buffer and everything downstream
+       reads that instead. At unity there is no copy at all. */
+    if((*jack_p)->gain != 1.0f) {
+      float *scaled = (*jack_p)->gain_buf.data();
+      float g = (*jack_p)->gain;
+      for(int i = 0; i < fragment_size; i++)
+        scaled[i] = inpbuf[i] * g;
+      inpbuf = scaled;
+    }
+
     // Check for convChannels input connected to this jackaudio input
     for(vector<ConvChannel*>::iterator channel_p = (*jack_p)->channels.begin() ; channel_p != (*jack_p)->channels.end(); channel_p++) {
 #ifdef RTDEBUG
@@ -186,7 +198,6 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     if(g1 < ramp_target)
       g1 = ramp_target;
   }
-  float gstep = (g1 - g0) / (float)fragment_size;
 
   // Processing jackaudio outputs
   for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++) {
@@ -210,13 +221,7 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif	
         (*pn_ch)->n_nae->fillOutputBuffer((*pn_ch)->n_side, outbuf);
     }
-    if(g0 != 1.0f || g1 != 1.0f) {
-      float g = g0;
-      for(int i = 0; i < fragment_size; i++, g += gstep)
-        outbuf[i] *= g;
-    }
   }
-  ramp_gain = g1;
 
   // Processing convChannels (convolver  process) output 
   for (vector<ConvChannel*>::iterator channel_p = conv_channels.begin() ; channel_p != conv_channels.end(); channel_p++) {
@@ -225,6 +230,28 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif	
       (*channel_p)->processOutput(fragment_size);
     }
+
+  /* Scale the outputs only here, with everything that feeds them already summed
+     in. The loop above cannot do it: ConvChannel::fillOutputBuffer() does not
+     write anything, it just hands the channel the port buffer, and the samples
+     land in processOutput(), which has only now run. Scaling any earlier leaves
+     every convolution output unscaled -- neither faded nor trimmed -- while the
+     NAE outputs, which fillOutputBuffer() does sum in place, get scaled.
+     Each port's <gain> is folded into the period's ramp so the buffer is walked
+     once. The ramp itself is left alone: ramp_gain must keep tracking the fade,
+     not the fade times a port gain. */
+  for (vector<jack_port*>::iterator jack_p = jack_outputs.begin() ; jack_p != jack_outputs.end(); jack_p++) {
+    float pg0 = g0 * (*jack_p)->gain;
+    float pg1 = g1 * (*jack_p)->gain;
+    if(pg0 == 1.0f && pg1 == 1.0f)
+      continue;
+    outbuf = (float *)jack_port_get_buffer((*jack_p)->port, fragment_size);
+    float pgstep = (pg1 - pg0) / (float)fragment_size;
+    float g = pg0;
+    for(int i = 0; i < fragment_size; i++, g += pgstep)
+      outbuf[i] *= g;
+  }
+  ramp_gain = g1;
 
   // Running NAE processes (threads)
 #ifdef RTDEBUG
@@ -358,7 +385,7 @@ bool ioJack::global_init(void)
   return true;
 }
 
-bool ioJack::addInputPort(string port_name)
+bool ioJack::addInputPort(string port_name, double gain_db)
 {
   jack_port_t *new_jack_input;
   string connect_port_name;
@@ -370,13 +397,20 @@ bool ioJack::addInputPort(string port_name)
   jack_inputs.push_back(new jack_port);
   jack_inputs.back()->port = new_jack_input;
   jack_inputs.back()->port_name = port_name;
+  jack_inputs.back()->gain = (float)FROM_DB(gain_db);
+  /* Only a port that actually scales needs the private copy, and it is
+     allocated here, out of the RT thread. fragment_size is already known:
+     global_init() runs before any port is added. */
+  if(jack_inputs.back()->gain != 1.0f)
+    jack_inputs.back()->gain_buf.resize(fragment_size);
   
   if(!quiet) 
-    std::cout << "ioJack: New jack input port added: " << client_name << ":" << port_name << std::endl;
+    std::cout << "ioJack: New jack input port added: " << client_name << ":" << port_name
+              << " (gain " << gain_db << " dB)" << std::endl;
   return true;
 }
 
-bool ioJack::addOutputPort(string port_name)
+bool ioJack::addOutputPort(string port_name, double gain_db)
 {
   jack_port_t *new_jack_output;
   string connect_port_name;
@@ -388,9 +422,13 @@ bool ioJack::addOutputPort(string port_name)
   jack_outputs.push_back(new jack_port);
   jack_outputs.back()->port = new_jack_output;
   jack_outputs.back()->port_name = port_name;
+  /* Outputs own their buffer, so the gain is folded into the fade ramp the
+     callback already applies in place: no copy needed. */
+  jack_outputs.back()->gain = (float)FROM_DB(gain_db);
 
   if(!quiet) 
-    std::cout << "ioJack: New jack output port added: " << client_name << ":" << port_name << std::endl;
+    std::cout << "ioJack: New jack output port added: " << client_name << ":" << port_name
+              << " (gain " << gain_db << " dB)" << std::endl;
   return true;
 }
 

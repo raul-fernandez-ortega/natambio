@@ -7,6 +7,18 @@ Invented DRC filter filenames (`~/filters/drc_monitor_left.wav`, etc.) are
 placeholders — substitute your own room measurements.  Files under
 `~/current_filters/` follow the same convention used in these samples.
 
+Every `<port>` of `<jack_input>` and `<jack_output>` takes an optional `<gain>`
+in dB (positive amplifies, negative attenuates, absent means 0).  An input gain
+scales what arrives before anything downstream sees it; an output gain scales
+everything summed into the port on the way out — so a single number covers a
+whole path, however many convols feed it.  The samples show it wherever a real
+system needs a trim: the subwoofer level in the 2.1 configs, surround vs. front
+in the full systems, channel balance in the asymmetric XTC one, and the
+path-to-path level match in the A/B and multi-path configs.  They are all left
+at `0.0` — a placeholder for a measurement, exactly like the DRC filenames
+above.  Levels are trimmed here; the `<gain>` of a `<convol>` remains the way to
+trim one path inside a port.
+
 ## NatAmbio as a flexible DSP engine and software patch panel
 
 The way NatAmbio is written makes it much more than a fixed processing chain.
@@ -75,7 +87,7 @@ decomposition.
 | [`convol_drc.xml`](convol_drc.xml) | Stereo DRC only.  One FIR filter per channel loaded from a WAV file, wired straight through. |
 | [`convol_drc_xtc.xml`](convol_drc_xtc.xml) | DRC + XTC.  Each XTC path (direct and cross) is pre-convolved with the DRC of the destination speaker via `<convol_coeff>`, giving four convols total. |
 | [`convol_drc_xtc_wav.xml`](convol_drc_xtc_wav.xml) | DRC + XTC from WAV files.  Functionally identical to the above but the XTC filters are loaded from `~/filters/xtc_direct.wav` and `~/filters/xtc_cross.wav` instead of being synthesised by an `<xtc>` block.  Use this when the filters were produced by an external tool and must be applied verbatim. |
-| [`convol_drc_xtc_asym.xml`](convol_drc_xtc_asym.xml) | DRC + **asymmetric** XTC, for a room where the two speakers sit at different azimuths.  Same four convols as `convol_drc_xtc.xml`, but the `<xtc_asym>` block gives the geometry once per speaker and yields three coeffs (a shared direct plus one cross per speaker).  Also documents how to set the channel balance with the `<convol>` gains, which `<xtc_asym>` deliberately leaves out. |
+| [`convol_drc_xtc_asym.xml`](convol_drc_xtc_asym.xml) | DRC + **asymmetric** XTC, for a room where the two speakers sit at different azimuths.  Same four convols as `convol_drc_xtc.xml`, but the `<xtc_asym>` block gives the geometry once per speaker and yields three coeffs (a shared direct plus one cross per speaker).  Also documents how to set the channel balance with the `<gain>` of the output ports, which `<xtc_asym>` deliberately leaves out. |
 
 ---
 
@@ -187,7 +199,7 @@ A/B tests via `jack_snapshot` preset switching.
 
 | File | Description |
 |------|-------------|
-| [`nae_xtc_drc_vs_bypass.xml`](nae_xtc_drc_vs_bypass.xml) | **Path A** (`output_L/R`): NAE alpha + XTC + DRC + loudness equal-loudness compensation.  **Path B** (`bypass_L/R`): direct pass-through using the `delta` coeff (no convolution).  All four output ports are left unconnected for jack_snapshot to wire.  The loudness filter and NAE ambience gain together add significant level to path A — expect the bypass to need a positive gain trim before the paths are matched.  Once matched, a random-interval shell script calling `jack_snapshot` can run a blind comparison. |
+| [`nae_xtc_drc_vs_bypass.xml`](nae_xtc_drc_vs_bypass.xml) | **Path A** (`output_L/R`): NAE alpha + XTC + DRC + loudness equal-loudness compensation.  **Path B** (`bypass_L/R`): direct pass-through using the `delta` coeff (no convolution).  All four output ports are left unconnected for jack_snapshot to wire.  The loudness filter and NAE ambience gain together add significant level to path A — expect the bypass to need a positive gain trim before the paths are matched, set with the `<gain>` of its two output ports.  Once matched, a random-interval shell script calling `jack_snapshot` can run a blind comparison. |
 
 ---
 

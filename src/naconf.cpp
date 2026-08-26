@@ -929,12 +929,15 @@ bool NaConf::parse_jackinput(xmlNodePtr xmlnode)
       xmlchild = xmlnode->children;
       newjackport->name.clear();
       newjackport->destname.clear();
+      newjackport->gain = 0.0;   // optional; default 0 dB (unity)
       while(xmlchild != NULL) {
         xmlChar *cnt2 = xmlNodeGetContent(xmlchild);
         if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
           newjackport->name = (char*)cnt2;
         } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
           newjackport->destname = (char*)cnt2;
+        } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"gain")) {
+          newjackport->gain = strtod((char*)cnt2, NULL);
         }
         xmlFree(cnt2);
         xmlchild = xmlchild->next;
@@ -963,6 +966,7 @@ bool NaConf::parse_jackinput(xmlNodePtr xmlnode)
       std::cout << "\t\tInput no." << i << std::endl;
       std::cout << "\t\t\tInput name:" << (*it)->name << std::endl;
       std::cout << "\t\t\tInput destination:" << (*it)->destname << std::endl;
+      std::cout << "\t\t\tInput gain:" << (*it)->gain << " dB" << std::endl;
       i++;
     }
   }
@@ -982,12 +986,15 @@ bool NaConf::parse_jackoutput(xmlNodePtr xmlnode)
       xmlchild = xmlnode->children;
       newjackport->name.clear();
       newjackport->destname.clear();
+      newjackport->gain = 0.0;   // optional; default 0 dB (unity)
       while(xmlchild != NULL) {
         xmlChar *cnt = xmlNodeGetContent(xmlchild);
         if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"name")) {
           newjackport->name = (char*)cnt;
         } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"destname")) {
           newjackport->destname = (char*)cnt;
+        } else if (!xmlStrcmp(xmlchild->name, (const xmlChar *)"gain")) {
+          newjackport->gain = strtod((char*)cnt, NULL);
         }
         xmlFree(cnt);
         xmlchild = xmlchild->next;
@@ -1010,6 +1017,7 @@ bool NaConf::parse_jackoutput(xmlNodePtr xmlnode)
       std::cout << "\t\tOutput no." << i << std::endl;
       std::cout << "\t\t\tOutput name:" << (*it)->name << std::endl;
       std::cout << "\t\t\tOutput destination:" << (*it)->destname << std::endl;
+      std::cout << "\t\t\tOutput gain:" << (*it)->gain << " dB" << std::endl;
       i++;
     }
   }

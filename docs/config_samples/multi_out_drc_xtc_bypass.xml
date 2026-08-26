@@ -18,8 +18,11 @@
 
       LEVEL MATCHING
       Path A and Path B will differ in level because XTC reshapes the spectrum.
-      Adjust the <gain> tags (dB) below so all three paths sound equally loud
-      before switching between them.
+      Trim the <gain> (dB) of each output port below so all three paths sound
+      equally loud before switching between them: the port gain scales
+      everything summed into the port, so it matches a whole path with one
+      number per side — on path B that is both the direct and the cross
+      convol. The convol <gain> tags remain for trimming inside a path.
     -->
 
     <!-- XTC: basic parameters for typical front listening position -->
@@ -86,24 +89,32 @@
     </jack_input>
 
     <jack_output>
-      <!-- All ports left unconnected: wire them manually or via jack_snapshot -->
+      <!-- All ports left unconnected: wire them manually or via jack_snapshot.
+           One <gain> per port is the per-path level match; all at 0 dB until
+           measured. -->
       <port>
         <name>output_A_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_A_R</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_B_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_B_R</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_C_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_C_R</name>
+        <gain>0.0</gain>
       </port>
     </jack_output>
 

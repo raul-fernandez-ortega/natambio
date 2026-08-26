@@ -18,10 +18,14 @@
 
       BALANCE. <xtc_asym> deliberately has no balance parameter. If the two
       channels do not arrive at the same level at the listening position, trim
-      them with the <gain> of the TWO <convol> blocks feeding the affected
-      output (both the direct and the cross one, as they share a to_output).
-      Always ATTENUATE the channel that arrives louder, with a negative gain,
-      and leave the other at 0 dB; a positive gain only spends headroom.
+      them with the <gain> of the affected <jack_output> <port>: it scales
+      everything summed into that port, so one number covers both convols
+      feeding it (the direct and the cross one share a to_output). Trimming the
+      TWO <convol> blocks instead works just as well and is what earlier
+      versions had to do; the port gain is simply one place to get it wrong
+      instead of two. Always ATTENUATE the channel that arrives louder, with a
+      negative gain, and leave the other at 0 dB; a positive gain only spends
+      headroom.
 
       To set it: play a mono signal through both channels and attenuate until
       the image sits centred. Getting within about 1 dB is enough; a residual
@@ -107,10 +111,14 @@
       <port>
         <name>output_left</name>
         <destname>system:playback_1</destname>
+        <!-- Channel balance, dB. Attenuate here the side that arrives louder;
+             see the BALANCE note above. Both are at 0 dB until measured. -->
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_right</name>
         <destname>system:playback_2</destname>
+        <gain>0.0</gain>
       </port>
     </jack_output>
 

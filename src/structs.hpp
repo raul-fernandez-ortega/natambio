@@ -149,6 +149,7 @@ struct convol {
 struct jackport {
   string name;
   string destname;
+  double gain;          // port gain, dB (+ amplifies, - attenuates)
 };
 
 struct jackclient {

@@ -10,16 +10,21 @@
         bypass_L / bypass_R   —  direct pass-through (delta convol, no processing)
 
       LEVEL MATCHING
-      Before saving the jack_snapshot presets, adjust the <gain> tags (dB) in
-      the convol blocks below so that both paths sound equally loud.
+      Before saving the jack_snapshot presets, trim the <gain> (dB) of the four
+      output ports below so that both paths sound equally loud. A port gain
+      scales everything summed into that port, so one number per port covers
+      the whole path — which is what a level match wants, since the point is
+      to compare processing, not levels. The <gain> tags of the convol blocks
+      are still there and still work; use those when a single path inside a
+      port needs the trim rather than the port as a whole.
 
       With the loudness filter active, the processed path will almost certainly
       be louder than the bypass — the loudness curve adds several dB of
       broadband gain (especially in the lows) to compensate for reduced
       sensitivity at low listening levels. On top of that, NAE alpha mode can
       push the ambience component up by several more dB. Expect the bypass path
-      to need a noticeable positive gain trim, or reduce the processed convol
-      gains, before the two paths are level-matched.
+      to need a noticeable positive gain trim, or the processed path a negative
+      one, before the two are level-matched.
 
       Adjust by ear with a well-known track before the switching session.
       Once levels are matched, the comparison can be run blind with a small
@@ -113,18 +118,25 @@
     </jack_input>
 
     <jack_output>
-      <!-- All four ports left unconnected: wire them in jack_snapshot presets -->
+      <!-- All four ports left unconnected: wire them in jack_snapshot presets.
+           The four <gain> tags are the level match: measure, then set them
+           here. Both paths start at 0 dB, which is NOT matched — see the
+           LEVEL MATCHING note above. -->
       <port>
         <name>output_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>output_R</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>bypass_L</name>
+        <gain>0.0</gain>
       </port>
       <port>
         <name>bypass_R</name>
+        <gain>0.0</gain>
       </port>
     </jack_output>
 
@@ -142,7 +154,7 @@
 
     <!-- ================================================================== -->
     <!-- PATH A: NAE + XTC + DRC                                             -->
-    <!-- Adjust <gain> here to match the loudness of the bypass path.        -->
+    <!-- Level match against path B at the output_L/output_R ports, not here. -->
     <!-- ================================================================== -->
 
     <!-- Left monitor: direct path + cross-cancellation from right NAE output -->
@@ -181,7 +193,7 @@
 
     <!-- ================================================================== -->
     <!-- PATH B: bypass (delta — no convolution, delay or gain only)         -->
-    <!-- Adjust <gain> here to match the loudness of the processed path.     -->
+    <!-- Level match against path A at the bypass_L/bypass_R ports, not here. -->
     <!-- ================================================================== -->
 
     <convol>
