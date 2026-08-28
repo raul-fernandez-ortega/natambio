@@ -27,6 +27,7 @@ extern "C" {
 #include <string>
 #include <stdexcept>
 #include <iomanip>
+#include <sstream>
 #include <iostream>
 
 using namespace std;

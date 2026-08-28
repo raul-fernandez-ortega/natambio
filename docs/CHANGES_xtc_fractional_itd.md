@@ -2,7 +2,7 @@
 
 Rama `pan_scale` (2026-08-28). Ficheros tocados: `lib/dsp.c`, `lib/dsp.h`,
 `lib/xtc.c`, `lib/xtc.h`, `lib/xtc_asym.c`, `lib/xtc_asym.h`,
-`lib/test_xtc_asym.c`, `src/naconf.cpp`, `src/structs.hpp`,
+`lib/test_xtc_asym.c`, `src/naconf.cpp`, `src/naconf.hpp`, `src/structs.hpp`,
 `tools/xtc_filters/{main.c,main_asym.c,xtc_conf.c,xtc_conf.h,*.toml,README*.md}`,
 `tools/python_xtc_filters/{xtc_filters.py,xtc_filters_asym.py,xtc_conf.py,compare_frac_delay.py,Makefile.am,requirements.txt,README*.md}`,
 `src/README.md`, `docs/README.CONFIG`.
@@ -155,6 +155,27 @@ que mantiene esos tres bloques intercambiables.
 silencioso que este fichero evita en todo lo demás. Acepta `1/0`, `true/false`,
 `yes/no`, `on/off`; cualquier otra cosa es error de parseo.
 
+### Informe de arranque
+
+El volcado de configuración de `naconf.cpp` muestra ahora en qué se convierte
+cada ITD en muestras, que es justo lo que el parámetro cambia:
+
+    	ITD: 180 us (8.640 samples at 48000 Hz, rounded to 9)
+    	Fractional ITD: no
+
+    	ITD: 180 us (8.640 samples at 48000 Hz, used exactly)
+    	Fractional ITD: yes, model delay 64 samples
+
+En `<xtc_asym>` se añade además la línea del periodo de ida y vuelta, que es
+donde se componen los dos redondeos:
+
+    	Round-trip period: 15.360 samples, rounded to 16   (9 + 7, no 15)
+
+Y `<model_delay>` puesto sin `<frac_delay>` deja de ignorarse en silencio: sale
+un aviso por stderr, fuera del bloque `!quiet`, porque `-quiet` silencia el
+volcado de configuración, no un aviso de que parte de la configuración no hace
+nada.
+
 Los nombres de salida ganan `_frac` (simétrico sin prefijo) o el prefijo
 asimétrico por defecto pasa a `XTC_asym_frac`, para que los dos diseños no puedan
 pisarse.
@@ -174,6 +195,7 @@ Todo esto está en `make check` (`lib/test_xtc_asym.c`) salvo donde se indique.
 | Frac vs entero a 180 µs (8,64 muestras): **debe** diferir | 0,35 relativo |
 | C vs Python en el camino fraccionario | ~1e-6, el mismo ruido FFTW-vs-numpy que ya tenía el camino entero |
 | Curva de ITD entero vs la forma cerrada `a·2sin(πf·dt)`, 2–16 kHz | desviación máxima **0,35 dB** |
+| Ruta XML del motor: `<xtc>` y `<xtc_asym>`, con y sin `<frac_delay>`, booleano inválido, `<model_delay>` huérfano | ejercitada llamando a `NaConf::conf_init()` directamente, sin servidor JACK |
 
 La última es la que valida la teoría, y está en
 `tools/python_xtc_filters/compare_frac_delay.py`, que mide los dos diseños contra
