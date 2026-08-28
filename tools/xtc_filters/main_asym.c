@@ -27,7 +27,10 @@
  * Parameters come from a TOML file. There is no flag interface here: eight
  * numbers on a command line, half of them differing from the other half by a
  * single letter, is exactly the shape of mistake that produces a plausible
- * filter for the wrong geometry.
+ * filter for the wrong geometry. The fractional-ITD switch follows the same
+ * rule and is a TOML key (frac_delay / model_delay), not a flag -- which the
+ * asymmetric design needs more than the symmetric one, since it rounds the two
+ * ITDs independently and the round-trip period inherits both errors.
  */
 
 #include <stdio.h>
@@ -36,6 +39,7 @@
 
 #include "wav_out.h"
 #include "xtc_conf.h"
+#include "xtc.h"        /* XTC_DEFAULT_MODEL_DELAY */
 #include "xtc_asym.h"
 
 static void usage(const char *prog) {
@@ -44,7 +48,9 @@ static void usage(const char *prog) {
         "\n"
         "Generates the three asymmetric XTC filters (one direct, shared by both\n"
         "channels, and one cross filter per channel) from a TOML description of\n"
-        "the two sides. See xtc_asym_*.toml for annotated examples.\n"
+        "the two sides. See xtc_asym_*.toml for annotated examples, including the\n"
+        "top-level frac_delay / model_delay keys that switch the recursion to the\n"
+        "exact, unrounded ITDs.\n"
         "\n"
         "The balance between channels is not baked into these coefficients; it is\n"
         "applied as a routing gain. See the balance section of\n"
@@ -61,7 +67,8 @@ static void usage(const char *prog) {
 static int save_asym_wavs(const xtc_conf_asym *cfg, const double *direct,
                           const double *cross_l, const double *cross_r) {
     char path[XTC_CONF_PATHMAX * 2];
-    const char *prefix = (cfg->prefix[0] != '\0') ? cfg->prefix : "XTC_asym";
+    const char *prefix = (cfg->prefix[0] != '\0') ? cfg->prefix
+                       : (cfg->frac_delay ? "XTC_asym_frac" : "XTC_asym");
 
     if (make_wav_path(path, sizeof(path), cfg->directory, prefix, "_direct.wav") != 0)
         return -1;
@@ -82,6 +89,8 @@ int main(int argc, char **argv) {
     xtc_conf_asym cfg = {
         .sample_rate = 48000,
         .filter_len  = 4096,
+        .frac_delay  = 0,
+        .model_delay = XTC_DEFAULT_MODEL_DELAY,
         .directory   = "filters",
         .prefix      = "",
     };
@@ -143,6 +152,7 @@ int main(int argc, char **argv) {
     }
 
     int rc = process_asym(&left, &right, cfg.sample_rate, cfg.filter_len,
+                          cfg.frac_delay, cfg.model_delay,
                           direct, cross_l, cross_r);
     if (rc == 0) {
         rc = save_asym_wavs(&cfg, direct, cross_l, cross_r);

@@ -43,10 +43,10 @@
 
 #define LOG_EPS 1e-12
 
-/* Bound on any transform length handled here. Keeps len_a + len_b - 1 and its
- * next-power-of-2 padding inside int range, so next_pow2() cannot spin past
- * INT_MAX and the shift below stays defined. */
-#define DSP_MAX_LEN (1 << 26)
+/* DSP_MAX_LEN is defined in dsp.h: it bounds any transform length handled here,
+ * keeping len_a + len_b - 1 and its next-power-of-2 padding inside int range so
+ * next_pow2() cannot spin past INT_MAX and the shift below stays defined. It is
+ * public because callers that size their own transform need the same bound. */
 
 /* Oversampling factor for the cepstral transform in minimum_phase(); see the
  * comment on that function. Measured on the XTC ILD filter (4096 taps, 48 kHz):
@@ -339,5 +339,143 @@ int fft_convolve_truncate(const double *a, int len_a,
     fftw_free(Af);
     fftw_free(Bf);
     fftw_free(result);
+    return 0;
+}
+
+int dsp_next_pow2(int n) {
+    return next_pow2(n);
+}
+
+/* Shared preconditions of the two half-spectrum transforms. nfft must be even
+ * because the r2c/c2r pair is only its own inverse on an even frame, and the
+ * Nyquist bin the callers manipulate only exists there. */
+static int rfft_len_ok(int nfft) {
+    return nfft >= 2 && nfft <= DSP_MAX_LEN && (nfft % 2) == 0;
+}
+
+int dsp_rfft(const double *in, int n_in, int nfft, double *re, double *im) {
+    if (!in || !re || !im)     return -1;
+    if (n_in < 1 || n_in > nfft) return -1;
+    if (!rfft_len_ok(nfft))    return -1;
+
+    const int half = nfft / 2 + 1;
+
+    double       *buf  = fftw_alloc_real((size_t)nfft);
+    fftw_complex *spec = fftw_alloc_complex((size_t)half);
+    if (!buf || !spec) {
+        if (buf)  fftw_free(buf);
+        if (spec) fftw_free(spec);
+        return -2;
+    }
+
+    memset(buf, 0, (size_t)nfft * sizeof(double));
+    memcpy(buf, in, (size_t)n_in * sizeof(double));
+
+    fftw_plan p = fftw_plan_dft_r2c_1d(nfft, buf, spec, FFTW_ESTIMATE);
+    if (!p) {
+        fftw_free(buf);
+        fftw_free(spec);
+        return -3;
+    }
+    fftw_execute(p);
+
+    for (int k = 0; k < half; k++) {
+        re[k] = spec[k][0];
+        im[k] = spec[k][1];
+    }
+    /* DC and Nyquist of a real signal are real. FFTW already returns zero there;
+     * setting it explicitly keeps that an invariant the callers can rely on
+     * rather than a property of the library. */
+    im[0]        = 0.0;
+    im[half - 1] = 0.0;
+
+    fftw_destroy_plan(p);
+    fftw_free(buf);
+    fftw_free(spec);
+    return 0;
+}
+
+int dsp_irfft(const double *re, const double *im, int nfft,
+              double *out, int out_len) {
+    if (!re || !im || !out)  return -1;
+    if (out_len < 1)         return -1;
+    if (!rfft_len_ok(nfft))  return -1;
+
+    const int half = nfft / 2 + 1;
+
+    fftw_complex *spec = fftw_alloc_complex((size_t)half);
+    double       *buf  = fftw_alloc_real((size_t)nfft);
+    if (!spec || !buf) {
+        if (spec) fftw_free(spec);
+        if (buf)  fftw_free(buf);
+        return -2;
+    }
+
+    /* The 1/nfft of the inverse transform is folded in here, as
+     * fft_convolve_truncate does, so FFTW's unnormalised c2r comes out scaled. */
+    const double inv = 1.0 / (double)nfft;
+    for (int k = 0; k < half; k++) {
+        spec[k][0] = re[k] * inv;
+        spec[k][1] = im[k] * inv;
+    }
+    /* A real output requires a real DC and Nyquist. Forcing them costs nothing
+     * and stops a caller's rounding dust at those two bins from being taken
+     * for signal. */
+    spec[0][1]        = 0.0;
+    spec[half - 1][1] = 0.0;
+
+    fftw_plan p = fftw_plan_dft_c2r_1d(nfft, spec, buf, FFTW_ESTIMATE);
+    if (!p) {
+        fftw_free(spec);
+        fftw_free(buf);
+        return -3;
+    }
+    fftw_execute(p);
+
+    int copy_len = (out_len < nfft) ? out_len : nfft;
+    memcpy(out, buf, (size_t)copy_len * sizeof(double));
+    for (int k = copy_len; k < out_len; k++) out[k] = 0.0;
+
+    fftw_destroy_plan(p);
+    fftw_free(spec);
+    fftw_free(buf);
+    return 0;
+}
+
+int dsp_spectrum_add_delayed(double *re, double *im, int nfft,
+                             double gain, double delay) {
+    if (!re || !im)          return -1;
+    if (!rfft_len_ok(nfft))  return -1;
+    if (!isfinite(gain) || !isfinite(delay)) return -1;
+
+    const int    half = nfft / 2 + 1;
+    const double n    = (double)nfft;
+
+    for (int k = 0; k < half; k++) {
+        /* The phase is reduced modulo nfft before scaling rather than after.
+         * k*delay reaches ~1e8 for the frames used here, and handing that
+         * straight to cos() would spend a third of the mantissa on argument
+         * reduction; fmod on an exactly-representable product costs nothing and
+         * keeps the angle inside one turn. */
+        const double ang = -2.0 * M_PI * fmod((double)k * delay, n) / n;
+        re[k] += gain * cos(ang);
+        im[k] += gain * sin(ang);
+    }
+    im[0]        = 0.0;   /* DC and Nyquist of a real signal are real; see the */
+    im[half - 1] = 0.0;   /* header. A fractional shift breaks the latter.     */
+    return 0;
+}
+
+int dsp_spectrum_mul(double *re, double *im,
+                     const double *mre, const double *mim, int nfft) {
+    if (!re || !im || !mre || !mim) return -1;
+    if (!rfft_len_ok(nfft))         return -1;
+
+    const int half = nfft / 2 + 1;
+    for (int k = 0; k < half; k++) {
+        const double x = re[k], y = im[k];
+        re[k] = x * mre[k] - y * mim[k];
+        im[k] = x * mim[k] + y * mre[k];
+    }
     return 0;
 }

@@ -199,6 +199,23 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
   return coeff;
 }
 
+/* <frac_delay> is the only boolean in the configuration schema, so it gets a
+ * parser of its own rather than a bare strtol: writing <frac_delay>true</...>
+ * and having it read back as 0 is exactly the silent misreading this file goes
+ * out of its way to prevent everywhere else. Returns 1, 0, or -1 for anything
+ * unrecognised, which the caller turns into a parse error. */
+static int parse_bool_tag(const char *text)
+{
+  string v(text ? text : "");
+  size_t b = v.find_first_not_of(" \t\r\n");
+  if (b == string::npos) return -1;
+  size_t e = v.find_last_not_of(" \t\r\n");
+  v = v.substr(b, e - b + 1);
+  if (v == "1" || v == "true"  || v == "yes" || v == "on")  return 1;
+  if (v == "0" || v == "false" || v == "no"  || v == "off") return 0;
+  return -1;
+}
+
 /* Parse a <xtc> block into a struct xtc. The two resulting filters are not
  * computed here; build_xtc_coeffs() runs process() (xtc.c) afterwards and
  * appends the direct/cross coeffs to coefslist. */
@@ -215,6 +232,8 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   xtc->ild_alpha   = 0.0;
   xtc->azimuth_deg = 0;
   xtc->filter_len  = 0;
+  xtc->frac_delay  = false;
+  xtc->model_delay = XTC_DEFAULT_MODEL_DELAY;
   memset(&xtc->left,  0, sizeof(xtc->left));
   memset(&xtc->right, 0, sizeof(xtc->right));
 
@@ -222,6 +241,9 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   // value that happens to equal the zero default is not mistaken for "absent".
   bool has_itd = false, has_ild = false, has_alpha = false,
        has_azimuth = false, has_length = false;
+  // <frac_delay> and <model_delay> are the only optional tags of the block, so
+  // a bad value has to be reported rather than defaulted.
+  bool design_ok = true;
 
   while (xmlnode != NULL) {
     xmlChar *cnt = xmlNodeGetContent(xmlnode);
@@ -235,6 +257,13 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
       xtc->azimuth_deg = (int) strtol((char*)cnt, NULL, 10); has_azimuth = true;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
       xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay")) {
+      // Optional, unlike every other <xtc> tag: absent means the historical
+      // behaviour, so existing configurations keep producing the same filters.
+      int v = parse_bool_tag((char*)cnt);
+      if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
+      xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
       xtc->direct_name = (char*)cnt;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_filter_name")) {
@@ -265,6 +294,16 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     delete xtc;
     return NULL;
   }
+  if (!design_ok) {
+    parse_error("Error: xtc <frac_delay> must be true or false (1 or 0).");
+    delete xtc;
+    return NULL;
+  }
+  if (xtc->model_delay < 0 || xtc->model_delay >= xtc->filter_len) {
+    parse_error("Error: xtc <model_delay> must be >= 0 and < <length>.");
+    delete xtc;
+    return NULL;
+  }
 
   if(!quiet) {
     std::cout << std::fixed << std::setprecision(3);
@@ -276,6 +315,9 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     std::cout << "\tILD alpha: " << xtc->ild_alpha << std::endl;
     std::cout << "\tAzimuth: " << xtc->azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
+    std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
+    if (xtc->frac_delay) std::cout << " (model delay " << xtc->model_delay << " samples)";
+    std::cout << std::endl;
   }
 
   return xtc;
@@ -351,11 +393,13 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
   xtc->ild_alpha   = 0.0;
   xtc->azimuth_deg = 0;
   xtc->filter_len  = 0;
+  xtc->frac_delay  = false;
+  xtc->model_delay = XTC_DEFAULT_MODEL_DELAY;
   memset(&xtc->left,  0, sizeof(xtc->left));
   memset(&xtc->right, 0, sizeof(xtc->right));
 
   bool has_left = false, has_right = false, has_length = false;
-  bool sides_ok = true;
+  bool sides_ok = true, design_ok = true;
 
   while (xmlnode != NULL) {
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"left")) {
@@ -368,6 +412,14 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
       xmlChar *cnt = xmlNodeGetContent(xmlnode);
       if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
 	xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay")) {
+	// Optional in both blocks; matters more here, since the integer path
+	// rounds the two ITDs independently and the round-trip period inherits
+	// both errors.
+	int v = parse_bool_tag((char*)cnt);
+	if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
+	xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
 	xtc->direct_name = (char*)cnt;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_left_filter_name")) {
@@ -405,6 +457,16 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     delete xtc;
     return NULL;
   }
+  if (!design_ok) {
+    parse_error("Error: xtc_asym <frac_delay> must be true or false (1 or 0).");
+    delete xtc;
+    return NULL;
+  }
+  if (xtc->model_delay < 0 || xtc->model_delay >= xtc->filter_len) {
+    parse_error("Error: xtc_asym <model_delay> must be >= 0 and < <length>.");
+    delete xtc;
+    return NULL;
+  }
 
   if(!quiet) {
     std::cout << std::fixed << std::setprecision(3);
@@ -419,6 +481,9 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
 	      << " dB, alpha " << xtc->right.ild_alpha
 	      << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
+    std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
+    if (xtc->frac_delay) std::cout << " (model delay " << xtc->model_delay << " samples)";
+    std::cout << std::endl;
   }
 
   return xtc;
@@ -1059,10 +1124,12 @@ bool NaConf::build_xtc_coeffs(void)
       right.ild_alpha   = r->right.ild_alpha;
       right.azimuth_deg = r->right.azimuth_deg;
       rc = process_asym(&left, &right, jack_sample_rate, r->filter_len,
+			r->frac_delay ? 1 : 0, r->model_delay,
 			buf[0], buf[1], buf[2]);
     } else {
       rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
-		   jack_sample_rate, r->filter_len, buf[0], buf[1]);
+		   jack_sample_rate, r->filter_len,
+		   r->frac_delay ? 1 : 0, r->model_delay, buf[0], buf[1]);
     }
     if (rc != 0) {
       for (size_t i = 0; i < n; i++) free(buf[i]);

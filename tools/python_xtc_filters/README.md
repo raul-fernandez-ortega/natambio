@@ -71,6 +71,8 @@ Installed from the Debian packages, these land in
 ```toml
 sample_rate = 48000
 filter_len  = 4096
+frac_delay  = true    # optional; exact ITD instead of rounded (see below)
+model_delay = 64      # optional; bulk delay the fractional path needs
 
 [xtc]                 # [left] and [right] in the asymmetric script
 itd_us      = 170
@@ -95,7 +97,8 @@ Symmetric — TOML, flags, or both:
 python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml
 python3 xtc_filters.py -t ITD_us -l ILD_dB -a ILD_alpha -z azimuth_deg -r sample_rate -f filter_len
 python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml -l 12   # file, one value changed
-# defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
+# defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096 -M 64
+# -F : fractional ITD (see below);  -M N : its bulk model delay
 # -d : also dump intermediate ILD_<az>_deg.wav and MP_ILD_<az>_deg.wav
 ```
 
@@ -113,6 +116,50 @@ python3 xtc_filters_asym.py -c ../xtc_filters/xtc_asym_geometry.toml
 
 Installed via the autotools build (`make install`), the two are also available
 as the launchers `natambio-xtc-filters-py` and `natambio-xtc-filters-asym-py`.
+
+## Fractional ITD
+
+Off by default. The XTC recursion places its taps at whole samples, so `itd_us`
+is rounded first: at 48 kHz 170 µs is 8.16 samples and becomes 8. That rounding
+is not free. An ITD error `dt` leaves a residual `2·sin(π·f·dt)` relative to the
+cancelling signal, so the design's own crosstalk suppression is capped:
+
+| ITD error | cap at 10 kHz, 48 kHz |
+|---|---|
+| 0.5 sample | −3.8 dB |
+| 0.16 sample (the default 170 µs) | −13.6 dB |
+| 0.024 sample | −30 dB |
+
+Set `frac_delay = true` (or pass `-F` to the symmetric tool) and the same
+recursion runs in the frequency domain, where a tap is a linear-phase factor
+`exp(-j2πfτ)` — the exact band-limited delay operator — and the ITD needs no
+rounding. Nothing else in the pipeline changes: the ILD model, the
+minimum-phase step and the ladder are the same, rung for rung. With an ITD that
+happens to be a whole number of samples the two paths agree to numerical
+precision, which is what `make check` in `../../lib` (the C suite) verifies.
+
+`model_delay` (`-M`, default 64) is the bulk delay the fractional path adds to
+every filter, so that the two-sided impulse response of a fractional shift is
+not clipped at n = 0. It is common to all the filters of a design, and XTC
+depends only on the delays *between* them, so it costs latency and nothing else
+— 1.3 ms at 48 kHz, ~20 dB of margin over the recursion's own floor.
+
+Measured against the modelled plant, the gain over the rounded design is 42 dB
+in the lower midrange rising to 58 dB above 8 kHz; the numbers and the
+measurement script are in
+[`compare_frac_delay.py`](compare_frac_delay.py).
+Those are self-consistency figures — how much of the design's intent survives
+the implementation — not a claim about a real room, where HRTF mismatch and head
+movement dominate. What changes is that the ITD rounding stops being one of the
+limits.
+
+The asymmetric tool has more to gain: it rounds `itd_us` of each side
+independently and the round-trip period `itd_left + itd_right` inherits both
+errors, so a geometry can carry up to a full sample of period error.
+
+Output filenames gain a `_frac` suffix (symmetric with no prefix), or the
+default asymmetric prefix becomes `XTC_asym_frac`, so the two designs cannot
+overwrite each other.
 
 ## Output
 

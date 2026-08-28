@@ -16,6 +16,8 @@ Schema (see tools/xtc_filters/xtc_conf.h for the C counterpart):
 
     sample_rate = 48000        # top level, common to the whole design
     filter_len  = 4096
+    frac_delay  = true         # optional; exact ITD instead of rounded
+    model_delay = 64           # optional; bulk delay for frac_delay
 
     [xtc]                      # or [left] / [right] in the asymmetric tool
     itd_us      = 170
@@ -26,6 +28,10 @@ Schema (see tools/xtc_filters/xtc_conf.h for the C counterpart):
     [output]
     directory = "filters"
     prefix    = "my_room"      # optional
+
+frac_delay and model_delay sit at the top level rather than inside a side block
+because they describe the whole design, not one speaker's path — which is also
+what keeps [xtc], [left] and [right] interchangeable.
 
 The balance b of the asymmetric model is deliberately absent: it is not baked
 into the coefficients but applied downstream as a routing gain. See the balance
@@ -48,7 +54,10 @@ except ModuleNotFoundError:          # pragma: no cover - depends on interpreter
 SIDE_KEYS = ("itd_us", "ild_db", "ild_alpha", "azimuth_deg")
 SIDE_TYPES = {"itd_us": int, "ild_db": float, "ild_alpha": float, "azimuth_deg": int}
 
-TOP_TYPES = {"sample_rate": int, "filter_len": int}
+TOP_TYPES = {"sample_rate": int, "filter_len": int, "model_delay": int}
+# Handled apart from TOP_TYPES because _number() rejects booleans on purpose:
+# in Python True is an int, and `filter_len = true` must not sail through as 1.
+TOP_BOOL_KEYS = ("frac_delay",)
 OUTPUT_KEYS = ("directory", "prefix")
 
 
@@ -80,7 +89,7 @@ def _check_keys(doc, allowed_tables):
             for subkey in value:
                 if subkey not in known:
                     raise ConfError("unknown key '%s.%s'" % (key, subkey))
-        elif key not in TOP_TYPES:
+        elif key not in TOP_TYPES and key not in TOP_BOOL_KEYS:
             raise ConfError("unknown key '%s'" % key)
 
 
@@ -142,6 +151,14 @@ def _load_top(doc, cfg):
     for key, want in TOP_TYPES.items():
         if key in doc:
             cfg[key] = _number(doc[key], want, key)
+    for key in TOP_BOOL_KEYS:
+        if key in doc:
+            if not isinstance(doc[key], bool):
+                raise ConfError("%s must be true or false, got %r" % (key, doc[key]))
+            cfg[key] = doc[key]
+    if cfg.get("model_delay", 0) < 0:
+        raise ConfError("model_delay must not be negative (got %d)"
+                        % cfg["model_delay"])
 
 
 def load_sym(path, cfg):

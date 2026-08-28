@@ -23,6 +23,29 @@ sample_rate = 48000
 # the SUM of both ITDs, not the larger of the two.
 filter_len = 4096
 
+# --- Fractional ITD ----------------------------------------------------------
+# Optional, off by default. The recursion places its taps at whole samples, so
+# each itd_us is rounded first: at 48 kHz 180 us is 8.64 samples and becomes 9,
+# 140 us is 6.72 and becomes 7. The two sides are rounded independently and the
+# round-trip period (itd_left + itd_right) inherits both errors, so a geometry
+# can carry up to a full sample of period error -- more than the symmetric case
+# can. That error leaves a residual 2*sin(pi*f*dt) relative to the cancelling
+# signal, which caps crosstalk suppression in the top octaves.
+#
+# frac_delay = true runs the same recursion in the frequency domain, where a tap
+# is a linear-phase factor and neither ITD needs rounding. model_delay is the
+# bulk delay that path adds to all three filters so the two-sided response of a
+# fractional shift is not clipped at n = 0; being common to all three it costs
+# latency and nothing else. 64 taps is 1.3 ms at 48 kHz and leaves ~20 dB of
+# margin.
+#
+# With no output.prefix the default one becomes XTC_asym_frac, so the two
+# designs cannot overwrite each other; an explicit prefix, as below, is used as
+# written and it is on you to keep them apart. See
+# tools/python_xtc_filters/compare_frac_delay.py, which measures both against
+# the modelled plant.
+# frac_delay  = true
+# model_delay = 64
 [left]
 itd_us = 180
 ild_db = 10.0

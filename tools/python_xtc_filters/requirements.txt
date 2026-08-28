@@ -8,3 +8,7 @@ soundfile
 # falta: tomllib forma parte de la biblioteca estandar y los scripts la usan
 # directamente. Esta linea solo cubre interpretes anteriores.
 tomli; python_version < "3.11"
+
+# Solo para la figura de compare_frac_delay.py. El script imprime sus tablas sin
+# ella y avisa por stderr de que se salta el PNG, asi que no es obligatoria.
+# matplotlib

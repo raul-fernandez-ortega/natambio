@@ -18,6 +18,27 @@ sample_rate = 48000
 # comes out incomplete; the tool warns when that happens.
 filter_len = 4096
 
+# --- Fractional ITD ----------------------------------------------------------
+# Optional, off by default. The recursion places its taps at whole samples, so
+# the ITD is rounded first: at 48 kHz an itd_us of 170 is 8.16 samples and gets
+# rounded to 8. That 0.16-sample error is not free -- it leaves a residual
+# 2*sin(pi*f*dt) relative to the cancelling signal, which caps crosstalk
+# suppression at about -27 dB above 8 kHz where the exact ITD reaches the
+# ladder's own floor some 55 dB lower.
+#
+# frac_delay = true runs the same recursion in the frequency domain, where a tap
+# is a linear-phase factor and the ITD needs no rounding. model_delay is the bulk
+# delay that path adds to every filter so the two-sided response of a fractional
+# shift is not clipped at n = 0; it is common to all of them and therefore costs
+# latency and nothing else. 64 taps is 1.3 ms at 48 kHz and leaves ~20 dB of
+# margin.
+#
+# The output filenames gain a _frac suffix so the two designs cannot overwrite
+# each other. See tools/python_xtc_filters/compare_frac_delay.py, which measures
+# both against the modelled plant.
+# frac_delay  = true
+# model_delay = 64
+
 [xtc]
 # Inter-aural time difference, microseconds. Sets the spacing of the ladder.
 itd_us = 170

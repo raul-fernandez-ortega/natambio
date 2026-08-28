@@ -13,6 +13,13 @@
  * rounding of ~17 double-precision FFT convolutions, which lands around 1e-9
  * relative. The tolerance is set well above that and far below any real defect.
  *
+ * The same cross-check is run a second time on the fractional-ITD path
+ * (get_xtc_frac / get_xtc_asym_frac), plus two checks the integer path cannot
+ * make: that each fractional recursion collapses onto its integer counterpart
+ * when the ITD happens to be a whole number of samples, and that it does NOT
+ * when it does not. Together they pin the frequency-domain evaluation to the
+ * time-domain one wherever the two are supposed to agree.
+ *
  * Run with `make check` in this directory.
  */
 
@@ -25,6 +32,19 @@
 
 #define TOL_EQUIV   1e-7    /* symmetric vs asymmetric, relative to peak */
 #define TOL_IDENT   1e-12   /* cross_left vs cross_right, must be identical */
+
+/* Integer vs fractional recursion at a whole-sample ITD. Both evaluate the same
+ * ladder, one by writing at array indices and one through a pair of transforms,
+ * so what separates them is FFT rounding, not method: measured around 1e-16
+ * relative. The tolerance sits well above that and far below any structural
+ * difference. */
+#define TOL_FRAC    1e-10
+
+/* Below this, the fractional and integer designs would be telling us the ITD
+ * rounding costs nothing -- which at 180 us / 48 kHz (8.64 samples, rounded to
+ * 9) it demonstrably does. The check is here so that a get_xtc_frac() that
+ * silently rounded its argument could not pass the suite. */
+#define TOL_DIFFERS 1e-3
 
 static double maxabs(const double *x, int n) {
     double m = 0.0;
@@ -80,7 +100,7 @@ int main(void) {
     }
 
     printf("== process(): symmetric reference ==\n");
-    if (process(itd, ild, alpha, az, sr, L, d_sym, c_sym) != 0) {
+    if (process(itd, ild, alpha, az, sr, L, 0, 0, d_sym, c_sym) != 0) {
         fprintf(stderr, "process() failed\n");
         return 1;
     }
@@ -90,7 +110,7 @@ int main(void) {
                            .ild_db      = ild,
                            .ild_alpha   = alpha,
                            .azimuth_deg = az };
-    if (process_asym(&same, &same, sr, L, d_asym, cl_asym, cr_asym) != 0) {
+    if (process_asym(&same, &same, sr, L, 0, 0, d_asym, cl_asym, cr_asym) != 0) {
         fprintf(stderr, "process_asym() failed\n");
         return 1;
     }
@@ -113,7 +133,7 @@ int main(void) {
                             .ild_alpha = 1.9, .azimuth_deg = 15 };
 
     printf("\n== Asymmetric layout (L: 180 us/10 dB/20 deg, R: 140 us/8 dB/15 deg) ==\n");
-    if (process_asym(&left, &right, sr, L, d_asym, cl_asym, cr_asym) != 0) {
+    if (process_asym(&left, &right, sr, L, 0, 0, d_asym, cl_asym, cr_asym) != 0) {
         fprintf(stderr, "process_asym() failed on the asymmetric case\n");
         return 1;
     }
@@ -146,6 +166,73 @@ int main(void) {
     printf("  direct[0] = %.6f                                 %s\n",
            d_asym[0], d_asym[0] == 1.0 ? "OK" : "FAILED");
     ok &= (d_asym[0] == 1.0);
+
+
+    /* ---------------------------------------------------------------------
+     * Fractional ITD. Same cross-check, plus the two the integer path cannot
+     * make: that the frequency-domain recursion collapses onto the
+     * time-domain one at a whole-sample ITD, and that it does not at a
+     * fractional one.
+     * ------------------------------------------------------------------ */
+    double *d_symf  = calloc((size_t)L, sizeof(double));
+    double *c_symf  = calloc((size_t)L, sizeof(double));
+    double *d_asymf = calloc((size_t)L, sizeof(double));
+    double *cl_asymf = calloc((size_t)L, sizeof(double));
+    double *cr_asymf = calloc((size_t)L, sizeof(double));
+    if (!d_symf || !c_symf || !d_asymf || !cl_asymf || !cr_asymf) {
+        fprintf(stderr, "allocation failed\n");
+        return 77;
+    }
+
+    /* 180 us at 48 kHz is 8.64 samples: the integer path rounds it to 9, the
+     * fractional one does not, which is what the last two checks turn on. */
+    printf("\n== Fractional ITD: %d us at %d Hz = %.4f samples ==\n",
+           itd, sr, itd * 1e-6 * sr);
+
+    if (process(itd, ild, alpha, az, sr, L, 1, XTC_DEFAULT_MODEL_DELAY,
+                d_symf, c_symf) != 0) {
+        fprintf(stderr, "process() failed on the fractional path\n");
+        return 1;
+    }
+    if (process_asym(&same, &same, sr, L, 1, XTC_DEFAULT_MODEL_DELAY,
+                     d_asymf, cl_asymf, cr_asymf) != 0) {
+        fprintf(stderr, "process_asym() failed on the fractional path\n");
+        return 1;
+    }
+    ok &= compare("direct  asym vs sym",  d_symf, d_asymf,  L, TOL_EQUIV);
+    ok &= compare("cross_l asym vs sym",  c_symf, cl_asymf, L, TOL_EQUIV);
+    ok &= compare("cross_r asym vs sym",  c_symf, cr_asymf, L, TOL_EQUIV);
+    ok &= compare("cross_l vs cross_r",   cl_asymf, cr_asymf, L, TOL_IDENT);
+
+    /* It must actually differ from the rounded design, or the fractional path
+     * is quietly rounding after all. Model delay 0 so the two are compared at
+     * the same origin and only the sub-sample shift separates them. */
+    printf("\n== Fractional vs integer, same parameters ==\n");
+    if (process(itd, ild, alpha, az, sr, L, 1, 0, d_symf, c_symf) != 0) {
+        fprintf(stderr, "process() failed on the fractional path\n");
+        return 1;
+    }
+    double moved = maxdiff(c_symf, c_sym, L, &at) / maxabs(c_sym, L);
+    printf("  %-26s reldiff=%9.3e                     %s\n",
+           "cross frac vs integer", moved,
+           moved > TOL_DIFFERS ? "OK" : "FAILED");
+    ok &= (moved > TOL_DIFFERS);
+
+    /* And it must NOT differ when there is nothing to gain: 250 us at 48 kHz is
+     * exactly 12 samples, so the two recursions are evaluating the same ladder
+     * and only FFT rounding may separate them. */
+    const int itd_exact_us = 250;
+    printf("\n== Whole-sample ITD (%d us = %.4f samples): the two paths must agree ==\n",
+           itd_exact_us, itd_exact_us * 1e-6 * sr);
+    if (process(itd_exact_us, ild, alpha, az, sr, L, 0, 0, d_sym,  c_sym)  != 0 ||
+        process(itd_exact_us, ild, alpha, az, sr, L, 1, 0, d_symf, c_symf) != 0) {
+        fprintf(stderr, "process() failed at the whole-sample ITD\n");
+        return 1;
+    }
+    ok &= compare("direct frac vs integer", d_sym, d_symf, L, TOL_FRAC);
+    ok &= compare("cross  frac vs integer", c_sym, c_symf, L, TOL_FRAC);
+
+    free(d_symf); free(c_symf); free(d_asymf); free(cl_asymf); free(cr_asymf);
 
     free(d_sym); free(c_sym); free(d_asym); free(cl_asym); free(cr_asym);
 

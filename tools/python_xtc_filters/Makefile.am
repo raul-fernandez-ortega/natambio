@@ -12,7 +12,11 @@ toolkitdir = $(datadir)/natambio/python_xtc_filters
 
 # xtc_conf.py is imported by both scripts, and xtc_filters_asym.py imports the
 # DSP primitives from xtc_filters.py, so all three must be installed together.
-python_sources = xtc_filters.py xtc_filters_asym.py xtc_conf.py
+# compare_frac_delay.py imports xtc_filters.py too and therefore has to sit in
+# the same directory; it gets no $(bindir) launcher because it measures a design
+# rather than producing one.
+python_sources = xtc_filters.py xtc_filters_asym.py xtc_conf.py \
+	compare_frac_delay.py
 
 EXTRA_DIST = $(python_sources) requirements.txt README.md README_es.md
 
