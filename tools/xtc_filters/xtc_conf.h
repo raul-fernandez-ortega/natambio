@@ -16,6 +16,8 @@
  *
  *     sample_rate = 48000        # top level, common to the whole design
  *     filter_len  = 4096
+ *     frac_delay  = true         # optional; exact ITD instead of rounded
+ *     model_delay = 64           # optional; bulk delay for frac_delay
  *
  *     [xtc]                      # or [left] / [right] in the asymmetric tool
  *     itd_us      = 170
@@ -26,6 +28,10 @@
  *     [output]
  *     directory = "filters"
  *     prefix    = "my_room"      # optional
+ *
+ * frac_delay and model_delay sit at the top level rather than inside a side
+ * block because they describe the whole design, not one speaker's path -- which
+ * is also what keeps [xtc], [left] and [right] interchangeable.
  *
  * The balance b of the asymmetric model is deliberately NOT a key here. It is
  * not baked into the coefficients: it is applied downstream as a routing gain,
@@ -51,6 +57,12 @@ typedef struct {
 typedef struct {
     int           sample_rate;
     int           filter_len;
+    /* Run the XTC recursion at the exact, unrounded ITD (get_xtc_frac /
+     * get_xtc_asym_frac) instead of rounding it to whole samples, and the bulk
+     * model delay that path needs. Design-wide, hence top level. Defaults are
+     * the caller's to set: the tools use 0 and XTC_DEFAULT_MODEL_DELAY. */
+    int           frac_delay;
+    int           model_delay;
     xtc_conf_side xtc;
     char          directory[XTC_CONF_PATHMAX];
     char          prefix[XTC_CONF_PATHMAX];   /* empty => legacy filename contract */
@@ -59,6 +71,12 @@ typedef struct {
 typedef struct {
     int           sample_rate;
     int           filter_len;
+    /* Run the XTC recursion at the exact, unrounded ITD (get_xtc_frac /
+     * get_xtc_asym_frac) instead of rounding it to whole samples, and the bulk
+     * model delay that path needs. Design-wide, hence top level. Defaults are
+     * the caller's to set: the tools use 0 and XTC_DEFAULT_MODEL_DELAY. */
+    int           frac_delay;
+    int           model_delay;
     xtc_conf_side left, right;
     char          directory[XTC_CONF_PATHMAX];
     char          prefix[XTC_CONF_PATHMAX];

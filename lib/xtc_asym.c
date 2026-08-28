@@ -18,10 +18,12 @@
 #define M_PI ((double) 3.14159265358979323846264338327950288)
 #endif
 
-/* These mirror the constants of xtc.c on purpose. xtc.c is not included nor
- * modified here because third-party ports of NatAmbio mirror that file and it
- * must stay byte-stable; the price is this duplication. Both copies must be
- * kept in step if the ILD model ever changes. */
+/* These mirror the constants of xtc.c on purpose: this unit stays an
+ * independent implementation of the same model, so that test_xtc_asym.c can
+ * cross-check one against the other. The price is this duplication, and both
+ * copies must be kept in step if the ILD model ever changes. (The original
+ * reason was that xtc.c had to stay byte-stable for third-party ports; that
+ * freeze has been lifted -- see the header.) */
 #define DB_OCT             6.0
 #define FLIM               200.0
 #define HF_SHELF_HZ        20000.0   /* HF shelf corner frequency */
@@ -255,9 +257,167 @@ int get_xtc_asym(int length,
     return 0;
 }
 
-/* Validates one side and converts its ITD to samples. Returns the ITD in
- * samples, or -1 after reporting the offending parameter. */
-static int check_side(const xtc_asym_side *s, const char *tag, int sample_rate)
+/* Half-spectrum accumulator: the (re, im) pair of one spectrum under
+ * construction. Mirrors the helper in xtc.c, as the rest of this unit does. */
+typedef struct {
+    double *re;
+    double *im;
+} xtc_spec;
+
+static void xtc_spec_free(xtc_spec *s) {
+    free(s->re);
+    free(s->im);
+    s->re = NULL;
+    s->im = NULL;
+}
+
+static int xtc_spec_alloc(xtc_spec *s, int half) {
+    s->re = calloc((size_t)half, sizeof(double));
+    s->im = calloc((size_t)half, sizeof(double));
+    if (!s->re || !s->im) {
+        xtc_spec_free(s);
+        return -1;
+    }
+    return 0;
+}
+
+int get_xtc_asym_frac(int length,
+                      double att_l, double att_r,
+                      double delay_l, double delay_r,
+                      const double *ild_mean,
+                      const double *ild_l, const double *ild_r,
+                      int model_delay,
+                      double *direct_out,
+                      double *cross_left_out, double *cross_right_out)
+{
+    if (!ild_mean || !ild_l || !ild_r)                      return -1;
+    if (!direct_out || !cross_left_out || !cross_right_out) return -1;
+    if (length < 2 || length > XTC_MAX_FILTER_LEN)          return -1;
+    if (!isfinite(delay_l) || delay_l <= 0.0)               return -1;
+    if (!isfinite(delay_r) || delay_r <= 0.0)               return -1;
+    if (!isfinite(att_l) || att_l <= 0.0)                   return -1;
+    if (!isfinite(att_r) || att_r <= 0.0)                   return -1;
+    if (model_delay < 0 || model_delay >= length)           return -1;
+
+    for (int i = 0; i < length; i++) {
+        if (!isfinite(ild_mean[i]) || !isfinite(ild_l[i]) || !isfinite(ild_r[i]))
+            return -1;
+    }
+
+    const double T        = delay_l + delay_r;
+    const double att_step = att_l + att_r;
+
+    /* The frame must hold the entire linear convolution so nothing wraps back
+     * into the first `length` samples. The direct filter reaches NRUNGS*T with
+     * NRUNGS chained round-trip convolutions; a cross filter reaches
+     * (NRUNGS-1)*T + its own side delay with NRUNGS convolutions in total
+     * (NRUNGS-1 round trips plus the single per-side one). Bounding both with
+     * NRUNGS*(T + length - 1) + max delay covers the pair. */
+    const double max_delay = (delay_l > delay_r) ? delay_l : delay_r;
+    const double span = ceil((double)NRUNGS * T + max_delay)
+                      + (double)NRUNGS * (double)(length - 1)
+                      + (double)model_delay + (double)length + 1.0;
+    if (!(span > 0.0) || span > (double)DSP_MAX_LEN) return -1;
+
+    const int nfft = dsp_next_pow2((int)span);
+    if (nfft == 0) return -1;
+    const int half = nfft / 2 + 1;
+
+    xtc_spec dir  = { NULL, NULL }, cl = { NULL, NULL }, cr = { NULL, NULL };
+    xtc_spec mean = { NULL, NULL }, sl = { NULL, NULL }, sr = { NULL, NULL };
+    int rc = -2;
+    if (xtc_spec_alloc(&dir,  half) != 0) goto done;
+    if (xtc_spec_alloc(&cl,   half) != 0) goto done;
+    if (xtc_spec_alloc(&cr,   half) != 0) goto done;
+    if (xtc_spec_alloc(&mean, half) != 0) goto done;
+    if (xtc_spec_alloc(&sl,   half) != 0) goto done;
+    if (xtc_spec_alloc(&sr,   half) != 0) goto done;
+
+    rc = -3;
+    if (dsp_rfft(ild_mean, length, nfft, mean.re, mean.im) != 0) goto done;
+    if (dsp_rfft(ild_l,    length, nfft, sl.re,   sl.im)   != 0) goto done;
+    if (dsp_rfft(ild_r,    length, nfft, sr.re,   sr.im)   != 0) goto done;
+
+    /* Same ladder as get_xtc_asym(), rung for rung and in the same order; only
+     * the placement of a tap differs. */
+    for (int k = NRUNGS; k >= 1; k--) {
+        if (dsp_spectrum_add_delayed(dir.re, dir.im, nfft,
+                                     pow(10.0, -(double)k * att_step / 20.0),
+                                     (double)k * T) != 0) goto done;
+
+        /* Cross rung i = k+1: added one iteration after the direct rung of the
+         * same index so that it accumulates i-1 round-trip convolutions, the
+         * remaining one being the per-side filter applied after the loop. */
+        if (k < NRUNGS) {
+            if (dsp_spectrum_add_delayed(cl.re, cl.im, nfft,
+                                         -pow(10.0, -(att_r + (double)k * att_step) / 20.0),
+                                         (double)k * T + delay_r) != 0) goto done;
+            if (dsp_spectrum_add_delayed(cr.re, cr.im, nfft,
+                                         -pow(10.0, -(att_l + (double)k * att_step) / 20.0),
+                                         (double)k * T + delay_l) != 0) goto done;
+        }
+
+        if (dsp_spectrum_mul(dir.re, dir.im, mean.re, mean.im, nfft) != 0) goto done;
+
+        /* Skipped on the first pass, where both cross accumulators are still all
+         * zeros and the multiplication would be pure work. */
+        if (k < NRUNGS) {
+            if (dsp_spectrum_mul(cl.re, cl.im, mean.re, mean.im, nfft) != 0) goto done;
+            if (dsp_spectrum_mul(cr.re, cr.im, mean.re, mean.im, nfft) != 0) goto done;
+        }
+    }
+
+    /* Rung i = 1 of each cross filter: the first cancellation, which has not
+     * made any round trip yet and therefore carries no round-trip filter. */
+    if (dsp_spectrum_add_delayed(cl.re, cl.im, nfft,
+                                 -pow(10.0, -att_r / 20.0), delay_r) != 0) goto done;
+    if (dsp_spectrum_add_delayed(cr.re, cr.im, nfft,
+                                 -pow(10.0, -att_l / 20.0), delay_l) != 0) goto done;
+
+    /* The single per-side application: every cross rung crosses its own side's
+     * head shadow exactly once, whatever its order. */
+    if (dsp_spectrum_mul(cl.re, cl.im, sr.re, sr.im, nfft) != 0) goto done;
+    if (dsp_spectrum_mul(cr.re, cr.im, sl.re, sl.im, nfft) != 0) goto done;
+
+    /* The leading delta at n = 0: flat 1 across the spectrum. As in
+     * get_xtc_asym(), index 0 is untouched by the ladder, so accumulating here
+     * and assigning there come to the same thing. */
+    for (int b = 0; b < half; b++) dir.re[b] += 1.0;
+
+    if (model_delay > 0) {
+        /* One more linear-phase factor, common to the three filters: built as a
+         * unit impulse at model_delay so the Nyquist rule lives in one place. */
+        xtc_spec ramp = { NULL, NULL };
+        if (xtc_spec_alloc(&ramp, half) != 0) { rc = -2; goto done; }
+        rc = -3;
+        if (dsp_spectrum_add_delayed(ramp.re, ramp.im, nfft, 1.0,
+                                     (double)model_delay) != 0 ||
+            dsp_spectrum_mul(dir.re, dir.im, ramp.re, ramp.im, nfft) != 0 ||
+            dsp_spectrum_mul(cl.re,  cl.im,  ramp.re, ramp.im, nfft) != 0 ||
+            dsp_spectrum_mul(cr.re,  cr.im,  ramp.re, ramp.im, nfft) != 0) {
+            xtc_spec_free(&ramp);
+            goto done;
+        }
+        xtc_spec_free(&ramp);
+    }
+
+    if (dsp_irfft(dir.re, dir.im, nfft, direct_out,      length) != 0) goto done;
+    if (dsp_irfft(cl.re,  cl.im,  nfft, cross_left_out,  length) != 0) goto done;
+    if (dsp_irfft(cr.re,  cr.im,  nfft, cross_right_out, length) != 0) goto done;
+    rc = 0;
+
+done:
+    xtc_spec_free(&dir);  xtc_spec_free(&cl);   xtc_spec_free(&cr);
+    xtc_spec_free(&mean); xtc_spec_free(&sl);   xtc_spec_free(&sr);
+    return rc;
+}
+
+/* Validates one side and converts its ITD to samples, exactly. Writes the
+ * unrounded value to *itd_exact and returns 0, or returns -1 after reporting the
+ * offending parameter. The caller rounds only if it is taking the integer path;
+ * the fractional one uses the exact value, which is the whole point of it. */
+static int check_side(const xtc_asym_side *s, const char *tag, int sample_rate,
+                      double *itd_exact_out)
 {
     if (s->itd_us <= 0) {
         fprintf(stderr, "xtc_asym: <%s> itd_us must be positive (got %d)\n", tag, s->itd_us);
@@ -282,11 +442,13 @@ static int check_side(const xtc_asym_side *s, const char *tag, int sample_rate)
                 tag, s->itd_us, sample_rate, itd_exact, INT_MAX / (2 * NSTEPS));
         return -1;
     }
-    return (int)round(itd_exact);
+    *itd_exact_out = itd_exact;
+    return 0;
 }
 
 int process_asym(const xtc_asym_side *left, const xtc_asym_side *right,
                  int sample_rate, int filter_len,
+                 int frac_delay, int model_delay,
                  double *direct_out,
                  double *cross_left_out, double *cross_right_out)
 {
@@ -309,9 +471,20 @@ int process_asym(const xtc_asym_side *left, const xtc_asym_side *right,
         return -1;
     }
 
-    const int itd_l = check_side(left,  "left",  sample_rate);
-    const int itd_r = check_side(right, "right", sample_rate);
-    if (itd_l < 0 || itd_r < 0) return -1;
+    /* Only meaningful on the fractional path, but validated unconditionally:
+     * a caller passing a nonsense model delay has a bug whether or not this run
+     * happens to consult it. */
+    if (model_delay < 0 || model_delay >= filter_len) {
+        fprintf(stderr, "xtc_asym: model_delay %d outside [0, %d)\n",
+                model_delay, filter_len);
+        return -1;
+    }
+
+    double itd_l_exact = 0.0, itd_r_exact = 0.0;
+    if (check_side(left,  "left",  sample_rate, &itd_l_exact) != 0) return -1;
+    if (check_side(right, "right", sample_rate, &itd_r_exact) != 0) return -1;
+    const int itd_l = (int)round(itd_l_exact);
+    const int itd_r = (int)round(itd_r_exact);
 
     /* The ladder's top rung sits at NRUNGS*(itd_l+itd_r). If that is already
      * past the end of the filter those taps are dropped and the cancellation
@@ -320,7 +493,10 @@ int process_asym(const xtc_asym_side *left, const xtc_asym_side *right,
      * user gets told. Unlike the symmetric case, what bounds the ladder is the
      * SUM of both ITDs, so a layout can stay within budget by keeping the mean
      * ITD even when the two sides differ widely. */
-    const long long top_tap = (long long)NRUNGS * ((long long)itd_l + (long long)itd_r);
+    const long long top_tap =
+        frac_delay
+        ? (long long)ceil((double)NRUNGS * (itd_l_exact + itd_r_exact)) + (long long)model_delay
+        : (long long)NRUNGS * ((long long)itd_l + (long long)itd_r);
     if (top_tap >= (long long)filter_len) {
         fprintf(stderr,
                 "xtc_asym: warning: filter_len %d is too short for ITDs of %d + %d samples; "
@@ -362,21 +538,36 @@ int process_asym(const xtc_asym_side *left, const xtc_asym_side *right,
         return -2;
     }
 
-    printf("Calculating asymmetric XTC filters:\n");
-    printf("\tleft : delay --> %d samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
-           itd_l, left->ild_db, left->azimuth_deg, left->ild_alpha);
-    printf("\tright: delay --> %d samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
-           itd_r, right->ild_db, right->azimuth_deg, right->ild_alpha);
+    if (frac_delay) {
+        printf("Calculating asymmetric XTC filters (fractional ITD, frequency "
+               "domain; %d-sample model delay):\n", model_delay);
+        printf("\tleft : delay --> %.4f samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
+               itd_l_exact, left->ild_db, left->azimuth_deg, left->ild_alpha);
+        printf("\tright: delay --> %.4f samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
+               itd_r_exact, right->ild_db, right->azimuth_deg, right->ild_alpha);
+    } else {
+        printf("Calculating asymmetric XTC filters:\n");
+        printf("\tleft : delay --> %d samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
+               itd_l, left->ild_db, left->azimuth_deg, left->ild_alpha);
+        printf("\tright: delay --> %d samples. Attenuation --> %.2f dB. azimuth --> %d degrees. alpha --> %.2f\n",
+               itd_r, right->ild_db, right->azimuth_deg, right->ild_alpha);
+    }
     printf("XTC filters length: %d samples. Sample rate: %d\n", filter_len, sample_rate);
 
-    rc = get_xtc_asym(filter_len, left->ild_db, right->ild_db, itd_l, itd_r,
+    rc = frac_delay
+       ? get_xtc_asym_frac(filter_len, left->ild_db, right->ild_db,
+                           itd_l_exact, itd_r_exact,
+                           ild_mean, ild_l, ild_r, model_delay,
+                           direct_out, cross_left_out, cross_right_out)
+       : get_xtc_asym(filter_len, left->ild_db, right->ild_db, itd_l, itd_r,
                       ild_mean, ild_l, ild_r,
                       direct_out, cross_left_out, cross_right_out);
 
     free(ild_mean); free(ild_l); free(ild_r);
 
     if (rc != 0) {
-        fprintf(stderr, "xtc_asym: get_xtc_asym failed (rc=%d)\n", rc);
+        fprintf(stderr, "xtc_asym: %s failed (rc=%d)\n",
+                frac_delay ? "get_xtc_asym_frac" : "get_xtc_asym", rc);
         return -4;
     }
     return 0;

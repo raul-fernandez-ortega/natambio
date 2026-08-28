@@ -82,10 +82,25 @@ static int load_output(const toml_min *t, char *directory, char *prefix,
     return 0;
 }
 
+/* Reads the two top-level design switches. Both optional: an absent key leaves
+ * whatever the caller pre-loaded. Shared by the two loaders because the pair
+ * describes the design, not the layout. */
+static int load_design(const toml_min *t, int *frac_delay, int *model_delay,
+                       char *err, size_t errlen)
+{
+    if (toml_min_bool(t, "", "frac_delay", frac_delay, err, errlen) < 0) return -1;
+    if (toml_min_int(t, "", "model_delay", model_delay, err, errlen) < 0) return -1;
+    if (*model_delay < 0) {
+        snprintf(err, errlen, "model_delay must not be negative (got %d)", *model_delay);
+        return -1;
+    }
+    return 0;
+}
+
 int xtc_conf_load_sym(const char *path, xtc_conf_sym *cfg, char *err, size_t errlen)
 {
     static const char *const allowed[] = {
-        "sample_rate", "filter_len",
+        "sample_rate", "filter_len", "frac_delay", "model_delay",
         "xtc.itd_us", "xtc.ild_db", "xtc.ild_alpha", "xtc.azimuth_deg",
         "output.directory", "output.prefix",
         NULL
@@ -98,6 +113,8 @@ int xtc_conf_load_sym(const char *path, xtc_conf_sym *cfg, char *err, size_t err
 
     if (toml_min_int(t, "", "sample_rate", &cfg->sample_rate, err, errlen) < 0) goto fail;
     if (toml_min_int(t, "", "filter_len",  &cfg->filter_len,  err, errlen) < 0) goto fail;
+
+    if (load_design(t, &cfg->frac_delay, &cfg->model_delay, err, errlen) != 0) goto fail;
 
     if (load_side(t, "xtc", &cfg->xtc, 0, err, errlen) != 0) goto fail;
     if (load_output(t, cfg->directory, cfg->prefix, err, errlen) != 0) goto fail;
@@ -113,7 +130,7 @@ fail:
 int xtc_conf_load_asym(const char *path, xtc_conf_asym *cfg, char *err, size_t errlen)
 {
     static const char *const allowed[] = {
-        "sample_rate", "filter_len",
+        "sample_rate", "filter_len", "frac_delay", "model_delay",
         "left.itd_us",  "left.ild_db",  "left.ild_alpha",  "left.azimuth_deg",
         "right.itd_us", "right.ild_db", "right.ild_alpha", "right.azimuth_deg",
         "output.directory", "output.prefix",
@@ -136,6 +153,8 @@ int xtc_conf_load_asym(const char *path, xtc_conf_asym *cfg, char *err, size_t e
 
     if (toml_min_int(t, "", "sample_rate", &cfg->sample_rate, err, errlen) < 0) goto fail;
     if (toml_min_int(t, "", "filter_len",  &cfg->filter_len,  err, errlen) < 0) goto fail;
+
+    if (load_design(t, &cfg->frac_delay, &cfg->model_delay, err, errlen) != 0) goto fail;
 
     if (load_side(t, "left",  &cfg->left,  1, err, errlen) != 0) goto fail;
     if (load_side(t, "right", &cfg->right, 1, err, errlen) != 0) goto fail;

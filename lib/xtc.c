@@ -173,8 +173,133 @@ int get_xtc(int length, double attenuation, int delay,
     return 0;
 }
 
+/* Half-spectrum accumulator: the (re, im) pair of one spectrum under
+ * construction. Grouped so the error paths below stay single-exit. xtc_asym.c
+ * carries its own copy, as it does for the rest of the shared model. */
+typedef struct {
+    double *re;
+    double *im;
+} xtc_spec;
+
+static void xtc_spec_free(xtc_spec *s) {
+    free(s->re);
+    free(s->im);
+    s->re = NULL;
+    s->im = NULL;
+}
+
+static int xtc_spec_alloc(xtc_spec *s, int half) {
+    s->re = calloc((size_t)half, sizeof(double));
+    s->im = calloc((size_t)half, sizeof(double));
+    if (!s->re || !s->im) {
+        xtc_spec_free(s);
+        return -1;
+    }
+    return 0;
+}
+
+int get_xtc_frac(int length, double attenuation, double delay,
+                 const double *ild_filter, int model_delay,
+                 double *direct_out, double *cross_out) {
+    if (!ild_filter || !direct_out || !cross_out) return -1;
+    if (length < 2 || length > XTC_MAX_FILTER_LEN) return -1;
+    if (!isfinite(delay) || delay <= 0.0)          return -1;
+    if (!isfinite(attenuation) || attenuation <= 0.0) return -1;
+
+    /* A model delay at or past the end of the filter would push the whole
+     * response out of the buffer and return silence. */
+    if (model_delay < 0 || model_delay >= length) return -1;
+
+    for (int i = 0; i < length; i++) {
+        if (!isfinite(ild_filter[i])) return -1;
+    }
+
+    /* The frame has to hold the entire linear convolution, so that nothing wraps
+     * back into the first `length` samples: the ladder reaches NSTEPS*delay and
+     * the deepest term carries NSTEPS/2 chained ILD convolutions. Formed in
+     * double and range-checked before narrowing, as elsewhere in this file.
+     *
+     * get_xtc() truncates to `length` after every iteration and this does not,
+     * yet the two agree: every later operation is a causal convolution, so a
+     * sample at n >= length can never fold back onto n < length. Truncating each
+     * pass and truncating once at the end keep the same first `length` taps. */
+    const double span = ceil((double)NSTEPS * delay)
+                      + (double)(NSTEPS / 2) * (double)(length - 1)
+                      + (double)model_delay + (double)length + 1.0;
+    if (!(span > 0.0) || span > (double)DSP_MAX_LEN) return -1;
+
+    const int nfft = dsp_next_pow2((int)span);
+    if (nfft == 0) return -1;
+    const int half = nfft / 2 + 1;
+
+    xtc_spec direct = { NULL, NULL }, cross = { NULL, NULL }, ild = { NULL, NULL };
+    int rc = -2;
+    if (xtc_spec_alloc(&direct, half) != 0) goto done;
+    if (xtc_spec_alloc(&cross,  half) != 0) goto done;
+    if (xtc_spec_alloc(&ild,    half) != 0) goto done;
+
+    rc = -3;
+    if (dsp_rfft(ild_filter, length, nfft, ild.re, ild.im) != 0) goto done;
+
+    /* Same ladder as get_xtc(), same order: place the two taps of the rung,
+     * then filter both accumulators. Only the placement differs -- a
+     * linear-phase factor at (k+1)*delay and k*delay instead of a write at a
+     * rounded index. */
+    double cross_att = -attenuation * (double)(NSTEPS - 1);
+    double dir_att   = -attenuation * (double)NSTEPS;
+
+    for (int k = NSTEPS - 1; k > 0; k -= 2) {
+        if (dsp_spectrum_add_delayed(direct.re, direct.im, nfft,
+                                     pow(10.0, dir_att / 20.0),
+                                     (double)(k + 1) * delay) != 0) goto done;
+        if (dsp_spectrum_add_delayed(cross.re, cross.im, nfft,
+                                     -pow(10.0, cross_att / 20.0),
+                                     (double)k * delay) != 0) goto done;
+
+        if (dsp_spectrum_mul(direct.re, direct.im, ild.re, ild.im, nfft) != 0) goto done;
+        if (dsp_spectrum_mul(cross.re,  cross.im,  ild.re, ild.im, nfft) != 0) goto done;
+
+        dir_att   += 2.0 * attenuation;
+        cross_att += 2.0 * attenuation;
+    }
+
+    /* The leading delta. get_xtc() writes direct_out[0] = 1.0; a delta at n = 0
+     * is a flat 1 across the spectrum. Assignment and accumulation agree here
+     * because index 0 is untouched by the ladder: every tap sits at a strictly
+     * positive delay and the minimum-phase ILD filter is causal. */
+    for (int b = 0; b < half; b++) direct.re[b] += 1.0;
+
+    if (model_delay > 0) {
+        /* One more linear-phase factor, common to both filters. Built as a unit
+         * impulse at model_delay in a scratch spectrum and multiplied in, so the
+         * Nyquist rule lives in one place. */
+        xtc_spec ramp = { NULL, NULL };
+        if (xtc_spec_alloc(&ramp, half) != 0) { rc = -2; goto done; }
+        rc = -3;
+        if (dsp_spectrum_add_delayed(ramp.re, ramp.im, nfft, 1.0,
+                                     (double)model_delay) != 0 ||
+            dsp_spectrum_mul(direct.re, direct.im, ramp.re, ramp.im, nfft) != 0 ||
+            dsp_spectrum_mul(cross.re,  cross.im,  ramp.re, ramp.im, nfft) != 0) {
+            xtc_spec_free(&ramp);
+            goto done;
+        }
+        xtc_spec_free(&ramp);
+    }
+
+    if (dsp_irfft(direct.re, direct.im, nfft, direct_out, length) != 0) goto done;
+    if (dsp_irfft(cross.re,  cross.im,  nfft, cross_out,  length) != 0) goto done;
+    rc = 0;
+
+done:
+    xtc_spec_free(&direct);
+    xtc_spec_free(&cross);
+    xtc_spec_free(&ild);
+    return rc;
+}
+
 int process(int itd_us, double ild_db, double ild_alpha,
             int azimuth_deg, int sample_rate, int filter_len,
+            int frac_delay, int model_delay,
             double *direct_out, double *cross_out) {
     /* Everything reaching this function comes straight from the XML, so it is
      * validated here rather than trusted. */
@@ -205,6 +330,14 @@ int process(int itd_us, double ild_db, double ild_alpha,
                 ild_alpha, XTC_MAX_ILD_ALPHA, XTC_MAX_ILD_ALPHA);
         return -1;
     }
+    /* Only meaningful on the fractional path, but validated unconditionally:
+     * a caller passing a nonsense model delay has a bug whether or not this run
+     * happens to consult it. */
+    if (model_delay < 0 || model_delay >= filter_len) {
+        fprintf(stderr, "xtc: model_delay %d outside [0, %d)\n",
+                model_delay, filter_len);
+        return -1;
+    }
 
     /* itd_us * sample_rate overflows int well before either operand does, so
      * the product is formed in double and range-checked before narrowing. */
@@ -222,7 +355,9 @@ int process(int itd_us, double ild_db, double ild_alpha,
      * still proceeds -- the result is a valid, safe, weaker filter -- but the
      * user gets told, because silently returning a filter that does not cancel
      * is worse than a noisy one that does. */
-    const long long first_tap = (long long)(NSTEPS - 1) * (long long)itd_samples;
+    const long long first_tap = (long long)(NSTEPS - 1)
+                              * (long long)(frac_delay ? (int)ceil(itd_exact) : itd_samples)
+                              + (long long)(frac_delay ? model_delay : 0);
     if (first_tap >= (long long)filter_len) {
         fprintf(stderr,
                 "xtc: warning: filter_len %d is too short for an ITD of %d samples; "
@@ -285,13 +420,24 @@ int process(int itd_us, double ild_db, double ild_alpha,
         for (int i = 0; i < filter_len; i++) h_min[i] /= l2;
     }
 
-    printf("Calculating XTC filters for: delay --> %d samples. Attenuation --> %.2f dB. "
-           "azimuth --> %d degrees\n", itd_samples, ild_db, azimuth_deg);
+    if (frac_delay) {
+        printf("Calculating XTC filters for: delay --> %.4f samples (fractional, "
+               "frequency domain; %d-sample model delay). Attenuation --> %.2f dB. "
+               "azimuth --> %d degrees\n",
+               itd_exact, model_delay, ild_db, azimuth_deg);
+    } else {
+        printf("Calculating XTC filters for: delay --> %d samples. Attenuation --> %.2f dB. "
+               "azimuth --> %d degrees\n", itd_samples, ild_db, azimuth_deg);
+    }
     printf("XTC filters length: %d samples. Sample rate: %d\n", filter_len, sample_rate);
 
-    rc = get_xtc(filter_len, ild_db, itd_samples, h_min, direct_out, cross_out);
+    rc = frac_delay
+       ? get_xtc_frac(filter_len, ild_db, itd_exact, h_min, model_delay,
+                      direct_out, cross_out)
+       : get_xtc(filter_len, ild_db, itd_samples, h_min, direct_out, cross_out);
     if (rc != 0) {
-        fprintf(stderr, "get_xtc failed (rc=%d)\n", rc);
+        fprintf(stderr, "%s failed (rc=%d)\n",
+                frac_delay ? "get_xtc_frac" : "get_xtc", rc);
         free(h_linear); free(h_min);
         return -4;
     }

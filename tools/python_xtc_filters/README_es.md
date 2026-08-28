@@ -73,6 +73,8 @@ Instalados desde los paquetes Debian, quedan en
 ```toml
 sample_rate = 48000
 filter_len  = 4096
+frac_delay  = true    # opcional; ITD exacto en vez de redondeado (ver abajo)
+model_delay = 64      # opcional; retardo global del camino fraccionario
 
 [xtc]                 # [left] y [right] en el script asimétrico
 itd_us      = 170
@@ -97,7 +99,8 @@ Simétrico, por TOML, por flags, o ambos:
 python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml
 python3 xtc_filters.py -t ITD_us -l ILD_dB -a ILD_alpha -z azimut_grados -r frec_muestreo -f longitud
 python3 xtc_filters.py -c ../xtc_filters/xtc_sym_default.toml -l 12   # el fichero, con un valor cambiado
-# por defecto: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096
+# por defecto: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096 -M 64
+# -F : ITD fraccionario (ver abajo);  -M N : su retardo de modelado
 # -d : vuelca además los filtros intermedios ILD_<az>_deg.wav y MP_ILD_<az>_deg.wav
 ```
 
@@ -116,6 +119,53 @@ python3 xtc_filters_asym.py -c ../xtc_filters/xtc_asym_geometry.toml
 Instalados mediante el build de autotools (`make install`), están también
 disponibles como los lanzadores `natambio-xtc-filters-py` y
 `natambio-xtc-filters-asym-py`.
+
+## ITD fraccionario
+
+Desactivado por defecto. La recursión XTC coloca sus taps en muestras enteras,
+así que `itd_us` se redondea primero: a 48 kHz, 170 µs son 8,16 muestras y pasan
+a 8. Ese redondeo no sale gratis. Un error de ITD `dt` deja un residuo
+`2·sin(π·f·dt)` relativo a la señal cancelante, de modo que la cancelación que
+el propio diseño pretende queda limitada:
+
+| Error de ITD | tope a 10 kHz, 48 kHz |
+|---|---|
+| 0,5 muestras | −3,8 dB |
+| 0,16 muestras (los 170 µs por defecto) | −13,6 dB |
+| 0,024 muestras | −30 dB |
+
+Con `frac_delay = true` (o `-F` en la herramienta simétrica) la misma recursión
+se evalúa en frecuencia, donde un tap es un factor de fase lineal `exp(-j2πfτ)`
+—el operador de retardo limitado en banda exacto— y el ITD no necesita
+redondeo. Nada más cambia en el pipeline: el modelo ILD, el paso a fase mínima y
+la escalera son los mismos, peldaño a peldaño. Cuando el ITD resulta ser un
+número entero de muestras los dos caminos coinciden a precisión numérica, que es
+lo que verifica `make check` en `../../lib`.
+
+`model_delay` (`-M`, por defecto 64) es el retardo global que el camino
+fraccionario añade a todos los filtros, para que la respuesta impulsional de dos
+lados de un desplazamiento fraccionario no se recorte en n = 0. Es común a todos
+los filtros de un diseño, y el XTC solo depende de los retardos *entre* ellos,
+así que cuesta latencia y nada más: 1,3 ms a 48 kHz, con ~20 dB de margen sobre
+el suelo de la propia recursión.
+
+Medido contra la planta modelada, la ganancia sobre el diseño redondeado va de
+42 dB en medios-graves a 58 dB por encima de 8 kHz; los números y el script de
+medida están en
+[`compare_frac_delay.py`](compare_frac_delay.py).
+Son cifras de auto-consistencia —cuánta de la intención del diseño sobrevive a
+la implementación—, no una afirmación sobre una sala real, donde el desajuste de
+HRTF y el movimiento de cabeza mandan. Lo que cambia es que el redondeo del ITD
+deja de ser uno de los límites.
+
+La herramienta asimétrica gana más: redondea el `itd_us` de cada lado por
+separado y el periodo de ida y vuelta `itd_left + itd_right` hereda ambos
+errores, con lo que una geometría puede arrastrar hasta una muestra entera de
+error de periodo.
+
+Los nombres de salida ganan el sufijo `_frac` (simétrico sin prefijo), o el
+prefijo asimétrico por defecto pasa a ser `XTC_asym_frac`, de modo que los dos
+diseños no puedan pisarse.
 
 ## Salida
 
