@@ -176,6 +176,12 @@ un aviso por stderr, fuera del bloque `!quiet`, porque `-quiet` silencia el
 volcado de configuración, no un aviso de que parte de la configuración no hace
 nada.
 
+`parse_xtc_side()` descartaba en silencio cualquier etiqueta que no fuese una de
+las cuatro de un lado, así que `<frac_delay>` escrito dentro de `<left>` o
+`<right>` —el sitio equivocado, pero el que uno prueba primero— no hacía nada y
+tampoco decía nada. Ahora es error de parseo, y para esas dos etiquetas en
+concreto el mensaje dice dónde van.
+
 Los nombres de salida ganan `_frac` (simétrico sin prefijo) o el prefijo
 asimétrico por defecto pasa a `XTC_asym_frac`, para que los dos diseños no puedan
 pisarse.

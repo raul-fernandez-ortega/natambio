@@ -378,6 +378,28 @@ static bool parse_xtc_side(xmlNodePtr xmlnode, struct xtc_side *side, const char
       side->ild_alpha = strtod((char*)cnt, NULL); has_alpha = true;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"azimuth_deg")) {
       side->azimuth_deg = (int) strtol((char*)cnt, NULL, 10); has_azimuth = true;
+    } else if (xmlnode->type == XML_ELEMENT_NODE) {
+      // A side block holds exactly four keys, so anything else here is a
+      // mistake and has to say so: silently dropping it is how <frac_delay>
+      // placed inside <left> came to do nothing at all while the rest of the
+      // block worked. Comments and the whitespace between tags are not element
+      // nodes and never reach this branch.
+      char msg[220];
+      if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay") ||
+          !xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
+        snprintf(msg, sizeof(msg),
+                 "Error: xtc_asym <%s><%s> belongs to the <xtc_asym> block, not to a "
+                 "side: it describes the whole design. Move it next to <length>.",
+                 which, (const char*)xmlnode->name);
+      } else {
+        snprintf(msg, sizeof(msg),
+                 "Error: xtc_asym <%s> has an unknown tag <%s>; a side holds only "
+                 "itd_us, ild_db, ild_alpha and azimuth_deg.",
+                 which, (const char*)xmlnode->name);
+      }
+      parse_error(msg);
+      xmlFree(cnt);
+      return false;
     }
     xmlFree(cnt);
     xmlnode = xmlnode->next;
