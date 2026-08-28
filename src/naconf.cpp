@@ -217,6 +217,23 @@ static int parse_bool_tag(const char *text)
   return -1;
 }
 
+/* How an ITD in microseconds lands on the sample grid, as a parenthesised note
+ * for the configuration report. This is the whole point of <frac_delay>, so the
+ * report says it outright rather than leaving the reader to work out that
+ * 180 us at 48 kHz is 8.64 samples and that the integer path calls that 9.
+ * Returns an empty string if the sample rate is not known yet. */
+static string itd_samples_note(int itd_us, int sample_rate, bool frac)
+{
+  if (sample_rate <= 0 || itd_us <= 0) return string();
+  const double exact = (double)itd_us * 1e-6 * (double)sample_rate;
+  std::ostringstream o;
+  o << std::fixed << std::setprecision(3)
+    << " (" << exact << " samples at " << sample_rate << " Hz, ";
+  if (frac) o << "used exactly)";
+  else      o << "rounded to " << (long long)llround(exact) << ")";
+  return o.str();
+}
+
 /* Parse a <xtc> block into a struct xtc. The two resulting filters are not
  * computed here; build_xtc_coeffs() runs process() (xtc.c) afterwards and
  * appends the direct/cross coeffs to coefslist. */
@@ -243,8 +260,10 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   bool has_itd = false, has_ild = false, has_alpha = false,
        has_azimuth = false, has_length = false;
   // <frac_delay> and <model_delay> are the only optional tags of the block, so
-  // a bad value has to be reported rather than defaulted.
-  bool design_ok = true;
+  // a bad value has to be reported rather than defaulted. Track whether
+  // <model_delay> was given at all: an explicit value that ends up unused
+  // because <frac_delay> is off must be said out loud, not swallowed.
+  bool design_ok = true, has_model_delay = false;
 
   while (xmlnode != NULL) {
     xmlChar *cnt = xmlNodeGetContent(xmlnode);
@@ -265,6 +284,7 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
       if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
       xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
+      has_model_delay = true;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
       xtc->direct_name = (char*)cnt;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_filter_name")) {
@@ -311,14 +331,24 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     std::cout << "New xtc struct:" << std::endl;
     std::cout << "\tDirect filter name: " << xtc->direct_name << std::endl;
     std::cout << "\tCross filter name: " << xtc->cross_name << std::endl;
-    std::cout << "\tITD: " << xtc->itd_us << " us" << std::endl;
+    std::cout << "\tITD: " << xtc->itd_us << " us"
+              << itd_samples_note(xtc->itd_us, jack_sample_rate, xtc->frac_delay)
+              << std::endl;
     std::cout << "\tILD: " << xtc->ild_db << " dB" << std::endl;
     std::cout << "\tILD alpha: " << xtc->ild_alpha << std::endl;
     std::cout << "\tAzimuth: " << xtc->azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
     std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
-    if (xtc->frac_delay) std::cout << " (model delay " << xtc->model_delay << " samples)";
+    if (xtc->frac_delay)
+      std::cout << ", model delay " << xtc->model_delay << " samples";
     std::cout << std::endl;
+  }
+
+  // Outside the !quiet block on purpose: -quiet silences the configuration
+  // dump, not a warning that part of the configuration does nothing.
+  if (has_model_delay && !xtc->frac_delay) {
+    std::cerr << "NatAmbio: warning: xtc <model_delay> (" << xtc->model_delay
+              << ") is ignored because <frac_delay> is not set." << std::endl;
   }
 
   return xtc;
@@ -400,7 +430,7 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
   memset(&xtc->right, 0, sizeof(xtc->right));
 
   bool has_left = false, has_right = false, has_length = false;
-  bool sides_ok = true, design_ok = true;
+  bool sides_ok = true, design_ok = true, has_model_delay = false;
 
   while (xmlnode != NULL) {
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"left")) {
@@ -421,6 +451,7 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
         if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
         xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
+        has_model_delay = true;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
         xtc->direct_name = (char*)cnt;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_left_filter_name")) {
@@ -475,16 +506,40 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     std::cout << "\tDirect filter name: " << xtc->direct_name << std::endl;
     std::cout << "\tCross left filter name: " << xtc->cross_left_name << std::endl;
     std::cout << "\tCross right filter name: " << xtc->cross_right_name << std::endl;
-    std::cout << "\tLeft:  ITD " << xtc->left.itd_us << " us, ILD " << xtc->left.ild_db
+    std::cout << "\tLeft:  ITD " << xtc->left.itd_us << " us"
+              << itd_samples_note(xtc->left.itd_us, jack_sample_rate, xtc->frac_delay)
+              << ", ILD " << xtc->left.ild_db
               << " dB, alpha " << xtc->left.ild_alpha
               << ", azimuth " << xtc->left.azimuth_deg << " degrees" << std::endl;
-    std::cout << "\tRight: ITD " << xtc->right.itd_us << " us, ILD " << xtc->right.ild_db
+    std::cout << "\tRight: ITD " << xtc->right.itd_us << " us"
+              << itd_samples_note(xtc->right.itd_us, jack_sample_rate, xtc->frac_delay)
+              << ", ILD " << xtc->right.ild_db
               << " dB, alpha " << xtc->right.ild_alpha
               << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
+    // The round-trip period is what bounds the ladder, and it is where the two
+    // per-side roundings compound: the integer path rounds each side and then
+    // adds, so 8.640 + 6.720 comes out as 9 + 7 = 16, not 15.
+    if (jack_sample_rate > 0) {
+      const double el = (double)xtc->left.itd_us  * 1e-6 * (double)jack_sample_rate;
+      const double er = (double)xtc->right.itd_us * 1e-6 * (double)jack_sample_rate;
+      std::cout << "\tRound-trip period: " << (el + er) << " samples, ";
+      if (xtc->frac_delay)
+        std::cout << "used exactly" << std::endl;
+      else
+        std::cout << "rounded to " << (long long)(llround(el) + llround(er)) << std::endl;
+    }
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
     std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
-    if (xtc->frac_delay) std::cout << " (model delay " << xtc->model_delay << " samples)";
+    if (xtc->frac_delay)
+      std::cout << ", model delay " << xtc->model_delay << " samples";
     std::cout << std::endl;
+  }
+
+  // Outside the !quiet block on purpose: -quiet silences the configuration
+  // dump, not a warning that part of the configuration does nothing.
+  if (has_model_delay && !xtc->frac_delay) {
+    std::cerr << "NatAmbio: warning: xtc_asym <model_delay> (" << xtc->model_delay
+              << ") is ignored because <frac_delay> is not set." << std::endl;
   }
 
   return xtc;
