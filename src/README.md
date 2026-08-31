@@ -216,6 +216,10 @@ downin  <dB>                     lower every input port by <dB>
 upout   <dB>                     raise every output port by <dB>
 downout <dB>                     lower every output port by <dB>
 get  [port ...]                  report the gains as they are now
+naegain [<nae> [front|amb|rear <dB> ...]]   set or report an NAE's gains
+naepan  [<nae> [<scale>]]        the width of an NAE's input pair
+naeget  [<nae>]                  an NAE's configuration, as the XML block
+getxmlconfig                     the whole live configuration, as XML
 mute                             silence every output, gains untouched
 unmute                           bring them back
 toggle                           whichever of the two is not the case now
@@ -253,6 +257,112 @@ The four grouped forms take a number and nothing else — a port named after one
 is refused, not ignored.  Being relative like the rest they move the whole
 balance bodily and leave it as it was: `downout 3` on a system whose rear ports
 sit at +6 dB leaves them at +3, still 6 dB above the front.
+
+`naegain` is the one command that does not address a JACK port.  It names an NAE
+engine by its `<name>` and sets the three gains the engine mixes its components
+with — `<front_gain>`, `<ambience_gain>` and `<rear_gain>` in the configuration,
+written `front`, `amb` and `rear` here.  Several in one line, applied together:
+
+```sh
+echo 'naegain "front stereo" front -1.5 amb -4.0' | nc -q0 localhost 7000
+```
+
+Its numbers are **absolute** dB, unlike everything else here: these three are a
+balance between the components the pair is decomposed into, not a volume, and a
+balance is set to a value rather than nudged from wherever it happens to be.
+Sending the same line twice leaves the engine where it was after the first.  The
+result is clamped to `[-120, +20]` dB, and reached by the same slew as any other
+gain change — the engine fades to it across the next few blocks rather than
+stepping, which through the ambience components would be as audible a click as
+through anything else.
+
+An NAE `<name>` is free text out of the configuration file, so unlike a JACK
+port name it may hold spaces: quote it, and inside the quotes a backslash
+escapes the character after it.  A reply quotes a name the same way, so a report
+can be edited and sent straight back as a command.
+
+Only some of the three gains do anything in a given mode — alpha reads `front`
+and `amb`, beta reads `rear`.  One the mode does not read is still set and still
+reported, since the mode does not change while natambio runs and refusing the
+value would only lose it; it is answered `inactive` instead of `ok`, which is
+the difference between a command that did nothing and one that did nothing
+audible:
+
+```
+ok "front stereo" front -1.500
+inactive surround front -1.500
+```
+
+With no gains after the name, the engine is reported and not touched: its mode
+on a `nae <name> alpha|beta` line and then all three gains, four lines, a count
+the caller knows before sending.  With no name at all, every engine — the one
+form here whose length cannot be known in advance, like a bare `get`, and for
+the same reason: it is asked by a caller who has no copy of the configuration.
+
+`naepan` is `<pan_scale>`, the width of the engine's input pair — `+1` the pair
+collapsed to mono, `0` the signal untouched, `-1` the two channels in opposite
+polarity — set with a number after the name and reported without one:
+
+```sh
+echo 'naepan "front stereo" -0.3' | nc -q0 localhost 7000
+```
+
+Absolute like `naegain`, and slewed like it: the width is a matrix the pair is
+multiplied by, and applying one whole is as much a click as a jump in a gain.
+Outside `[-1, +1]` it is **refused**, not clamped — that range is the whole of
+what the parameter means rather than a safety margin, so a number past it is a
+mistake in the command and not a value to be quietly moved to an end the caller
+did not ask for.  Both modes read the width, so unlike a gain it is never
+inactive.  With no name at all it reports every engine.
+
+The move is smooth but not straight: the two weights are power complementary,
+`wm² + ws² = 2`, so on mono material a width taken from `0` to `+1` rises by
+exactly 3.01 dB along a quarter cosine rather than a line.  What is interpolated
+is the scalar, from which the pair of weights is derived once a block — never
+the two weights independently, which would pass through matrices that are not a
+width at all.
+
+`naeget` answers with the `<nae>` block that would reproduce the engine as it
+stands — the gains as they are **now**, so a balance arrived at over this socket
+comes back as the lines to paste into the configuration that will start it that
+way next time:
+
+```sh
+exec 3<>/dev/tcp/localhost/7000
+echo 'naeget "front stereo"' >&3
+while read -t 0.05 -u 3 line; do echo "$line"; done
+exec 3<&- 3>&-
+```
+```xml
+<nae>
+  <name>front stereo</name>
+  <steps_length>5</steps_length>
+  <mode>alpha</mode>
+  <pan_scale>-0.300</pan_scale>
+  <front_gain>-0.500</front_gain>
+  <ambience_gain>1.500</ambience_gain>
+  <input_left>front_input_left</input_left>
+  <input_right>front_input_right</input_right>
+  <output_left>front_nae_left</output_left>
+  <output_right>front_nae_right</output_right>
+</nae>
+```
+
+It is the one command whose reply is not of the form `ok <thing> <value>`: what
+is wanted here is the text of a configuration, not a value to act on, and
+bending it into the protocol's shape would only mean the caller had to bend it
+back.  Only the gains the mode reads are written — naconf does not ask `beta`
+for a `<front_gain>`, and a block carrying one it never uses would read as a
+setting that does something.  `naegain` is where the others stay visible.  The
+outputs an engine does not have are left out rather than written empty, and the
+width is reported as the `<pan_scale>` the file holds rather than as the two
+weights derived from it.
+
+Each block ends at its `</nae>`, so a client asking for one engine knows where
+the answer stops.  With no name it reports every engine — including one
+configured without a `<name>`, which cannot be addressed by one and would
+otherwise be missing from the only report where that would go unnoticed — and
+its length, like a bare `get`, is known only at this end.
 
 `mute`, `unmute` and `toggle` take nothing at all.  Mute takes every output to −120 dB
 whatever its own gain and leaves those gains untouched — they are what the ports
@@ -292,11 +402,41 @@ answered with a single line, so they need no timeout; neither does anything that
 names its ports.
 
 Every line is answered: `ok <port> <dB>` per port, carrying the gain it has once
-the command is done — the same shape for all three commands — or one
-`error: ...` line.  A command that fails changes and reports nothing: a mistyped
-name in a list does not leave half a speaker pair trimmed, and an answer is
+the command is done — the same shape for all three commands, and `ok <nae>
+<which> <dB>` for `naegain` — or one `error: ...` line.  A command that fails
+changes and reports nothing: a mistyped name in a list does not leave half a
+speaker pair trimmed, nor an NAE at a balance nobody asked for, and an answer is
 either complete or an error.  A change is slewed at the rate of the start/stop
 fade, so it is heard as a fade and not as a click.
+
+`getxmlconfig` answers with the entire configuration as it now stands, valid to
+start another natambio with:
+
+```sh
+exec 3<>/dev/tcp/localhost/7000
+echo getxmlconfig >&3
+while read -t 0.2 -u 3 line; do echo "$line"; done > tuned.xml
+exec 3<&- 3>&-
+```
+
+It is valid because it *is* the file that started this one — comments, layout
+and all — rather than something reconstructed from what was parsed out of it.
+What keeps it current is that every command that changes anything writes the new
+value back into the configuration as well as into the running audio: `up`/`down`
+and the grouped forms into that port's `<gain>`, `naegain` into `<front_gain>` /
+`<ambience_gain>` / `<rear_gain>`, `naepan` into `<pan_scale>`.  There is one
+place holding what the system is set to, and nothing to reconcile when someone
+asks for it.  A tag the file left out because it was at its default — `<gain>`
+is 0 dB when absent — is added the moment it stops being the default.
+
+`mute` writes nothing: it is a state, not a setting, and the gains it leaves
+untouched are the ones the file should carry.
+
+The reply ends at `</main>` and its length, like that of a bare `get`, is known
+only at the far end.  Two natambios cannot share a control port or a JACK client
+name, so a dump used to start a *second* instance beside the first needs those
+two changed; used the way it is meant to be — as the file the next run starts
+from — it needs nothing.
 
 The socket is bound to `127.0.0.1` and the commands carry no credential:
 anything that can reach the port owns the volume of the system.  Reach it from

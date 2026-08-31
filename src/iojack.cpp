@@ -478,6 +478,133 @@ void ioJack::setMute(bool on)
     std::cout << "ioJack: outputs " << (on ? "muted" : "unmuted") << std::endl;
 }
 
+/* By <name>, the only handle the configuration gives an engine. An engine
+   configured without one cannot be addressed and is skipped rather than
+   matched by an empty string, which would make every nameless engine the
+   answer to the same command. */
+NAE *ioJack::findNae(string nae_name)
+{
+  if(nae_name.empty())
+    return NULL;
+  for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++)
+    if((*nae_p)->getName() == nae_name)
+      return *nae_p;
+  return NULL;
+}
+
+vector<string> ioJack::naeNames(void)
+{
+  vector<string> names;
+  for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++)
+    if(!(*nae_p)->getName().empty())
+      names.push_back((*nae_p)->getName());
+  return names;
+}
+
+/* Everything the engine was configured with, gains included, in one call: a
+   report of it is a snapshot and would be a misleading one if the gains could
+   move between the reads that made it. */
+static void nae_config_fill(NAE *nae, struct nae_config *cfg)
+{
+  cfg->name = nae->getName();
+  cfg->mode = nae->getMode();
+  cfg->steps_length = nae->getCovStepsLength();
+  cfg->pan_scale = nae->getPanScale();
+  cfg->front_gain_db = nae->gainDb(NAE_GAIN_FRONT);
+  cfg->ambience_gain_db = nae->gainDb(NAE_GAIN_AMB);
+  cfg->rear_gain_db = nae->gainDb(NAE_GAIN_REAR);
+  cfg->input_left = nae->getChannelIn(LEFT);
+  cfg->input_right = nae->getChannelIn(RIGHT);
+  cfg->output_left = nae->getChannelOut(LEFT);
+  cfg->output_right = nae->getChannelOut(RIGHT);
+  cfg->front_output_left = nae->getChannelOut(C1_LEFT);
+  cfg->front_output_right = nae->getChannelOut(C1_RIGHT);
+  cfg->amb_output_left = nae->getChannelOut(C2_LEFT);
+  cfg->amb_output_right = nae->getChannelOut(C2_RIGHT);
+}
+
+bool ioJack::naeConfig(string nae_name, struct nae_config *cfg)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(cfg != NULL)
+    nae_config_fill(nae, cfg);
+  return true;
+}
+
+bool ioJack::naeConfigAt(size_t index, struct nae_config *cfg)
+{
+  if(index >= nae_channels.size())
+    return false;
+  if(cfg != NULL)
+    nae_config_fill(nae_channels[index], cfg);
+  return true;
+}
+
+bool ioJack::naePanScale(string nae_name, double *scale)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(scale != NULL)
+    *scale = nae->getPanScale();
+  return true;
+}
+
+bool ioJack::setNaePanScale(string nae_name, double scale, double *new_scale)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(!nae->setLivePanScale(scale))
+    return false;
+  if(new_scale != NULL)
+    *new_scale = nae->getPanScale();
+  if(!quiet)
+    std::cout << "ioJack: NAE " << nae_name << " pan scale now " << std::fixed
+              << std::setprecision(3) << scale << std::endl;
+  return true;
+}
+
+bool ioJack::naeGain(string nae_name, enum nae_gain which, double *gain_db, bool *active)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(gain_db != NULL)
+    *gain_db = nae->gainDb(which);
+  if(active != NULL)
+    *active = nae->gainActive(which);
+  return true;
+}
+
+/* Called from the remote manager's thread, like adjustPortGain(): NAE::setGainDb()
+   writes the dB value it owns and then, in one store, the single word the
+   engine's worker thread reads. The engine slews to it across the next block,
+   so what comes out is a fade of a few tens of milliseconds and not a step. */
+bool ioJack::setNaeGain(string nae_name, enum nae_gain which, double db,
+                        double *new_gain_db, bool *active)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  double g = nae->setGainDb(which, db);
+  bool on = nae->gainActive(which);
+  if(new_gain_db != NULL)
+    *new_gain_db = g;
+  if(active != NULL)
+    *active = on;
+  if(!quiet) {
+    const char *label = (which == NAE_GAIN_FRONT) ? "front" :
+                        (which == NAE_GAIN_AMB)   ? "amb" : "rear";
+    std::cout << "ioJack: NAE " << nae_name << " " << label << " gain now "
+              << std::fixed << std::setprecision(3) << g << " dB"
+              << (on ? "" : " (not used in this mode)") << std::endl;
+  }
+  return true;
+}
+
 vector<string> ioJack::inputPortNames(void)
 {
   vector<string> names;

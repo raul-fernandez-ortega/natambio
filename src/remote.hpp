@@ -19,6 +19,7 @@ extern "C" {
 #include <vector>
 
 #include "iojack.hpp"
+#include "naconf.hpp"
 
 /* Line-based TCP manager for the port gains.
  *
@@ -34,6 +35,10 @@ extern "C" {
  *     up   <dB> <port> [port ...]     raise those ports' gains by <dB>
  *     down <dB> <port> [port ...]     lower them by <dB>
  *     get  [port ...]                 report the gains as they are now
+ *     naegain [<nae> [front|amb|rear <dB> ...]]   the NAE engines' gains
+ *     naepan  [<nae> [<scale>]]       the width of an NAE's input pair
+ *     naeget  [<nae>]                 an NAE's configuration, as XML
+ *     getxmlconfig                    the whole live configuration, as XML
  *     mute                            silence every output, gains untouched
  *     unmute                          bring them back
  *     toggle                          whichever of the two is not the case now
@@ -62,6 +67,54 @@ extern "C" {
  * says so on a line of its own before the gains, which are then what the ports
  * will go back to rather than what is coming out.
  *
+ * "naegain" is the odd one: it addresses an NAE engine by its <name> rather
+ * than a JACK port, and its numbers are ABSOLUTE dB, not steps. The three gains
+ * are a balance between the components the engine decomposes the pair into --
+ * <front_gain>, <ambience_gain> and <rear_gain> in the configuration, named
+ * front, amb and rear here -- and a balance is set to a value, not nudged from
+ * whatever it happens to be. Several in one line, applied together:
+ *
+ *     naegain nae_front front -1.5 amb -4.0
+ *
+ * Only some of the three do anything in a given mode: alpha reads front and
+ * amb, beta reads rear. A gain the mode does not read is still set and still
+ * reported -- the mode does not change while natambio runs, so refusing it
+ * would only lose the value -- but it is answered "inactive <nae> <which> <dB>"
+ * rather than "ok", which is the difference between a command that did nothing
+ * and one that did nothing visible. With no gains after the name the engine is
+ * reported and not touched: a "nae <name> alpha|beta" line and then its three
+ * gains, four lines. With no name at all, every engine, which is how a caller
+ * with no copy of the configuration finds out what there is to ask about.
+ *
+ * "naepan" is <pan_scale>, the width of the engine's input pair, set or read:
+ * +1 the pair collapsed to mono, 0 untouched, -1 the two channels in opposite
+ * polarity. Absolute like naegain, and slewed like it too -- the width is a
+ * matrix the pair is multiplied by, and applying one whole is as much a click
+ * as a jump in a gain. Outside [-1, 1] it is refused rather than clamped: that
+ * range is the whole of what the parameter means, not a safety margin. Both
+ * modes read it, so it is never inactive.
+ *
+ * "naeget" answers with the <nae> block that would reproduce the engine as it
+ * stands -- the gains as they are NOW, so a balance arrived at over this socket
+ * comes back as the lines to paste into the configuration that will start it
+ * that way next time. It is the one command whose reply is not of the form
+ * "ok <thing> <value>": what is wanted here is the text of a configuration, not
+ * a value to act on, and bending it into the protocol's shape would only mean
+ * the caller had to bend it back. Each block ends at its </nae>, so a client
+ * asking for one engine knows where the answer stops; with no name it reports
+ * every engine, whose length only this end knows, as with a bare "get".
+ *
+ * "getxmlconfig" answers with the entire configuration as it now stands: the
+ * document natambio was started from, carrying every change the commands above
+ * have made since. It is valid to start another natambio with, because it is
+ * the file that started this one -- comments and layout included -- rather than
+ * something reconstructed from what was parsed out of it. The way it stays
+ * current is that every command that changes something writes the new value
+ * back into the configuration as well as into the running audio (NaConf::set*),
+ * so there is one place holding what the system is set to and no reconciling to
+ * do when someone asks for it. The reply ends at </main>, and its length, like
+ * that of a bare "get", is known only at this end.
+ *
  * "mute" and "unmute" take nothing at all and apply to every output at once.
  * The ports' own gains are untouched, so up/down and get go on working through
  * a mute and the levels come back exactly as they were. "toggle" is the pair of
@@ -81,6 +134,11 @@ private:
 
   int port;
   ioJack *naJack;
+  /* The configuration, so that a change can be written back into it as well as
+     applied. NULL is tolerated -- the manager then still drives the audio and
+     only getxmlconfig has nothing to say -- so that Remote stays usable in a
+     test that has no NaConf to give it. */
+  NaConf *naConf;
   bool quiet;
 
   int listen_fd;
@@ -96,10 +154,16 @@ private:
   void serve(int fd);
   std::string runCommand(const std::string& line);
   std::string reportGains(std::istringstream& is);
+  std::string naeGains(std::istringstream& is);
+  std::string reportNaeGains(const std::vector<std::string>& names);
+  std::string naePan(std::istringstream& is);
+  std::string naeConfigs(std::istringstream& is);
+  std::string xmlConfig(std::istringstream& is);
+  std::string reportNaeConfig(struct nae_config& cfg);
 
 public:
 
-  Remote(int n_port, ioJack *n_jack, bool n_quiet);
+  Remote(int n_port, ioJack *n_jack, NaConf *n_conf, bool n_quiet);
   ~Remote(void);
 
   /* Bind, listen and start the manager thread. False (with a message on

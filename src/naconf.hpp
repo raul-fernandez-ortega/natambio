@@ -43,6 +43,13 @@ private:
   bool quiet;
   int n_convprocs;
   int jack_sample_rate;   // JACK sample rate, probed before parsing (see NatAmbio)
+  /* The document this configuration was parsed from, kept for the lifetime of
+     the object rather than freed once it has been read. It is what the remote
+     manager's "getxmlconfig" answers with, the live values patched over it:
+     built out of the parsed structures instead, a dump would have to reproduce
+     a file that is already known to be valid -- and would lose the comments,
+     which in a configuration of this kind carry most of the reasoning. */
+  xmlDocPtr conf_doc;
 
   struct coeff* parse_coeff(xmlNodePtr xmlnode);
   struct xtc* parse_xtc(xmlNodePtr xmlnode);
@@ -55,6 +62,8 @@ private:
   bool parse_jackoutput(xmlNodePtr xmlnode);
   bool parse_remote(xmlNodePtr xmlnode);
   bool parse_setting(xmlNodePtr xmlnode);
+  xmlNodePtr findNatambioNode(void);
+  xmlNodePtr findNaeNode(const string& nae_name, struct s_nae **parsed);
   bool sndfile_read(struct coeff* coeff);
   struct coeff* find_coeff(string name);
   bool build_convol_coeffs(void);
@@ -81,6 +90,31 @@ public:
 
   void setQuiet(void) { quiet = true; };
   bool conf_init(string filename, int jack_sample_rate);
+  /* The document as parsed. NULL before conf_init() succeeds. Owned here. */
+  xmlDocPtr getConfDoc(void) { return conf_doc; };
+
+  /* A value changed while natambio runs, written back into the configuration:
+     into the document, which is what a dump answers with, and into the parsed
+     structure beside it, so the two faces of this object never disagree.
+     Called from the remote manager's thread, the only one that changes
+     anything after startup, and never from the RT callback.
+
+     They record what was asked for; they do not apply it. The engines and the
+     ports are driven by ioJack and NAE, which slew to the new value -- writing
+     it here as well is what makes the change survive into the next run's
+     configuration file instead of living only in the running process.
+
+     False if nothing of that name is configured, in which case nothing is
+     written. A gain whose <gain> tag was left out of the file (it defaults to
+     0 dB) gets one added: the value is no longer the default. */
+  bool setPortGainDb(const string& port_name, double gain_db);
+  bool setNaeGainDb(const string& nae_name, enum nae_gain which, double gain_db);
+  bool setNaePanScale(const string& nae_name, double pan_scale);
+
+  /* The whole configuration as it now stands, as XML: the document that was
+     parsed, carrying every value the commands above have written into it since.
+     Empty if there is no document, which cannot happen once natambio is up. */
+  string dumpConfig(void);
   int getMaxCoeffsSize(void);
 
 };

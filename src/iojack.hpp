@@ -65,6 +65,25 @@ struct jack_port {
   vector<struct nae_channel*> nae_channels;
 };
 
+/* An NAE engine's configuration, read back out: the fields a <nae> tag carries
+   in the XML, so that an engine tuned by ear can be written down as the block
+   that would reproduce it. Gains are in dB, as the file spells them and as the
+   remote manager works in -- not the linear numbers naconf parses them into.
+   The output names are empty for the outputs this engine does not have. */
+struct nae_config {
+  string name;
+  int mode;                     /* 0 alpha, 1 beta */
+  int steps_length;
+  double pan_scale;
+  double front_gain_db;
+  double ambience_gain_db;
+  double rear_gain_db;
+  string input_left, input_right;
+  string output_left, output_right;
+  string front_output_left, front_output_right;
+  string amb_output_left, amb_output_right;
+};
+
 class ioJack {
 
 private:
@@ -103,6 +122,7 @@ private:
   volatile int mute_target;
 
   struct jack_port *findPort(string port_name);
+  NAE *findNae(string nae_name);
 
   /* One period of slew towards a port's gain target: at most ramp_inc per
      sample, the rate the start/stop fade already uses, so a change lands in a
@@ -187,6 +207,36 @@ public:
   vector<string> inputPortNames(void);
   vector<string> outputPortNames(void);
   vector<string> portNames(void);   /* inputs first, then outputs */
+
+  /* The NAE engines' gains, for the remote manager, in the same shape as the
+     port gains above and from the same thread. Both return false if no engine
+     of that name was configured; a NAE with no <name> is unaddressable and is
+     simply never matched. Unlike the port commands these are ABSOLUTE -- the
+     three gains are a balance between components rather than a volume, and the
+     number the caller has in mind is the one in the configuration file.
+     *active comes back false for a gain the engine's mode does not read: the
+     value is still set and still reported, it just multiplies nothing until
+     the configuration says otherwise, and the caller is told so rather than
+     left to wonder why nothing moved. The engine slews to it, so the change is
+     a fade like any other. */
+  vector<string> naeNames(void);
+  /* The whole configuration of one engine, by name or by position. The second
+     form exists because an engine configured without a <name> cannot be
+     addressed by one and would otherwise be missing from a report of all of
+     them -- which is the one report where its absence would go unnoticed. */
+  size_t naeCount(void) { return nae_channels.size(); };
+  bool naeConfig(string nae_name, struct nae_config *cfg);
+  bool naeConfigAt(size_t index, struct nae_config *cfg);
+  /* An engine's <pan_scale>, read and written. setNaePanScale() returns false
+     for a name that is not registered AND for a width outside [-1, 1], which
+     the engine refuses rather than clamps; the manager checks the range first
+     so that it can say which of the two went wrong. The engine slews to it,
+     like a gain. */
+  bool naePanScale(string nae_name, double *scale);
+  bool setNaePanScale(string nae_name, double scale, double *new_scale);
+  bool naeGain(string nae_name, enum nae_gain which, double *gain_db, bool *active);
+  bool setNaeGain(string nae_name, enum nae_gain which, double db,
+                  double *new_gain_db, bool *active);
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

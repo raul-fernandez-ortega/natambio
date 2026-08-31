@@ -39,6 +39,7 @@ void parse_error_exit(const char msg[])
 
 NaConf::NaConf(void)
 {
+  conf_doc = NULL;
   quiet = false;
   jackclient = new struct jackclient;
   jackclient->name = "natambio";
@@ -49,6 +50,13 @@ NaConf::NaConf(void)
 
 NaConf::~NaConf(void)
 {
+  if(conf_doc != NULL) {
+    xmlFreeDoc(conf_doc);
+    conf_doc = NULL;
+  }
+  /* After the document, and once for the process: the parser's globals outlive
+     every document made with them. */
+  xmlCleanupParser();
   for (vector<struct jackport*>::iterator jack_p = jackclient->inports.begin() ; jack_p != jackclient->inports.end(); jack_p++)
     delete *jack_p;
   for (vector<struct jackport*>::iterator jack_p = jackclient->outports.begin() ; jack_p != jackclient->outports.end(); jack_p++)
@@ -1760,9 +1768,195 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
     return false;
   }
 
-  xmlCleanupParser();
-  xmlFreeDoc(xmlconf);
+  /* Kept, not freed: getConfDoc() hands it to the remote manager, and the
+     destructor is where it and the parser's own globals go. */
+  conf_doc = xmlconf;
   return true;
+}
+
+/* ------------------------------------------------------------------------
+   Writing back: what the remote manager changes while natambio runs.
+
+   The document is the one that was parsed, so a dump of it is a file already
+   known to start this system -- comments, layout, the lot. The commands write
+   into it one value at a time, at the node the value came from, which is both
+   cheaper and safer than reconciling the whole tree at dump time: the caller
+   changing a gain knows exactly which port it belongs to, and a dump that had
+   to work that out again could get it wrong for a port whose name had moved.
+   ------------------------------------------------------------------------ */
+
+/* The text of a child element, or "" if there is none. */
+static string xml_child_text(xmlNodePtr parent, const char *tag)
+{
+  for(xmlNodePtr n = parent->children; n != NULL; n = n->next) {
+    if(n->type != XML_ELEMENT_NODE)
+      continue;
+    if(!xmlStrcmp(n->name, (const xmlChar *)tag)) {
+      xmlChar *cnt = xmlNodeGetContent(n);
+      string out = (cnt != NULL) ? (char*)cnt : "";
+      if(cnt != NULL)
+        xmlFree(cnt);
+      return out;
+    }
+  }
+  return "";
+}
+
+/* Set a child element's text, adding the element if the file left it out --
+   which is how an optional tag at its default value (<gain>, <pan_scale>)
+   comes to need writing at all. */
+static void xml_set_child(xmlNodePtr parent, const char *tag, const string& value)
+{
+  for(xmlNodePtr n = parent->children; n != NULL; n = n->next) {
+    if(n->type != XML_ELEMENT_NODE)
+      continue;
+    if(!xmlStrcmp(n->name, (const xmlChar *)tag)) {
+      xmlNodeSetContent(n, (const xmlChar *)value.c_str());
+      return;
+    }
+  }
+  xmlNewChild(parent, NULL, (const xmlChar *)tag, (const xmlChar *)value.c_str());
+}
+
+/* Numbers as the configuration and the remote manager write them: three
+   decimals, the protocol's own precision, so a value read back over the socket
+   and the one in the file are the same string. */
+static string xml_number(double value)
+{
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(3) << value;
+  return out.str();
+}
+
+/* <natambio>, wherever it sits: at the root's first level or one deeper, the
+   two places conf_init() looks for it. */
+xmlNodePtr NaConf::findNatambioNode(void)
+{
+  if(conf_doc == NULL)
+    return NULL;
+  xmlNodePtr root = xmlDocGetRootElement(conf_doc);
+  if(root == NULL)
+    return NULL;
+  for(xmlNodePtr n = root->children; n != NULL; n = n->next) {
+    if(n->type != XML_ELEMENT_NODE)
+      continue;
+    if(!xmlStrcmp(n->name, (const xmlChar *)"natambio"))
+      return n;
+    for(xmlNodePtr c = n->children; c != NULL; c = c->next)
+      if(c->type == XML_ELEMENT_NODE && !xmlStrcmp(c->name, (const xmlChar *)"natambio"))
+        return c;
+  }
+  return NULL;
+}
+
+bool NaConf::setPortGainDb(const string& port_name, double gain_db)
+{
+  xmlNodePtr natambio = findNatambioNode();
+  if(natambio == NULL)
+    return false;
+
+  for(xmlNodePtr group = natambio->children; group != NULL; group = group->next) {
+    if(group->type != XML_ELEMENT_NODE)
+      continue;
+    if(xmlStrcmp(group->name, (const xmlChar *)"jack_input") &&
+       xmlStrcmp(group->name, (const xmlChar *)"jack_output"))
+      continue;
+    for(xmlNodePtr port = group->children; port != NULL; port = port->next) {
+      if(port->type != XML_ELEMENT_NODE)
+        continue;
+      if(xmlStrcmp(port->name, (const xmlChar *)"port"))
+        continue;
+      if(xml_child_text(port, "name") != port_name)
+        continue;
+      xml_set_child(port, "gain", xml_number(gain_db));
+      /* And the parsed structure beside it, so this object does not hold two
+         answers to the same question. */
+      for(vector<struct jackport*>::iterator p = jackclient->inports.begin();
+          p != jackclient->inports.end(); p++)
+        if((*p)->name == port_name)
+          (*p)->gain = gain_db;
+      for(vector<struct jackport*>::iterator p = jackclient->outports.begin();
+          p != jackclient->outports.end(); p++)
+        if((*p)->name == port_name)
+          (*p)->gain = gain_db;
+      return true;
+    }
+  }
+  return false;
+}
+
+/* The <nae> whose <name> matches, and the parsed struct at the same position.
+   An engine configured without a <name> cannot be addressed and is skipped
+   rather than matched by an empty string. */
+xmlNodePtr NaConf::findNaeNode(const string& nae_name, struct s_nae **parsed)
+{
+  xmlNodePtr natambio = findNatambioNode();
+  if(natambio == NULL || nae_name.empty())
+    return NULL;
+
+  size_t index = 0;
+  for(xmlNodePtr n = natambio->children; n != NULL; n = n->next) {
+    if(n->type != XML_ELEMENT_NODE || xmlStrcmp(n->name, (const xmlChar *)"nae"))
+      continue;
+    if(xml_child_text(n, "name") == nae_name) {
+      if(parsed != NULL)
+        *parsed = (index < naelist.size()) ? naelist[index] : NULL;
+      return n;
+    }
+    index++;
+  }
+  return NULL;
+}
+
+bool NaConf::setNaeGainDb(const string& nae_name, enum nae_gain which, double gain_db)
+{
+  struct s_nae *parsed = NULL;
+  xmlNodePtr nae = findNaeNode(nae_name, &parsed);
+  if(nae == NULL)
+    return false;
+
+  const char *tag = (which == NAE_GAIN_FRONT) ? "front_gain" :
+                    (which == NAE_GAIN_AMB)   ? "ambience_gain" : "rear_gain";
+  xml_set_child(nae, tag, xml_number(gain_db));
+  /* The structures hold the gains linear, as FROM_DB left them at parse time;
+     the file holds dB. Each keeps its own convention. */
+  if(parsed != NULL) {
+    if(which == NAE_GAIN_FRONT)     parsed->gain_c1 = FROM_DB(gain_db);
+    else if(which == NAE_GAIN_AMB)  parsed->gain_c2 = FROM_DB(gain_db);
+    else                            parsed->gain_c2_rear = FROM_DB(gain_db);
+  }
+  return true;
+}
+
+bool NaConf::setNaePanScale(const string& nae_name, double pan_scale)
+{
+  struct s_nae *parsed = NULL;
+  xmlNodePtr nae = findNaeNode(nae_name, &parsed);
+  if(nae == NULL)
+    return false;
+  xml_set_child(nae, "pan_scale", xml_number(pan_scale));
+  if(parsed != NULL)
+    parsed->pan_scale = pan_scale;
+  return true;
+}
+
+string NaConf::dumpConfig(void)
+{
+  xmlChar *text = NULL;
+  int size = 0;
+
+  if(conf_doc == NULL)
+    return "";
+  /* Unformatted on purpose: the document keeps the layout and the comments it
+     was written with, which is what makes the dump a file its author still
+     recognises. Reindenting it would be this end deciding how someone else's
+     configuration should look. */
+  xmlDocDumpMemory(conf_doc, &text, &size);
+  if(text == NULL)
+    return "";
+  string out((const char *)text, (size_t)size);
+  xmlFree(text);
+  return out;
 }
 
 int NaConf::getMaxCoeffsSize(void) {

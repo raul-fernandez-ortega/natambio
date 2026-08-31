@@ -83,8 +83,18 @@ NAE::NAE(string n_name, int n_mode)
   c1_right_name_out = "";
   c2_right_name_out = "";
   pan_scale = 0;
+  pan_scale_target = 0.0f;
+  pan_scale_now = 0;
   pan_a = 1.0;
   pan_b = 0.0;
+  sample_count = 0;
+  /* Replaced by setSampleRate() once JACK's rate is known; until then the
+     value 48 kHz would give, so a gain set before that still fades. */
+  sample_rate = 48000;
+  ramp_inc = 1.0f / 1536.0f;
+  gain_c1 = gain_c2 = gain_c2_rear = 0.0;
+  gain_c1_target = gain_c2_target = gain_c2_rear_target = 0.0f;
+  gain_c1_db = gain_c2_db = gain_c2_rear_db = NA_NAE_GAIN_MIN_DB;
 }
 
 NAE::~NAE(void)
@@ -122,27 +132,130 @@ NAE::~NAE(void)
   pthread_mutex_destroy(&mutex);
 }
 
+/* The dB face of a linear gain out of the configuration. Zero is what naconf
+   leaves the gains a mode does not use at -- beta parses no <front_gain> --
+   and has no logarithm, so it reports as the floor, which is what it is. */
+static double gain_to_db(double gain)
+{
+  if(gain <= 0.0)
+    return NA_NAE_GAIN_MIN_DB;
+  double db = TO_DB(gain);
+  if(db > NA_NAE_GAIN_MAX_DB) db = NA_NAE_GAIN_MAX_DB;
+  if(db < NA_NAE_GAIN_MIN_DB) db = NA_NAE_GAIN_MIN_DB;
+  return db;
+}
+
+/* Configuration time: the current value as well as the target, so the first
+   block comes out at the configured gain instead of fading up to it. The
+   worker thread is not running yet -- load() starts it -- so writing both is
+   safe here and nowhere else. */
 bool NAE::setC1Gain(double gain)
 {
+  gain_c1_db = gain_to_db(gain);
+  gain_c1_target = (float)gain;
   gain_c1 = gain;
   return true;
 }
 
 bool NAE::setC2Gain(double gain)
 {
+  gain_c2_db = gain_to_db(gain);
+  gain_c2_target = (float)gain;
   gain_c2 = gain;
   return true;
 }
 
 bool NAE::setC2RearGain(double gain)
 {
+  gain_c2_rear_db = gain_to_db(gain);
+  gain_c2_rear_target = (float)gain;
   gain_c2_rear = gain;
+  return true;
+}
+
+double *NAE::gainDbSlot(enum nae_gain which)
+{
+  if(which == NAE_GAIN_FRONT)
+    return &gain_c1_db;
+  if(which == NAE_GAIN_AMB)
+    return &gain_c2_db;
+  return &gain_c2_rear_db;
+}
+
+volatile float *NAE::gainTargetSlot(enum nae_gain which)
+{
+  if(which == NAE_GAIN_FRONT)
+    return &gain_c1_target;
+  if(which == NAE_GAIN_AMB)
+    return &gain_c2_target;
+  return &gain_c2_rear_target;
+}
+
+/* Which gains a mode has any use for. Alpha splits the pair into a principal
+   and an ambience component and mixes both back, so it reads gain_c1 and
+   gain_c2; beta computes the ambience alone and sends it to the rears, so it
+   reads gain_c2_rear and nothing else. The other gains are still kept, set and
+   reported -- they multiply nothing while the engine is in this mode, and a
+   mode does not change while natambio runs, so this is a statement about the
+   configuration rather than about the moment. */
+bool NAE::gainActive(enum nae_gain which)
+{
+  if(mode)
+    return which == NAE_GAIN_REAR;
+  return which == NAE_GAIN_FRONT || which == NAE_GAIN_AMB;
+}
+
+double NAE::gainDb(enum nae_gain which)
+{
+  return *gainDbSlot(which);
+}
+
+/* Called from the remote manager's thread. The dB value belongs to that thread
+   and the linear target is the one word the worker reads, written last and in
+   one store -- the discipline ioJack::adjustPortGain() keeps for a port gain,
+   and for the same reason: the worker is in the middle of a block and must
+   never see half a change. Unlike the port commands this one is absolute, so
+   the clamp is not what stops a repeated command from running away; it is
+   what stops a single mistyped number. */
+double NAE::setGainDb(enum nae_gain which, double db)
+{
+  if(db > NA_NAE_GAIN_MAX_DB) db = NA_NAE_GAIN_MAX_DB;
+  if(db < NA_NAE_GAIN_MIN_DB) db = NA_NAE_GAIN_MIN_DB;
+  *gainDbSlot(which) = db;
+  *gainTargetSlot(which) = (float)FROM_DB(db);
+  return db;
+}
+
+/* The width matrix for a given <pan_scale>. Its own function because the worker
+   thread now derives it too, once a block, from wherever the slew has got to:
+   two cosines a block is nothing, and deriving both weights from one scalar is
+   what keeps them a matrix that means something at every point of a move. */
+static void pan_weights(double scale, double *a, double *b)
+{
+  double phi = (M_PI/4.0)*(1.0 - scale);
+  double wm = M_SQRT2*cos(phi);
+  double ws = M_SQRT2*sin(phi);
+  *a = 0.5*(wm + ws);
+  *b = 0.5*(wm - ws);
+}
+
+/* Called from the remote manager's thread: one store into the word the worker
+   reads, which is the scalar rather than the weights. Refused, and nothing
+   touched, outside the parameter's domain -- see NA_NAE_PAN_MIN/MAX. */
+bool NAE::setLivePanScale(double n_scale)
+{
+  if(n_scale < NA_NAE_PAN_MIN || n_scale > NA_NAE_PAN_MAX)
+    return false;
+  pan_scale = n_scale;
+  pan_scale_target = (float)n_scale;
   return true;
 }
 
 void NAE::setPanScale(double n_scale)
 {
   pan_scale = n_scale;
+  pan_scale_target = (float)n_scale;
+  pan_scale_now = n_scale;
   // Width of the input pair (<pan_scale>), as a plain constant matrix on L/R,
   // applied before anything else looks at the signal. Written as an angle so
   // the two weights stay power complementary, wm^2 + ws^2 = 2:
@@ -155,11 +268,7 @@ void NAE::setPanScale(double n_scale)
   // sense -- [[a,b],[b,a]] is orthogonal only for b = 0 or a = 0 -- so power
   // complementary is as close as it gets: exact whenever mid and side carry
   // the same power, and bounded and smooth otherwise.
-  double phi = (M_PI/4.0)*(1.0 - pan_scale);
-  double wm = M_SQRT2*cos(phi);
-  double ws = M_SQRT2*sin(phi);
-  pan_a = 0.5*(wm + ws);
-  pan_b = 0.5*(wm - ws);
+  pan_weights(pan_scale, &pan_a, &pan_b);
 }
 
 void NAE::setSampleCount(int n_sample_count)
@@ -184,6 +293,15 @@ void NAE::setSampleCount(int n_sample_count)
   c2_right_out = (float*) calloc(sample_count, sizeof(float));
   memset(c2_left_out, 0, sample_count);
   memset(c2_right_out, 0, sample_count);
+}
+
+void NAE::setSampleRate(int n_sample_rate)
+{
+  sample_rate = n_sample_rate;
+  /* 32 ms, the figure ioJack::global_init() ramps at: a gain arriving here and
+     one arriving at a port move together, and neither is heard as a step. */
+  if(sample_rate > 0)
+    ramp_inc = 1.0f / (0.032f * (float)sample_rate);
 }
 
 void NAE::setCovStepsLength(int n_covsteps)
@@ -417,6 +535,20 @@ void NAE::thr_process(void)
     std::cout << "NAE: processing " << name << std::endl;
 #endif
 
+    /* The width across this block: the scalar slewed towards its target, and
+       the matrix at each end of that move. Both loops below walk the same
+       sample_count with the same step, so the correlation in beta mode sees
+       the pair exactly as the decomposition does. The two weights are
+       interpolated between two matrices rather than recomputed per sample --
+       a cosine a sample would buy an exactness that a 30 ms move between two
+       neighbouring widths has no room to be wrong by. */
+    double ps0 = pan_scale_now;
+    double ps1 = slewGain(ps0, (double)pan_scale_target);
+    double pa0 = pan_a, pb0 = pan_b, pa1, pb1;
+    pan_weights(ps1, &pa1, &pb1);
+    double pa_step = (pa1 - pa0)/(double)sample_count;
+    double pb_step = (pb1 - pb0)/(double)sample_count;
+
     // process input
     covM.sum_xy_array[covsteps - 1] = 0;
     covM.sum_x2_array[covsteps - 1] = 0;
@@ -435,9 +567,10 @@ void NAE::thr_process(void)
       // Correlation, of the pair as the width control leaves it: <pan_scale>
       // acts before anything else looks at the signal, so the weighting this
       // correlation drives follows the width too.
-      for (int i = 0; i < sample_count; i++) {
-        double l = pan_a*left_in[i] + pan_b*right_in[i];
-        double r = pan_b*left_in[i] + pan_a*right_in[i];
+      double pa = pa0, pb = pb0;
+      for (int i = 0; i < sample_count; i++, pa += pa_step, pb += pb_step) {
+        double l = pa*left_in[i] + pb*right_in[i];
+        double r = pb*left_in[i] + pa*right_in[i];
         icorrv.sum_xy_array[ICORRL - 1] += l * r;
         icorrv.sum_x2_array[ICORRL - 1] += l * l;
         icorrv.sum_y2_array[ICORRL - 1] += r * r;
@@ -461,10 +594,12 @@ void NAE::thr_process(void)
       side_weight = 1.0;
     }
     
-    for (int i = 0, j = (covsteps - 1) * sample_count; i < sample_count; i++, j++) {
+    double pa = pa0, pb = pb0;
+    for (int i = 0, j = (covsteps - 1) * sample_count; i < sample_count;
+         i++, j++, pa += pa_step, pb += pb_step) {
       // Width first, then the decomposition works on the pair as it leaves it.
-      double l = pan_a*left_in[i] + pan_b*right_in[i];
-      double r = pan_b*left_in[i] + pan_a*right_in[i];
+      double l = pa*left_in[i] + pb*right_in[i];
+      double r = pb*left_in[i] + pa*right_in[i];
       pca.mid_step[j] = l + r;
       pca.side_step[j] = side_weight*(l - r);
       // Covariances
@@ -506,14 +641,25 @@ void NAE::thr_process(void)
         pca.c2_mid[i] += c2_factor * eigvectors[1][0];
         pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
-      for(int  i = 0; i < sample_count; i++) {
+      /* The rear gain across this block: where the last one left it, to where
+         the slew takes it, interpolated sample by sample. A gain arriving from
+         the remote manager is heard as a short fade this way; applied whole at
+         the block boundary it would be a step, which is a click, and through
+         the rears a thump. Costs one add per sample and nothing at all once
+         the gain has arrived, when both ends are the same number. */
+      double gr0 = gain_c2_rear;
+      double gr1 = slewGain(gr0, (double)gain_c2_rear_target);
+      double gr_step = (gr1 - gr0)/(double)sample_count;
+      double gr = gr0;
+      for(int  i = 0; i < sample_count; i++, gr += gr_step) {
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        left_out[i]  = gain_c2_rear*c2_left;
-        right_out[i] = gain_c2_rear*c2_right;
+        left_out[i]  = gr*c2_left;
+        right_out[i] = gr*c2_right;
         c2_left_out[i] = left_out[i];
         c2_right_out[i] = right_out[i];
       }
+      gain_c2_rear = gr1;
     } else {
       // Alpha / Front main and ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
@@ -524,20 +670,38 @@ void NAE::thr_process(void)
         pca.c2_mid[i] += c2_factor * eigvectors[1][0];
         pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
-      for(int  i = 0; i < sample_count; i++) {
+      /* Both gains slewed across the block, each towards its own target and
+         each on its own line: the two components are mixed back together here,
+         and a step in either is a step in the sum. See the beta branch. */
+      double g1_0 = gain_c1;
+      double g1_1 = slewGain(g1_0, (double)gain_c1_target);
+      double g1_step = (g1_1 - g1_0)/(double)sample_count;
+      double g2_0 = gain_c2;
+      double g2_1 = slewGain(g2_0, (double)gain_c2_target);
+      double g2_step = (g2_1 - g2_0)/(double)sample_count;
+      double g1 = g1_0;
+      double g2 = g2_0;
+      for(int  i = 0; i < sample_count; i++, g1 += g1_step, g2 += g2_step) {
         c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
         c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        left_out[i]  = gain_c1*c1_left + gain_c2*c2_left;
-        right_out[i] = gain_c1*c1_right + gain_c2*c2_right;
-        c1_left_out[i] = gain_c1*c1_left;
-        c1_right_out[i] = gain_c1*c1_right;
-        c2_left_out[i] = gain_c2*c2_left;
-        c2_right_out[i] = gain_c2*c2_right;
+        left_out[i]  = g1*c1_left + g2*c2_left;
+        right_out[i] = g1*c1_right + g2*c2_right;
+        c1_left_out[i] = g1*c1_left;
+        c1_right_out[i] = g1*c1_right;
+        c2_left_out[i] = g2*c2_left;
+        c2_right_out[i] = g2*c2_right;
       }
+      gain_c1 = g1_1;
+      gain_c2 = g2_1;
     }
     
+    /* Where the block left the width, for the next one to start from. */
+    pan_scale_now = ps1;
+    pan_a = pa1;
+    pan_b = pb1;
+
     for(int i = 0, j = sample_count; i < sample_count *(covsteps - 1); i++, j++) {
       pca.c1_mid[i] = pca.c1_mid[j];
       pca.c1_side[i] = pca.c1_side[j];

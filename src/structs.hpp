@@ -32,6 +32,13 @@ extern "C" {
 #define FROM_DB(db) (pow(10, (db) / 20.0))
 #endif
 
+/* The way back. Undefined at zero and below, as the logarithm is: every caller
+   here has a floor of its own to report instead (the gain clamps), and one
+   picked in this macro would be the wrong one for somebody. */
+#ifndef TO_DB
+#define TO_DB(g) (20.0 * log10(g))
+#endif
+
 #ifndef MIN
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #endif
@@ -49,6 +56,17 @@ enum side {
   C1_RIGHT,
   C2_LEFT,
   C2_RIGHT
+};
+
+/* Which of an NAE's three gains is being named. Only some of them do anything
+   in a given mode -- see NAE::gainActive() -- but all three are kept, so a
+   value set on the wrong one is remembered rather than lost. Here rather than
+   in nae.hpp because the configuration names the same three (<front_gain>,
+   <ambience_gain>, <rear_gain>) and has no business knowing about the engine. */
+enum nae_gain {
+  NAE_GAIN_FRONT,   /* gain_c1 / <front_gain>: principal component, alpha only */
+  NAE_GAIN_AMB,     /* gain_c2 / <ambience_gain>: ambience, alpha only */
+  NAE_GAIN_REAR     /* gain_c2_rear / <rear_gain>: to the rears, beta only */
 };
 
 struct s_nae {

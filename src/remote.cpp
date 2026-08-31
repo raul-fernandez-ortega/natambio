@@ -20,6 +20,7 @@ extern "C" {
 
 }
 
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
@@ -40,17 +41,88 @@ extern "C" {
 /* The whole grammar in one place: both the usage error and the unknown-command
    one quote it, and each answer stays the single line the protocol promises. */
 static const char *REMOTE_GRAMMAR =
-  "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | mute | unmute | toggle";
+  "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | "
+  "naegain [<nae> [front|amb|rear <dB> ...]] | naepan [<nae> [<scale>]] | "
+  "naeget [<nae>] | getxmlconfig | mute | unmute | toggle";
+
+/* The three NAE gains as the protocol spells them, in the order a report lists
+   them. Kept together so the parser and the reporter cannot drift apart. */
+static const struct {
+  const char *word;
+  enum nae_gain which;
+} REMOTE_NAE_GAINS[] = {
+  { "front", NAE_GAIN_FRONT },
+  { "amb",   NAE_GAIN_AMB   },
+  { "rear",  NAE_GAIN_REAR  },
+};
+#define REMOTE_NAE_GAIN_COUNT (sizeof(REMOTE_NAE_GAINS)/sizeof(REMOTE_NAE_GAINS[0]))
+
+/* The next name on the line. An NAE's <name> is free text out of the
+   configuration -- "front stereo" is one of the names in use -- so unlike a
+   JACK port name it is not always one whitespace-delimited token. Quoted, it
+   may hold spaces, and inside the quotes a backslash escapes the character
+   after it, which is what lets a name carry a quote or a backslash of its own.
+   Unquoted, it is the plain token it looks like. Returns 1 and the name, 0 if
+   the line is finished, -1 on a quote that never closes -- which is refused
+   rather than read to end of line, since the rest of that line is a gain the
+   caller meant for something. */
+static int read_name(std::istringstream& is, std::string& out)
+{
+  out.clear();
+  is >> std::ws;
+  if(is.eof() || is.peek() == EOF)
+    return 0;
+  if(is.peek() != '"')
+    return (is >> out) ? 1 : 0;
+
+  is.get();                     /* the opening quote */
+  int c;
+  while((c = is.get()) != EOF) {
+    if(c == '\\') {
+      int e = is.get();
+      if(e == EOF)
+        return -1;
+      out.push_back((char)e);
+      continue;
+    }
+    if(c == '"')
+      return 1;
+    out.push_back((char)c);
+  }
+  return -1;
+}
+
+/* A name written the way the protocol reads it: bare when it is a single
+   token, quoted when it is not, so that a report can be edited and sent
+   straight back as a command instead of having to be quoted by hand. */
+static std::string quote_name(const std::string& name)
+{
+  bool needs = name.empty();
+  for(size_t i = 0; i < name.size() && !needs; i++)
+    if(isspace((unsigned char)name[i]) || name[i] == '"' || name[i] == '\\')
+      needs = true;
+  if(!needs)
+    return name;
+  std::string out = "\"";
+  for(size_t i = 0; i < name.size(); i++) {
+    if(name[i] == '"' || name[i] == '\\')
+      out.push_back('\\');
+    out.push_back(name[i]);
+  }
+  out.push_back('"');
+  return out;
+}
 
 static std::string usage_error(void)
 {
   return std::string("error: usage: ") + REMOTE_GRAMMAR + "\n";
 }
 
-Remote::Remote(int n_port, ioJack *n_jack, bool n_quiet)
+Remote::Remote(int n_port, ioJack *n_jack, NaConf *n_conf, bool n_quiet)
 {
   port = n_port;
   naJack = n_jack;
+  naConf = n_conf;
   quiet = n_quiet;
   listen_fd = -1;
   stop_pipe[0] = stop_pipe[1] = -1;
@@ -291,6 +363,272 @@ std::string Remote::reportGains(std::istringstream& is)
   return reply.str();
 }
 
+/* An engine's whole state, as "naegain <nae>" with no gains after it answers:
+   which mode it is in, and then all three gains whether that mode reads them or
+   not. Reporting only the two a mode uses would make the reply to a set the
+   caller could not read back -- a value set on the third would vanish from the
+   report that is supposed to be the record of it. */
+std::string Remote::reportNaeGains(const std::vector<std::string>& names)
+{
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+
+  for(size_t i = 0; i < names.size(); i++) {
+    double db = 0.0;
+    bool active = false;
+    /* The mode, read off the one gain only beta uses. */
+    if(!naJack->naeGain(names[i], NAE_GAIN_REAR, &db, &active))
+      return "error: no NAE named '" + names[i] + "'\n";
+    std::string shown = quote_name(names[i]);
+    reply << "nae " << shown << " " << (active ? "beta" : "alpha") << "\n";
+    for(size_t g = 0; g < REMOTE_NAE_GAIN_COUNT; g++) {
+      naJack->naeGain(names[i], REMOTE_NAE_GAINS[g].which, &db, &active);
+      reply << (active ? "ok " : "inactive ") << shown << " "
+            << REMOTE_NAE_GAINS[g].word << " " << db << "\n";
+    }
+  }
+  return reply.str();
+}
+
+/* "naegain [<nae> [front|amb|rear <dB> ...]]": the NAE engines' gains, absolute
+   and in dB. The whole line is resolved before anything is set, the way up/down
+   resolve their port list: these three gains are a balance between components,
+   and applying half a line would leave the engine at a balance the caller never
+   asked for -- and, unlike a mistyped port name, one they have no record of. */
+std::string Remote::naeGains(std::istringstream& is)
+{
+  std::string nae_name;
+
+  int got = read_name(is, nae_name);
+  if(got < 0)
+    return "error: a name opened with a quote and never closed it\n";
+  if(got == 0)
+    return reportNaeGains(naJack->naeNames());
+
+  if(!naJack->naeGain(nae_name, NAE_GAIN_FRONT, NULL, NULL))
+    return "error: no NAE named '" + nae_name + "'\n";
+
+  std::vector<enum nae_gain> which;
+  std::vector<std::string> words;
+  std::vector<double> dbs;
+  std::string word, arg;
+
+  while(is >> word) {
+    size_t g;
+    for(g = 0; g < REMOTE_NAE_GAIN_COUNT; g++)
+      if(strcasecmp(word.c_str(), REMOTE_NAE_GAINS[g].word) == 0)
+        break;
+    if(g == REMOTE_NAE_GAIN_COUNT)
+      return "error: '" + word + "' is not one of front, amb, rear\n";
+    /* Each name carries its own number: the pairs are what makes a line of
+       several gains readable, and a name left dangling at the end of the line
+       is a number the caller meant to type and did not. */
+    if(!(is >> arg))
+      return "error: '" + word + "' takes a gain in dB after it\n";
+    char *end = NULL;
+    double db = strtod(arg.c_str(), &end);
+    if(end == arg.c_str() || *end != '\0' || !std::isfinite(db))
+      return "error: '" + arg + "' is not a number of dB\n";
+    /* Repeated, the second would silently win. The caller who wrote one twice
+       meant it once, and which of the two numbers they meant is not for this
+       end to guess. */
+    for(size_t j = 0; j < which.size(); j++)
+      if(which[j] == REMOTE_NAE_GAINS[g].which)
+        return "error: gain '" + word + "' listed twice\n";
+    which.push_back(REMOTE_NAE_GAINS[g].which);
+    words.push_back(REMOTE_NAE_GAINS[g].word);
+    dbs.push_back(db);
+  }
+
+  if(which.empty())
+    return reportNaeGains(std::vector<std::string>(1, nae_name));
+
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+  std::string shown = quote_name(nae_name);
+  for(size_t i = 0; i < which.size(); i++) {
+    double now = 0.0;
+    bool active = false;
+    naJack->setNaeGain(nae_name, which[i], dbs[i], &now, &active);
+    if(naConf != NULL)
+      naConf->setNaeGainDb(nae_name, which[i], now);
+    reply << (active ? "ok " : "inactive ") << shown << " "
+          << words[i] << " " << now << "\n";
+  }
+  return reply.str();
+}
+
+/* "naepan [<nae> [<scale>]]": the width of an engine's input pair, set or
+   reported. One number and not three, so unlike naegain there is nothing to
+   resolve before applying and nothing half-applied if it is wrong. The range is
+   the parameter's domain rather than a safety margin -- +1 is mono, and there
+   is no width past it -- so a number outside it is refused, as naconf refuses
+   one in the file, instead of being quietly clamped to an end the caller did
+   not ask for. It is read by both modes, so unlike a gain it is never
+   inactive. */
+std::string Remote::naePan(std::istringstream& is)
+{
+  std::string nae_name;
+  double scale = 0.0;
+
+  int got = read_name(is, nae_name);
+  if(got < 0)
+    return "error: a name opened with a quote and never closed it\n";
+
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+
+  if(got == 0) {
+    /* Every engine, as naegain with no name reports every engine's gains. */
+    std::vector<std::string> names = naJack->naeNames();
+    for(size_t i = 0; i < names.size(); i++) {
+      naJack->naePanScale(names[i], &scale);
+      reply << "ok " << quote_name(names[i]) << " " << scale << "\n";
+    }
+    return reply.str();
+  }
+
+  if(!naJack->naePanScale(nae_name, &scale))
+    return "error: no NAE named '" + nae_name + "'\n";
+
+  std::string arg;
+  if(is >> arg) {
+    char *end = NULL;
+    double n_scale = strtod(arg.c_str(), &end);
+    if(end == arg.c_str() || *end != '\0' || !std::isfinite(n_scale))
+      return "error: '" + arg + "' is not a width\n";
+    if(n_scale < NA_NAE_PAN_MIN || n_scale > NA_NAE_PAN_MAX)
+      return "error: a width is between -1 (opposite polarity) and +1 (mono)\n";
+    std::string extra;
+    if(is >> extra)
+      return "error: naepan takes one width and nothing else\n";
+    if(!naJack->setNaePanScale(nae_name, n_scale, &scale))
+      return "error: no NAE named '" + nae_name + "'\n";
+    if(naConf != NULL)
+      naConf->setNaePanScale(nae_name, scale);
+  }
+
+  reply << "ok " << quote_name(nae_name) << " " << scale << "\n";
+  return reply.str();
+}
+
+/* Text going inside an element. The names come out of the configuration file
+   and are almost always plain, but "almost" is not a guarantee worth writing a
+   malformed document on: a report is meant to be pasted back into the XML, and
+   one unescaped ampersand would make the file it lands in unparseable. */
+static std::string xml_escape(const std::string& text)
+{
+  std::string out;
+  for(size_t i = 0; i < text.size(); i++) {
+    if(text[i] == '&')      out += "&amp;";
+    else if(text[i] == '<') out += "&lt;";
+    else if(text[i] == '>') out += "&gt;";
+    else                    out.push_back(text[i]);
+  }
+  return out;
+}
+
+/* One element, or nothing at all when the value is empty: an engine has only
+   some of the six outputs, and writing the ones it does not have as empty tags
+   would put names naconf reads as "configured, and configured to nothing" into
+   a file meant to reproduce this engine. */
+static void xml_line(std::ostringstream& out, const char *tag, const std::string& value)
+{
+  if(value.empty())
+    return;
+  out << "  <" << tag << ">" << xml_escape(value) << "</" << tag << ">\n";
+}
+
+/* "naeget [<nae>]": the engine's configuration as the <nae> block that would
+   reproduce it -- the gains as they are NOW, so a balance arrived at over the
+   socket comes back as the lines to paste into the file that will start it
+   that way next time. The gains the mode does not read are left out rather
+   than written at their floor: naconf does not ask beta for a <front_gain>,
+   and a block carrying one it never uses would read as a setting that does
+   something. "naegain" is where those are still visible.
+
+   The reply is XML and not the protocol's own "ok <thing> <value>" shape, which
+   is the point of having a second command rather than more flags on the first:
+   what a caller wants here is the text of a configuration, not a value to act
+   on. Each block ends at its </nae>, so a client reading one engine knows where
+   the answer stops; asking for all of them has a length only the far end knows,
+   like a bare "get". */
+std::string Remote::reportNaeConfig(struct nae_config& cfg)
+{
+  std::ostringstream out;
+
+  out << "<nae>\n";
+  xml_line(out, "name", cfg.name);
+  out << "  <steps_length>" << cfg.steps_length << "</steps_length>\n";
+  out << "  <mode>" << (cfg.mode ? "beta" : "alpha") << "</mode>\n";
+  out << std::fixed << std::setprecision(3);
+  out << "  <pan_scale>" << cfg.pan_scale << "</pan_scale>\n";
+  if(cfg.mode) {
+    out << "  <rear_gain>" << cfg.rear_gain_db << "</rear_gain>\n";
+  } else {
+    out << "  <front_gain>" << cfg.front_gain_db << "</front_gain>\n";
+    out << "  <ambience_gain>" << cfg.ambience_gain_db << "</ambience_gain>\n";
+  }
+  xml_line(out, "input_left", cfg.input_left);
+  xml_line(out, "input_right", cfg.input_right);
+  xml_line(out, "output_left", cfg.output_left);
+  xml_line(out, "output_right", cfg.output_right);
+  xml_line(out, "front_output_left", cfg.front_output_left);
+  xml_line(out, "front_output_right", cfg.front_output_right);
+  xml_line(out, "amb_output_left", cfg.amb_output_left);
+  xml_line(out, "amb_output_right", cfg.amb_output_right);
+  out << "</nae>\n";
+  return out.str();
+}
+
+std::string Remote::naeConfigs(std::istringstream& is)
+{
+  std::string nae_name;
+  struct nae_config cfg;
+
+  int got = read_name(is, nae_name);
+  if(got < 0)
+    return "error: a name opened with a quote and never closed it\n";
+
+  if(got == 0) {
+    /* Every engine, by position rather than by name: one configured without a
+       <name> is still part of what is running, and this is the report that
+       would otherwise be the only place its absence did not show. */
+    std::ostringstream out;
+    for(size_t i = 0; i < naJack->naeCount(); i++)
+      if(naJack->naeConfigAt(i, &cfg))
+        out << reportNaeConfig(cfg);
+    return out.str();
+  }
+
+  std::string extra;
+  if(is >> extra)
+    return "error: naeget takes one NAE name and nothing else\n";
+  if(!naJack->naeConfig(nae_name, &cfg))
+    return "error: no NAE named '" + nae_name + "'\n";
+  return reportNaeConfig(cfg);
+}
+
+/* "getxmlconfig": the whole configuration, as XML, current because every
+   command that changes anything has already written its value into it. */
+std::string Remote::xmlConfig(std::istringstream& is)
+{
+  std::string extra;
+  if(is >> extra)
+    return "error: getxmlconfig takes no arguments\n";
+  if(naConf == NULL)
+    return "error: no configuration to report\n";
+  std::string doc = naConf->dumpConfig();
+  if(doc.empty())
+    return "error: the configuration could not be written out\n";
+  /* xmlDocDumpMemory ends the document with a newline of its own; make sure,
+     since a caller reading lines would otherwise be left holding the last one
+     with no terminator. */
+  if(doc[doc.size()-1] != '\n')
+    doc.push_back('\n');
+  return doc;
+}
+
 std::string Remote::runCommand(const std::string& line)
 {
   std::istringstream is(line);
@@ -301,6 +639,18 @@ std::string Remote::runCommand(const std::string& line)
 
   if(strcasecmp(cmd.c_str(), "get") == 0)
     return reportGains(is);
+
+  if(strcasecmp(cmd.c_str(), "naegain") == 0)
+    return naeGains(is);
+
+  if(strcasecmp(cmd.c_str(), "naepan") == 0)
+    return naePan(is);
+
+  if(strcasecmp(cmd.c_str(), "naeget") == 0)
+    return naeConfigs(is);
+
+  if(strcasecmp(cmd.c_str(), "getxmlconfig") == 0)
+    return xmlConfig(is);
 
   if(strcasecmp(cmd.c_str(), "mute") == 0 || strcasecmp(cmd.c_str(), "unmute") == 0 ||
      strcasecmp(cmd.c_str(), "toggle") == 0) {
@@ -386,6 +736,10 @@ std::string Remote::runCommand(const std::string& line)
   for(size_t i = 0; i < names.size(); i++) {
     double now = 0.0;
     naJack->adjustPortGain(names[i], sign * delta, &now);
+    /* Into the configuration as well as into the audio, so that the file this
+       system would be started from tomorrow says what it is set to today. */
+    if(naConf != NULL)
+      naConf->setPortGainDb(names[i], now);
     reply << "ok " << names[i] << " " << now << "\n";
   }
   return reply.str();

@@ -258,7 +258,24 @@ tag naming a port, that changes port gains while natambio runs:
 `up|down <dB> <port> [port ...]`, relative to the gain each port has at that
 moment; `upin`/`downin`/`upout`/`downout <dB>` for a whole direction at once;
 `get [port ...]` to read them back; and `mute`/`unmute`, which take the outputs
-to −120 dB and back without disturbing their gains.  See the `<remote>` section
+to −120 dB and back without disturbing their gains.  `naegain` reaches past the
+ports to the `NAE` engines' own gains, by `<name>` and in absolute dB, through
+`ioJack::naeGain()` / `setNaeGain()`; those are slewed inside
+`NAE::thr_process()` exactly as the port gains are slewed inside the JACK
+callback.  `naeget` reports an engine whole, through `ioJack::naeConfig()` into
+a `struct nae_config`, as the `<nae>` block that would reproduce it, and
+`naepan` moves `<pan_scale>` through `setLivePanScale()`.
+
+Every command that changes something also writes it back into `NaConf`
+(`setPortGainDb()`, `setNaeGainDb()`, `setNaePanScale()`), which updates both the
+parsed structure and the node it came from in the XML document `NaConf` now
+keeps for the life of the run.  `getxmlconfig` is then just `dumpConfig()` — the
+document as it stands, with no tree to reconcile at dump time.  The document is
+freed, and `xmlCleanupParser()` called, in `~NaConf()` rather than at the end of
+`conf_init()`.  The width is slewed
+as the gains are, but as the **scalar**: `thr_process()` derives the weight pair
+from it once a block (`pan_weights()`) and interpolates between two such pairs
+across the block, so every point of a move is a matrix that is a width.  See the `<remote>` section
 of `README.md` for the protocol.
 
 It runs in one plain (non-RT) thread of its own that accepts and serves
@@ -307,10 +324,20 @@ Modes (the XML `<mode>` value maps to the internal mode integer):
 - **Mode 0 — `alpha` (front dipole)**: outputs Main signal + Ambience signal
 - **Mode 1 — `beta` (rear dipole / surround)**: outputs Surround signal (uses inter-channel correlation)
 
-Gains:
-- `gain_main` — main/principal component level
-- `gain_amb` — ambience/minor component level
-- `gain_surr` — surround level (`beta` mode)
+Gains (`<front_gain>`, `<ambience_gain>`, `<rear_gain>`; `front`, `amb` and
+`rear` to the remote manager):
+- `gain_c1` — principal component level (`alpha` mode)
+- `gain_c2` — ambience component level (`alpha` mode)
+- `gain_c2_rear` — ambience level sent to the rears (`beta` mode)
+
+Each is held as the trio `<name>_db` / `<name>_target` / `<name>`, the discipline
+`ioJack` keeps for a port gain: the dB value belongs to whichever thread set it,
+the linear target is the single word `thr_process()` reads from outside, and the
+third is where the worker has slewed to. `setGainDb()` moves the target and the
+worker fades to it across the next blocks, at the rate `setSampleRate()` derives
+— the same 32 ms the JACK callback fades a port gain over. A gain the current
+mode does not read (`gainActive()`) is still kept and reported; it multiplies
+nothing until the configuration says otherwise.
 
 Constants defined in `nae.hpp`:
 ```cpp

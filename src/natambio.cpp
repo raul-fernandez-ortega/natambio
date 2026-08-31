@@ -113,7 +113,7 @@ bool NatAmbio::remoteStart(void)
 {
   if(naConf->remote_port == 0)
     return true;                /* no <remote>: no socket, which is the default */
-  naRemote = new Remote(naConf->remote_port, naJack, quiet);
+  naRemote = new Remote(naConf->remote_port, naJack, naConf, quiet);
   if(!(naRemote->start())) {
     delete naRemote;
     naRemote = NULL;
@@ -434,6 +434,7 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   n_nae_p->setC2RearGain(n_nae->gain_c2_rear);
   n_nae_p->setPanScale(n_nae->pan_scale);
   n_nae_p->setSampleCount(naJack->getPartSize());
+  n_nae_p->setSampleRate(naJack->getSampleRate());
   n_nae_p->setCovStepsLength(n_nae->steps_length);
   n_nae_p->setChannelIn(LEFT, n_nae->left_in);
   n_nae_p->setChannelIn(RIGHT, n_nae->right_in);
