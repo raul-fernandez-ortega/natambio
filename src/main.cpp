@@ -20,7 +20,7 @@ extern "C" {
 
 #define PRESENTATION_STRING \
 "\n\
-NatAmbio (Nat(ural) Ambio(phonics)) v1.1 (Aug 2026)                                \
+NatAmbio (Nat(ural) Ambio(phonics)) v1.1 (Sep 2026)                                \
 (c) Raul Fernandez Ortega\n\
                                                               \
 Using zita-convolver library\n				      \
