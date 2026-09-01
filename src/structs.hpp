@@ -59,6 +59,9 @@ struct s_nae {
   double gain_c2_rear;
   double pan_scale;      // width of the input pair, [-1, 1]
   int steps_length;
+  bool projection;       // project the delayed C1 onto C2 (adds one period of latency)
+  double proy_gain;      // gain of the projection summed into the ambience, unity by default
+  int proy_mode;         // 0 = the projection as measured (delayed), 1 = with the delay removed
   string left_in;
   string right_in;
   string left_out;

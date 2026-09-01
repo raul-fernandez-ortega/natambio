@@ -85,6 +85,24 @@ NAE::NAE(string n_name, int n_mode)
   pan_scale = 0;
   pan_a = 1.0;
   pan_b = 0.0;
+  projection = false;
+  proy_gain = 1.0;
+  proy_mode = 0;
+  proy_lag_max = 0;
+  proy_length = 0;
+  proy_fade = NULL;
+  for(int ch = 0; ch < 2; ch++) {
+    proy[ch].hist_c1 = NULL;
+    proy[ch].hist_c2 = NULL;
+    proy[ch].pref_x = NULL;
+    proy[ch].pref_x2 = NULL;
+    proy[ch].a_cur = 0;
+    proy[ch].mean_cur = 0;
+    proy[ch].lag_cur = 0;
+    proy[ch].a_prev = 0;
+    proy[ch].mean_prev = 0;
+    proy[ch].lag_prev = 0;
+  }
 }
 
 NAE::~NAE(void)
@@ -117,6 +135,15 @@ NAE::~NAE(void)
     free(icorrv.sum_y2_array);
     free(icorrv.sum_x_array);
     free(icorrv.sum_y_array);
+  }
+  if(projection) {
+    free(proy_fade);
+    for(int ch = 0; ch < 2; ch++) {
+      free(proy[ch].hist_c1);
+      free(proy[ch].hist_c2);
+      free(proy[ch].pref_x);
+      free(proy[ch].pref_x2);
+    }
   }
   sem_destroy(&semaphore);
   pthread_mutex_destroy(&mutex);
@@ -189,6 +216,13 @@ void NAE::setSampleCount(int n_sample_count)
 void NAE::setCovStepsLength(int n_covsteps)
 {
   covsteps = n_covsteps;
+}
+
+void NAE::setProjection(bool n_projection, double n_proy_gain, int n_proy_mode)
+{
+  projection = n_projection;
+  proy_gain = n_proy_gain;
+  proy_mode = n_proy_mode;
 }
 
 
@@ -338,6 +372,31 @@ void NAE::load(int abspri, int policy)
   memset(covM.sum_y2_array, 0, (covsteps)*sizeof(double));
   memset(covM.sum_x_array, 0, (covsteps)*sizeof(double));
   memset(covM.sum_y_array, 0, (covsteps)*sizeof(double));
+
+  if(projection) {
+    // One period of head room underneath the covsteps*sample_count analysis
+    // window: that is how far back the lag sweep reaches, and how far back the
+    // still-delayed projection reads. The emitted block is the newest one, the
+    // same the plain path emits, so nothing is held back.
+    proy_lag_max = sample_count;
+    proy_length = (covsteps + 1)*sample_count;
+    proy_fade = (double*) calloc(sample_count, sizeof(double));
+    // Raised cosine from the previous fit to the current one across the block.
+    // The lag and the coefficient are re-estimated every period, and stepping
+    // straight from one to the next would click on every block boundary.
+    for(int i = 0; i < sample_count; i++)
+      proy_fade[i] = 0.5 - 0.5*cos(M_PI*((double)i + 0.5)/(double)sample_count);
+    for(int ch = 0; ch < 2; ch++) {
+      proy[ch].hist_c1 = (double*) calloc(proy_length, sizeof(double));
+      proy[ch].hist_c2 = (double*) calloc(proy_length, sizeof(double));
+      proy[ch].pref_x = (double*) calloc(proy_length + 1, sizeof(double));
+      proy[ch].pref_x2 = (double*) calloc(proy_length + 1, sizeof(double));
+    }
+    if(!quiet) {
+      std::cout << "NAE: " << name << " projection on, lags 0.." << proy_lag_max
+                << " step " << NAE_PROY_LAG_STEP << ", no added latency" << std::endl;
+    }
+  }
 
   if(mode) {
     // Data for correlation calculation
@@ -498,14 +557,33 @@ void NAE::thr_process(void)
     //Components
     pthread_mutex_lock(&mutex);
     
-    // Output: ambient
-    if(mode) {
-      // Beta ambient calculation
+    // Component reconstruction
+    if(mode && !projection) {
+      // Beta: only the ambience component is needed
       for(int i = 0; i < covsteps * sample_count; i ++) {
         c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
         pca.c2_mid[i] += c2_factor * eigvectors[1][0];
         pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
+    } else {
+      // Alpha, and beta with <projection>: beta emits no main component, but
+      // the projection is built out of it, so it is reconstructed all the same.
+      for(int i = 0; i < covsteps * sample_count; i ++) {
+        c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
+        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+        pca.c1_mid[i] += c1_factor * eigvectors[0][0];
+        pca.c1_side[i] += c1_factor * eigvectors[0][1];
+        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+        pca.c2_side[i] += c2_factor * eigvectors[1][1];
+      }
+    }
+
+    // Output
+    if(projection) {
+      // Emits one period late, out of the projection timeline
+      proy_process();
+    } else if(mode) {
+      // Beta ambient output
       for(int  i = 0; i < sample_count; i++) {
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
@@ -515,15 +593,7 @@ void NAE::thr_process(void)
         c2_right_out[i] = right_out[i];
       }
     } else {
-      // Alpha / Front main and ambient calculation
-      for(int i = 0; i < covsteps * sample_count; i ++) {
-        c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
-        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-        pca.c1_mid[i] += c1_factor * eigvectors[0][0];
-        pca.c1_side[i] += c1_factor * eigvectors[0][1];
-        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
-        pca.c2_side[i] += c2_factor * eigvectors[1][1];
-      }
+      // Alpha / Front main and ambient output
       for(int  i = 0; i < sample_count; i++) {
         c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
         c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
@@ -586,3 +656,148 @@ void NAE::thr_process(void)
 
 
 
+
+/////////////////////////////////////////////////////////////////////////////////////
+// <projection>: least-squares projection of the delayed C1 onto C2.
+//
+// Called once per period with the mutex already held, right after the PCA has
+// added this cycle's contribution to the components. It runs on the FINALISED
+// C1 and C2 -- the samples the engine emits -- rather than on the partial
+// accumulators, so the fit describes the signal that actually leaves the plugin.
+//
+// The timeline is proy_length = (covsteps+1)*sample_count samples, oldest first:
+//
+//   [0, S)                      head room the lag sweep reaches back into
+//   [S, proy_length)            the covsteps*sample_count analysis window
+//   [proy_length-S, proy_length) the block emitted this cycle, newest last
+//
+// With tau the lag maximising |corr(C1[n-tau], C2[n])| over the window:
+//
+//   a = cov(C1', C2)/var(C1')   least squares, sign kept
+//   P[n]     = a*(C1[n-tau] - mean)   the part of C2 explained by the delayed C1
+//   P_und[n] = a*(C1[n] - mean)       the same with the delay taken back out
+//
+// Both are causal: P_und needs nothing but the current sample, P reaches tau
+// samples back at most. Successive fits are cross-faded across the block, which
+// is what stops the lag and the coefficient from stepping on block boundaries.
+////////////////////////////////////////////////////////////////////////////////////
+void NAE::proy_process(void)
+{
+  const int S = sample_count;
+  const int N = covsteps*sample_count;   // analysis window
+  const int L = proy_length;             // N + S
+  const int norm_covsteps = covsteps + 1;
+  double und[2];
+  double del[2];
+
+  // The block finalised this cycle goes in at the end of the timeline.
+  for(int i = 0; i < S; i++) {
+    int p = L - S + i;
+    proy[0].hist_c1[p] = (pca.c1_mid[i] + pca.c1_side[i])/norm_covsteps;
+    proy[1].hist_c1[p] = (pca.c1_mid[i] - pca.c1_side[i])/norm_covsteps;
+    proy[0].hist_c2[p] = (pca.c2_mid[i] + pca.c2_side[i])/norm_covsteps;
+    proy[1].hist_c2[p] = (pca.c2_mid[i] - pca.c2_side[i])/norm_covsteps;
+  }
+
+  for(int ch = 0; ch < 2; ch++) {
+    ProyChannel *pc = &proy[ch];
+
+    // Prefix sums of C1 over the whole timeline: the delayed window's sums then
+    // cost one subtraction per lag instead of a pass over the window.
+    pc->pref_x[0] = 0;
+    pc->pref_x2[0] = 0;
+    for(int i = 0; i < L; i++) {
+      pc->pref_x[i+1] = pc->pref_x[i] + pc->hist_c1[i];
+      pc->pref_x2[i+1] = pc->pref_x2[i] + pc->hist_c1[i]*pc->hist_c1[i];
+    }
+
+    // C2 over the window. Its variance does not depend on the lag.
+    double sum_y = 0;
+    for(int i = L - N; i < L; i++)
+      sum_y += pc->hist_c2[i];
+
+    // Lag of maximum |correlation|. The eigenvectors come out of
+    // eigen_2x2_symmetric with an arbitrary sign, so the polarity of the
+    // reconstruction flips from cycle to cycle and a signed maximum would
+    // silently miss those periods. Ranking by |num|/sqrt(var_x) picks the same
+    // lag as |corr| would, the C2 variance being a common factor.
+    int best_lag = 0;
+    double best_score = -1.0;
+    double best_num = 0;
+    double best_var_x = 0;
+    double best_sum_x = 0;
+    for(int lag = 0; lag <= proy_lag_max; lag += NAE_PROY_LAG_STEP) {
+      int a0 = L - N - lag;
+      double sum_x = pc->pref_x[a0+N] - pc->pref_x[a0];
+      double sum_x2 = pc->pref_x2[a0+N] - pc->pref_x2[a0];
+      double var_x = N*sum_x2 - sum_x*sum_x;
+      if(var_x <= 0)
+        continue;
+      double sum_xy = 0;
+      for(int i = 0; i < N; i++)
+        sum_xy += pc->hist_c1[a0+i]*pc->hist_c2[L-N+i];
+      double num = N*sum_xy - sum_x*sum_y;
+      double score = fabs(num)/sqrt(var_x);
+      if(score > best_score) {
+        best_score = score;
+        best_lag = lag;
+        best_num = num;
+        best_var_x = var_x;
+        best_sum_x = sum_x;
+      }
+    }
+
+    // Least squares coefficient at that lag, sign kept.
+    pc->a_cur = (best_var_x > 0) ? best_num/best_var_x : 0.0;
+    pc->mean_cur = best_sum_x/N;
+    pc->lag_cur = best_lag;
+  }
+
+  // Emit the newest block, cross-fading from the previous cycle's fit.
+  for(int i = 0; i < S; i++) {
+    int p = L - S + i;
+    double w = proy_fade[i];
+    for(int ch = 0; ch < 2; ch++) {
+      ProyChannel *pc = &proy[ch];
+      double x = pc->hist_c1[p];
+      und[ch] = (1.0 - w)*pc->a_prev*(x - pc->mean_prev)
+              + w*pc->a_cur*(x - pc->mean_cur);
+      del[ch] = (1.0 - w)*pc->a_prev*(pc->hist_c1[p - pc->lag_prev] - pc->mean_prev)
+              + w*pc->a_cur*(pc->hist_c1[p - pc->lag_cur] - pc->mean_cur);
+    }
+    // C1 loses the projection with no <proy_gain> on it, and only then does the
+    // front gain apply. The ambience gains it, with <proy_gain>, either as it
+    // was measured (<proy_mode>delayed) or realigned with C1 (undelayed).
+    double c1_left = proy[0].hist_c1[p] - und[0];
+    double c1_right = proy[1].hist_c1[p] - und[1];
+    double c2_left = proy[0].hist_c2[p] + proy_gain*((proy_mode == 0) ? del[0] : und[0]);
+    double c2_right = proy[1].hist_c2[p] + proy_gain*((proy_mode == 0) ? del[1] : und[1]);
+
+    if(mode) {
+      // Beta emits the ambience only, so the C1 subtraction has no output path
+      // here: the main component is reconstructed purely to be projected.
+      left_out[i]  = gain_c2_rear*c2_left;
+      right_out[i] = gain_c2_rear*c2_right;
+      c2_left_out[i] = left_out[i];
+      c2_right_out[i] = right_out[i];
+    } else {
+      left_out[i]  = gain_c1*c1_left + gain_c2*c2_left;
+      right_out[i] = gain_c1*c1_right + gain_c2*c2_right;
+      c1_left_out[i] = gain_c1*c1_left;
+      c1_right_out[i] = gain_c1*c1_right;
+      c2_left_out[i] = gain_c2*c2_left;
+      c2_right_out[i] = gain_c2*c2_right;
+    }
+  }
+
+  // This cycle's fit becomes the next one's starting point, and the timeline
+  // slides one period. The history tail is overwritten by the next block.
+  for(int ch = 0; ch < 2; ch++) {
+    ProyChannel *pc = &proy[ch];
+    pc->a_prev = pc->a_cur;
+    pc->mean_prev = pc->mean_cur;
+    pc->lag_prev = pc->lag_cur;
+    memmove(pc->hist_c1, pc->hist_c1 + S, (L - S)*sizeof(double));
+    memmove(pc->hist_c2, pc->hist_c2 + S, (L - S)*sizeof(double));
+  }
+}

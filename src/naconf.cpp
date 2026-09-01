@@ -779,6 +779,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
 {
   struct s_nae *nae;
   string mode;
+  string proy_mode;
+  int projection = 0;
   
   nae = new struct s_nae;
   nae->name = "";
@@ -788,6 +790,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_c2_rear = 0;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
   nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
+  nae->projection = false;  // optional; default off
+  nae->proy_gain = 1.0;     // optional; unity when <proy_gain> is absent
+  nae->proy_mode = 0;       // optional; default the projection as measured (delayed)
   nae->left_in = "";
   nae->right_in = "";
   nae->left_out = "";
@@ -809,6 +814,12 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->gain_c2_rear = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"projection")) {
+      projection = parse_bool_tag((char*)cnt);
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"proy_gain")) {
+      nae->proy_gain = FROM_DB(strtof((char*)cnt, NULL));
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"proy_mode")) {
+      proy_mode = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
       nae->left_in = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_right")) {
@@ -873,6 +884,21 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     delete nae;
     return NULL;
   }
+  if(projection < 0) {
+    parse_error("Error: nae projection must be true or false.");
+    delete nae;
+    return NULL;
+  }
+  nae->projection = (projection == 1);
+  if(proy_mode.empty() || proy_mode == "delayed") {
+    nae->proy_mode = 0;
+  } else if(proy_mode == "undelayed") {
+    nae->proy_mode = 1;
+  } else {
+    parse_error("Error: nae proy_mode must be delayed or undelayed.");
+    delete nae;
+    return NULL;
+  }
   if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty()) {
     parse_error("Error: nae left output not defined.");
     delete nae;
@@ -894,6 +920,14 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   } else {
     std::cout << "\t\tFront main gain: " << nae->gain_c1 << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_c2 << std::endl;
+  }
+  if(nae->projection) {
+    std::cout << "\t\tProjection of the delayed C1 on C2: on" << std::endl;
+    std::cout << "\t\t\tProjection gain into the ambience: " << nae->proy_gain << std::endl;
+    std::cout << "\t\t\tProjection summed into the ambience: "
+              << ((nae->proy_mode == 0) ? "as measured (delayed)" : "with the delay removed")
+              << std::endl;
+    std::cout << "\t\t\tLag swept up to one period; adds no latency" << std::endl;
   }
   if(nae->pan_scale != 0) {
     std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("

@@ -426,6 +426,10 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     }
     if(n_nae->pan_scale != 0)
       std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
+    if(n_nae->projection)
+      std::cout << "NatAmbio: NAE projection on, gain " << n_nae->proy_gain
+                << ", " << ((n_nae->proy_mode == 0) ? "delayed" : "undelayed")
+                << " into the ambience" << std::endl;
   }
   NAE *n_nae_p;
   n_nae_p = new NAE(n_nae->name, n_nae->mode);
@@ -433,6 +437,7 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   n_nae_p->setC2Gain(n_nae->gain_c2);
   n_nae_p->setC2RearGain(n_nae->gain_c2_rear);
   n_nae_p->setPanScale(n_nae->pan_scale);
+  n_nae_p->setProjection(n_nae->projection, n_nae->proy_gain, n_nae->proy_mode);
   n_nae_p->setSampleCount(naJack->getPartSize());
   n_nae_p->setCovStepsLength(n_nae->steps_length);
   n_nae_p->setChannelIn(LEFT, n_nae->left_in);
