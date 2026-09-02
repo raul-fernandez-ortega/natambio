@@ -208,37 +208,18 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
   return coeff;
 }
 
-/* <frac_delay> is the only boolean in the configuration schema, so it gets a
- * parser of its own rather than a bare strtol: writing <frac_delay>true</...>
- * and having it read back as 0 is exactly the silent misreading this file goes
- * out of its way to prevent everywhere else. Returns 1, 0, or -1 for anything
- * unrecognised, which the caller turns into a parse error. */
-static int parse_bool_tag(const char *text)
-{
-  string v(text ? text : "");
-  size_t b = v.find_first_not_of(" \t\r\n");
-  if (b == string::npos) return -1;
-  size_t e = v.find_last_not_of(" \t\r\n");
-  v = v.substr(b, e - b + 1);
-  if (v == "1" || v == "true"  || v == "yes" || v == "on")  return 1;
-  if (v == "0" || v == "false" || v == "no"  || v == "off") return 0;
-  return -1;
-}
-
 /* How an ITD in microseconds lands on the sample grid, as a parenthesised note
- * for the configuration report. This is the whole point of <frac_delay>, so the
- * report says it outright rather than leaving the reader to work out that
- * 180 us at 48 kHz is 8.64 samples and that the integer path calls that 9.
+ * for the configuration report: a reader should not have to work out that
+ * 180 us at 48 kHz is 8.64 samples, nor be left wondering whether that .64
+ * survives into the design -- it does, always.
  * Returns an empty string if the sample rate is not known yet. */
-static string itd_samples_note(int itd_us, int sample_rate, bool frac)
+static string itd_samples_note(int itd_us, int sample_rate)
 {
   if (sample_rate <= 0 || itd_us <= 0) return string();
   const double exact = (double)itd_us * 1e-6 * (double)sample_rate;
   std::ostringstream o;
   o << std::fixed << std::setprecision(3)
-    << " (" << exact << " samples at " << sample_rate << " Hz, ";
-  if (frac) o << "used exactly)";
-  else      o << "rounded to " << (long long)llround(exact) << ")";
+    << " (" << exact << " samples at " << sample_rate << " Hz, used exactly)";
   return o.str();
 }
 
@@ -258,8 +239,6 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   xtc->ild_alpha   = 0.0;
   xtc->azimuth_deg = 0;
   xtc->filter_len  = 0;
-  xtc->frac_delay  = false;
-  xtc->model_delay = XTC_DEFAULT_MODEL_DELAY;
   memset(&xtc->left,  0, sizeof(xtc->left));
   memset(&xtc->right, 0, sizeof(xtc->right));
 
@@ -267,11 +246,6 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   // value that happens to equal the zero default is not mistaken for "absent".
   bool has_itd = false, has_ild = false, has_alpha = false,
        has_azimuth = false, has_length = false;
-  // <frac_delay> and <model_delay> are the only optional tags of the block, so
-  // a bad value has to be reported rather than defaulted. Track whether
-  // <model_delay> was given at all: an explicit value that ends up unused
-  // because <frac_delay> is off must be said out loud, not swallowed.
-  bool design_ok = true, has_model_delay = false;
 
   while (xmlnode != NULL) {
     xmlChar *cnt = xmlNodeGetContent(xmlnode);
@@ -285,14 +259,15 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
       xtc->azimuth_deg = (int) strtol((char*)cnt, NULL, 10); has_azimuth = true;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
       xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
-    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay")) {
-      // Optional, unlike every other <xtc> tag: absent means the historical
-      // behaviour, so existing configurations keep producing the same filters.
-      int v = parse_bool_tag((char*)cnt);
-      if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
-    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
-      xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
-      has_model_delay = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay") ||
+               !xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
+      // Both retired: the recursion always runs at the exact ITD, with the
+      // model delay fixed at XTC_DEFAULT_MODEL_DELAY. Say so rather than drop
+      // the tag in silence -- whoever wrote it expects it to mean something,
+      // and this file does not let a configuration go quietly unread.
+      std::cerr << "NatAmbio: warning: xtc <" << (const char*)xmlnode->name
+                << "> is no longer a configuration tag and is ignored; the "
+                   "fractional ITD path is always used." << std::endl;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
       xtc->direct_name = (char*)cnt;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_filter_name")) {
@@ -323,13 +298,15 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     delete xtc;
     return NULL;
   }
-  if (!design_ok) {
-    parse_error("Error: xtc <frac_delay> must be true or false (1 or 0).");
-    delete xtc;
-    return NULL;
-  }
-  if (xtc->model_delay < 0 || xtc->model_delay >= xtc->filter_len) {
-    parse_error("Error: xtc <model_delay> must be >= 0 and < <length>.");
+  // get_xtc_frac() needs the whole model delay to fit inside the filter: at or
+  // past the end it would push the shifted response out of the buffer and
+  // return silence. Caught here, where the length is still nameable.
+  if (xtc->filter_len <= XTC_DEFAULT_MODEL_DELAY) {
+    char lenmsg[160];
+    snprintf(lenmsg, sizeof(lenmsg),
+             "Error: xtc <length> must be > %d, the model delay the fractional "
+             "design carries.", XTC_DEFAULT_MODEL_DELAY);
+    parse_error(lenmsg);
     delete xtc;
     return NULL;
   }
@@ -340,23 +317,14 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     std::cout << "\tDirect filter name: " << xtc->direct_name << std::endl;
     std::cout << "\tCross filter name: " << xtc->cross_name << std::endl;
     std::cout << "\tITD: " << xtc->itd_us << " us"
-              << itd_samples_note(xtc->itd_us, jack_sample_rate, xtc->frac_delay)
+              << itd_samples_note(xtc->itd_us, jack_sample_rate)
               << std::endl;
     std::cout << "\tILD: " << xtc->ild_db << " dB" << std::endl;
     std::cout << "\tILD alpha: " << xtc->ild_alpha << std::endl;
     std::cout << "\tAzimuth: " << xtc->azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
-    std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
-    if (xtc->frac_delay)
-      std::cout << ", model delay " << xtc->model_delay << " samples";
-    std::cout << std::endl;
-  }
-
-  // Outside the !quiet block on purpose: -quiet silences the configuration
-  // dump, not a warning that part of the configuration does nothing.
-  if (has_model_delay && !xtc->frac_delay) {
-    std::cerr << "NatAmbio: warning: xtc <model_delay> (" << xtc->model_delay
-              << ") is ignored because <frac_delay> is not set." << std::endl;
+    std::cout << "\tModel delay: " << XTC_DEFAULT_MODEL_DELAY << " samples"
+              << std::endl;
   }
 
   return xtc;
@@ -396,8 +364,8 @@ static bool parse_xtc_side(xmlNodePtr xmlnode, struct xtc_side *side, const char
       if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay") ||
           !xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
         snprintf(msg, sizeof(msg),
-                 "Error: xtc_asym <%s><%s> belongs to the <xtc_asym> block, not to a "
-                 "side: it describes the whole design. Move it next to <length>.",
+                 "Error: xtc_asym <%s><%s> is no longer a configuration tag: the "
+                 "fractional ITD path is always used. Remove it.",
                  which, (const char*)xmlnode->name);
       } else {
         snprintf(msg, sizeof(msg),
@@ -454,13 +422,11 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
   xtc->ild_alpha   = 0.0;
   xtc->azimuth_deg = 0;
   xtc->filter_len  = 0;
-  xtc->frac_delay  = false;
-  xtc->model_delay = XTC_DEFAULT_MODEL_DELAY;
   memset(&xtc->left,  0, sizeof(xtc->left));
   memset(&xtc->right, 0, sizeof(xtc->right));
 
   bool has_left = false, has_right = false, has_length = false;
-  bool sides_ok = true, design_ok = true, has_model_delay = false;
+  bool sides_ok = true;
 
   while (xmlnode != NULL) {
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"left")) {
@@ -473,15 +439,14 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
       xmlChar *cnt = xmlNodeGetContent(xmlnode);
       if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
         xtc->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
-      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay")) {
-        // Optional in both blocks; matters more here, since the integer path
-        // rounds the two ITDs independently and the round-trip period inherits
-        // both errors.
-        int v = parse_bool_tag((char*)cnt);
-        if (v < 0) design_ok = false; else xtc->frac_delay = (v != 0);
-      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
-        xtc->model_delay = (int) strtol((char*)cnt, NULL, 10);
-        has_model_delay = true;
+      } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay") ||
+                 !xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
+        // Retired, as in <xtc>. It mattered most here, where the integer path
+        // rounded the two ITDs independently and the round-trip period
+        // inherited both errors; that path is no longer reachable.
+        std::cerr << "NatAmbio: warning: xtc_asym <" << (const char*)xmlnode->name
+                  << "> is no longer a configuration tag and is ignored; the "
+                     "fractional ITD path is always used." << std::endl;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"direct_filter_name")) {
         xtc->direct_name = (char*)cnt;
       } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"cross_left_filter_name")) {
@@ -519,13 +484,13 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     delete xtc;
     return NULL;
   }
-  if (!design_ok) {
-    parse_error("Error: xtc_asym <frac_delay> must be true or false (1 or 0).");
-    delete xtc;
-    return NULL;
-  }
-  if (xtc->model_delay < 0 || xtc->model_delay >= xtc->filter_len) {
-    parse_error("Error: xtc_asym <model_delay> must be >= 0 and < <length>.");
+  // As in <xtc>: the model delay has to fit inside the filter.
+  if (xtc->filter_len <= XTC_DEFAULT_MODEL_DELAY) {
+    char lenmsg[170];
+    snprintf(lenmsg, sizeof(lenmsg),
+             "Error: xtc_asym <length> must be > %d, the model delay the "
+             "fractional design carries.", XTC_DEFAULT_MODEL_DELAY);
+    parse_error(lenmsg);
     delete xtc;
     return NULL;
   }
@@ -537,39 +502,28 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     std::cout << "\tCross left filter name: " << xtc->cross_left_name << std::endl;
     std::cout << "\tCross right filter name: " << xtc->cross_right_name << std::endl;
     std::cout << "\tLeft:  ITD " << xtc->left.itd_us << " us"
-              << itd_samples_note(xtc->left.itd_us, jack_sample_rate, xtc->frac_delay)
+              << itd_samples_note(xtc->left.itd_us, jack_sample_rate)
               << ", ILD " << xtc->left.ild_db
               << " dB, alpha " << xtc->left.ild_alpha
               << ", azimuth " << xtc->left.azimuth_deg << " degrees" << std::endl;
     std::cout << "\tRight: ITD " << xtc->right.itd_us << " us"
-              << itd_samples_note(xtc->right.itd_us, jack_sample_rate, xtc->frac_delay)
+              << itd_samples_note(xtc->right.itd_us, jack_sample_rate)
               << ", ILD " << xtc->right.ild_db
               << " dB, alpha " << xtc->right.ild_alpha
               << ", azimuth " << xtc->right.azimuth_deg << " degrees" << std::endl;
     // The round-trip period is what bounds the ladder, and it is where the two
-    // per-side roundings compound: the integer path rounds each side and then
-    // adds, so 8.640 + 6.720 comes out as 9 + 7 = 16, not 15.
+    // per-side roundings used to compound: the integer path rounded each side
+    // and then added, so 8.640 + 6.720 came out as 9 + 7 = 16 rather than
+    // 15.360. Reported because it sizes the design, not because it is at risk.
     if (jack_sample_rate > 0) {
       const double el = (double)xtc->left.itd_us  * 1e-6 * (double)jack_sample_rate;
       const double er = (double)xtc->right.itd_us * 1e-6 * (double)jack_sample_rate;
-      std::cout << "\tRound-trip period: " << (el + er) << " samples, ";
-      if (xtc->frac_delay)
-        std::cout << "used exactly" << std::endl;
-      else
-        std::cout << "rounded to " << (long long)(llround(el) + llround(er)) << std::endl;
+      std::cout << "\tRound-trip period: " << (el + er)
+                << " samples, used exactly" << std::endl;
     }
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
-    std::cout << "\tFractional ITD: " << (xtc->frac_delay ? "yes" : "no");
-    if (xtc->frac_delay)
-      std::cout << ", model delay " << xtc->model_delay << " samples";
-    std::cout << std::endl;
-  }
-
-  // Outside the !quiet block on purpose: -quiet silences the configuration
-  // dump, not a warning that part of the configuration does nothing.
-  if (has_model_delay && !xtc->frac_delay) {
-    std::cerr << "NatAmbio: warning: xtc_asym <model_delay> (" << xtc->model_delay
-              << ") is ignored because <frac_delay> is not set." << std::endl;
+    std::cout << "\tModel delay: " << XTC_DEFAULT_MODEL_DELAY << " samples"
+              << std::endl;
   }
 
   return xtc;
@@ -1263,12 +1217,12 @@ bool NaConf::build_xtc_coeffs(void)
       right.ild_alpha   = r->right.ild_alpha;
       right.azimuth_deg = r->right.azimuth_deg;
       rc = process_asym(&left, &right, jack_sample_rate, r->filter_len,
-                        r->frac_delay ? 1 : 0, r->model_delay,
+                        1, XTC_DEFAULT_MODEL_DELAY,
                         buf[0], buf[1], buf[2]);
     } else {
       rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
                    jack_sample_rate, r->filter_len,
-                   r->frac_delay ? 1 : 0, r->model_delay, buf[0], buf[1]);
+                   1, XTC_DEFAULT_MODEL_DELAY, buf[0], buf[1]);
     }
     if (rc != 0) {
       for (size_t i = 0; i < n; i++) free(buf[i]);

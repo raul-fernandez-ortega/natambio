@@ -58,6 +58,15 @@ natambio (1.1.0) unstable; urgency=medium
   * The <port>s of <jack_input> and <jack_output> take a <gain> in dB
     (default 0 dB, following the common gain convention), which is what the
     remote's gain commands move.
+  * XTC: the design tags <frac_delay> and <model_delay> were retired. The
+    recursion always runs at the exact, unrounded ITD, and the bulk delay that
+    path needs is fixed at 64 samples, so there is nothing left to choose: the
+    fractional path was the one worth using and the model delay had one
+    sensible value. A configuration still carrying either tag is warned that
+    it is ignored, and one carrying it inside an <xtc_asym> side block is
+    still a parse error. <length> must now exceed the 64-sample model delay,
+    which the parser checks and names. get_xtc() and process()'s frac_delay
+    argument stay in lib/xtc.c, and the offline tools keep their own switch.
 
  -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Wed, 02 Sep 2026 12:00:00 +0200
 

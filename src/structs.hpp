@@ -127,12 +127,10 @@ struct xtc {
   struct xtc_side left;     // <xtc_asym>: left speaker parameters
   struct xtc_side right;    // <xtc_asym>: right speaker parameters
   int filter_len;           // filter length, samples (sample rate is JACK's)
-  // <frac_delay>/<model_delay>, optional in both blocks. Run the recursion at
-  // the exact ITD instead of rounding it to whole samples, and the bulk delay
-  // that path needs. Design-wide, so they live here and not in xtc_side. The
-  // defaults keep the historical behaviour: rounding, no added latency.
-  bool frac_delay;
-  int model_delay;
+  // The recursion always runs at the exact, unrounded ITD, with the bulk delay
+  // that path needs fixed at XTC_DEFAULT_MODEL_DELAY. Neither is configurable
+  // any more, so neither is carried here: build_xtc_coeffs() passes both to
+  // process() directly.
 };
 
 struct lowhigh {

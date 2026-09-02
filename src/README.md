@@ -526,28 +526,31 @@ and adds them to the coeff list under the given names. Appears inside
 | `<ild_db>` | Inter-aural level difference per recursion step (dB attenuation) (required) |
 | `<ild_alpha>` | Log-empirical ILD model scale factor (required) |
 | `<azimuth_deg>` | Source azimuth (degrees) fed to the ILD model (required) |
-| `<length>` | Length of each generated filter, samples (required, > 0) |
+| `<length>` | Length of each generated filter, samples (required, > 64) |
 | `<direct_filter_name>` | Name of the resulting direct-path coeff (required) |
 | `<cross_filter_name>` | Name of the resulting cross-path coeff (required) |
-| `<frac_delay>` | `true`/`false` (or `1`/`0`). Run the XTC recursion at the exact ITD instead of rounding it to whole samples (optional, default `false`) |
-| `<model_delay>` | Bulk delay in samples the fractional path adds to both filters (optional, default 64; ignored unless `<frac_delay>` is set) |
 
-**All `<xtc>` parameters except `<frac_delay>` and `<model_delay>` are
-mandatory** — omitting any other one is a parse error. Those two are optional
-precisely so that existing configurations keep producing the same coefficients.
+**Every `<xtc>` parameter is mandatory** — omitting one is a parse error.
 
-`<frac_delay>` is worth setting. The recursion places its taps at whole samples,
-so the ITD is rounded first: at 48 kHz an `<itd_us>` of 180 is 8.64 samples and
-becomes 9. An ITD error `dt` leaves a residual `2·sin(π·f·dt)` relative to the
-cancelling signal, which caps the design's own crosstalk suppression in the top
-octaves — around −27 dB above 8 kHz for the usual values, where the exact ITD
-reaches the ladder's floor some 55 dB lower. With `<frac_delay>` the same
-recursion is evaluated in the frequency domain, where a tap is a linear-phase
-factor and no rounding is involved; nothing else in the pipeline changes.
-`<model_delay>` keeps the two-sided response of a fractional shift from being
-clipped at n = 0, and being common to both filters it costs latency and nothing
-else (64 samples is 1.3 ms at 48 kHz). See `tools/xtc_filters/README.md` and the
-measurements in `tools/python_xtc_filters/compare_frac_delay.py`.
+The recursion always runs at the exact, unrounded ITD. It used to round it to
+whole samples, because a tap was a write at an array index: at 48 kHz an
+`<itd_us>` of 180 is 8.64 samples and became 9. An ITD error `dt` leaves a
+residual `2·sin(π·f·dt)` relative to the cancelling signal, which capped the
+design's own crosstalk suppression in the top octaves — around −27 dB above
+8 kHz for the usual values, where the exact ITD reaches the ladder's floor some
+55 dB lower. The recursion is now evaluated in the frequency domain, where a tap
+is a linear-phase factor and no rounding is involved; nothing else in the
+pipeline changes.
+
+A fractional shift has a two-sided impulse response, so the design carries a
+bulk delay of 64 samples common to both filters, which is what keeps that
+response from being clipped at n = 0. XTC depends only on the delay *between*
+the two filters, so a delay common to both costs latency and nothing else
+(1.3 ms at 48 kHz) — and it is why `<length>` has to exceed it. None of this is
+configurable: the `<frac_delay>` and `<model_delay>` tags earlier versions
+accepted are gone, and a configuration still carrying one is warned that it is
+ignored. See `tools/xtc_filters/README.md` and the measurements in
+`tools/python_xtc_filters/compare_frac_delay.py`.
 
 The pair is generated at the JACK sample rate (probed at start-up — there is no
 `<sample_rate>` tag) by `NaConf::build_xtc_coeffs()` (see the `NaConf` component
@@ -587,22 +590,20 @@ speaker, and the block publishes **three** coeffs instead of two.
 | Tag | Description |
 |---|---|
 | `<left>`, `<right>` | One sub-block per speaker, each holding that side's `<itd_us>`, `<ild_db>`, `<ild_alpha>` and `<azimuth_deg>` — same meaning as in `<xtc>` (all required) |
-| `<length>` | Length of each generated filter, samples (required, > 0); common to all three |
+| `<length>` | Length of each generated filter, samples (required, > 64); common to all three |
 | `<direct_filter_name>` | Name of the resulting direct-path coeff, shared by both channels (required) |
 | `<cross_left_filter_name>` | Name of the cross coeff feeding the **left** speaker (required) |
 | `<cross_right_filter_name>` | Name of the cross coeff feeding the **right** speaker (required) |
-| `<frac_delay>` | `true`/`false` (or `1`/`0`). Run the recursion at the exact ITDs instead of rounding each to whole samples (optional, default `false`) |
-| `<model_delay>` | Bulk delay in samples the fractional path adds to all three filters (optional, default 64; ignored unless `<frac_delay>` is set) |
 
-**All `<xtc_asym>` parameters except `<frac_delay>` and `<model_delay>` are
-mandatory** — omitting any other one is a parse error.
+**Every `<xtc_asym>` parameter is mandatory** — omitting one is a parse error.
 
-`<frac_delay>` matters more here than in `<xtc>`: the integer path rounds each
+The exact ITD matters more here than in `<xtc>`: the integer path rounded each
 side's `<itd_us>` independently, and the round-trip period
-`itd_left + itd_right` inherits both errors, so a geometry can carry up to a
+`itd_left + itd_right` inherited both errors, so a geometry could carry up to a
 full sample of period error. The example above is one — 180 µs and 140 µs at
-48 kHz are 8.64 and 6.72 samples, rounded to 9 and 7, giving a period of 16
-instead of 15.36. See the `<xtc>` section for what that costs.
+48 kHz are 8.64 and 6.72 samples, which rounded to 9 and 7 gave a period of 16
+instead of 15.36. See the `<xtc>` section for what that cost, and for the
+64-sample model delay the design carries.
 
 **Why three filters and not four.** The direct filter depends only on the
 product of the two crossed paths, so the asymmetry cancels out of it and both
