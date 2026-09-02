@@ -22,13 +22,6 @@ natambio (1.1.0) unstable; urgency=medium
     path adds to all its filters so that a two-sided fractional shift is not
     clipped at n = 0. Ignored unless <frac_delay>; given without it, it now
     warns instead of being read and silently dropped.
-  * XTC: the <xtc>/<xtc_asym> configuration dump reports what each ITD becomes
-    in samples and which of the two paths is in use, and <xtc_asym> also
-    reports the round-trip period, where the two per-side roundings compound.
-  * XTC: an unknown tag inside an <xtc_asym> <left>/<right> side block is now
-    a parse error. <frac_delay> and <model_delay> describe the whole design
-    and belong to the <xtc_asym> block itself; tried inside a side block they
-    previously did nothing at all, and said nothing about it.
   * New <remote> block: a TCP command socket, one command per line, that moves
     gains and NAE parameters while natambio runs. The tag's content is the
     port; there is no default, so a configuration that says nothing about
