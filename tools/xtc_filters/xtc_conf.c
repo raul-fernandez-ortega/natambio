@@ -7,6 +7,7 @@
 #include "xtc_conf.h"
 #include "toml_min.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -84,15 +85,26 @@ static int load_output(const toml_min *t, char *directory, char *prefix,
 
 /* Reads the two top-level design switches. Both optional: an absent key leaves
  * whatever the caller pre-loaded. Shared by the two loaders because the pair
- * describes the design, not the layout. */
+ * describes the design, not the layout.
+ *
+ * model_delay is read into a local sentinel rather than straight into the
+ * caller's field, so that "absent" can be told apart from "present and equal
+ * to whatever the caller happened to pre-load". The caller starts it unset and
+ * derives it from the sample rate once the whole command line has been seen,
+ * which only works if this leaves an absent key alone. */
 static int load_design(const toml_min *t, int *frac_delay, int *model_delay,
                        char *err, size_t errlen)
 {
     if (toml_min_bool(t, "", "frac_delay", frac_delay, err, errlen) < 0) return -1;
-    if (toml_min_int(t, "", "model_delay", model_delay, err, errlen) < 0) return -1;
-    if (*model_delay < 0) {
-        snprintf(err, errlen, "model_delay must not be negative (got %d)", *model_delay);
-        return -1;
+
+    int md = INT_MIN;
+    if (toml_min_int(t, "", "model_delay", &md, err, errlen) < 0) return -1;
+    if (md != INT_MIN) {
+        if (md < 0) {
+            snprintf(err, errlen, "model_delay must not be negative (got %d)", md);
+            return -1;
+        }
+        *model_delay = md;
     }
     return 0;
 }

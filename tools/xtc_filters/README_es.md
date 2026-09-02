@@ -51,7 +51,7 @@ de modo que `[xtc]`, `[left]` y `[right]` son bloques intercambiables:
 sample_rate = 48000
 filter_len  = 4096
 frac_delay  = true    # opcional; ITD exacto en vez de redondeado (ver abajo)
-model_delay = 64      # opcional; retardo global del camino fraccionario
+model_delay = 64      # opcional; si se omite se deriva de sample_rate
 
 [xtc]                 # [left] y [right] en la herramienta asimétrica
 itd_us      = 170     # diferencia interaural de tiempo, microsegundos
@@ -123,7 +123,9 @@ la escalera son los mismos, peldaño a peldaño. Cuando el ITD resulta ser un
 número entero de muestras los dos caminos coinciden a precisión numérica, que es
 lo que verifica `make check` en `../../lib`.
 
-`model_delay` (`-M`, por defecto 64) es el retardo global que el camino
+`model_delay` (`-M`, derivado de `sample_rate` si se omite: 64 muestras a 48 kHz,
+59 a 44.1, 128 a 96 -- los mismos 1.33 ms que aplica natambio) es el retardo
+global que el camino
 fraccionario añade a todos los filtros, para que la respuesta impulsional de dos
 lados de un desplazamiento fraccionario no se recorte en n = 0. Es común a todos
 los filtros de un diseño, y el XTC solo depende de los retardos *entre* ellos,

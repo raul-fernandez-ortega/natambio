@@ -48,7 +48,7 @@ The schema uses the same key names for a side in both tools, so `[xtc]`,
 sample_rate = 48000
 filter_len  = 4096
 frac_delay  = true    # optional; exact ITD instead of rounded (see below)
-model_delay = 64      # optional; bulk delay the fractional path needs
+model_delay = 64      # optional; omit and it is derived from sample_rate
 
 [xtc]                 # [left] and [right] in the asymmetric tool
 itd_us      = 170     # inter-aural time difference, microseconds
@@ -118,7 +118,9 @@ minimum-phase step and the ladder are the same, rung for rung. With an ITD that
 happens to be a whole number of samples the two paths agree to numerical
 precision, which is what `make check` in `../../lib` verifies.
 
-`model_delay` (`-M`, default 64) is the bulk delay the fractional path adds to
+`model_delay` (`-M`, derived from `sample_rate` when omitted: 64 taps at 48 kHz,
+59 at 44.1, 128 at 96 -- the same 1.33 ms natambio applies) is the bulk delay the
+fractional path adds to
 every filter, so that the two-sided impulse response of a fractional shift is
 not clipped at n = 0. It is common to all the filters of a design, and XTC
 depends only on the delays *between* them, so it costs latency and nothing else

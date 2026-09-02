@@ -543,14 +543,25 @@ is a linear-phase factor and no rounding is involved; nothing else in the
 pipeline changes.
 
 A fractional shift has a two-sided impulse response, so the design carries a
-bulk delay of 64 samples common to both filters, which is what keeps that
-response from being clipped at n = 0. XTC depends only on the delay *between*
-the two filters, so a delay common to both costs latency and nothing else
-(1.3 ms at 48 kHz) — and it is why `<length>` has to exceed it. None of this is
-configurable: the `<frac_delay>` and `<model_delay>` tags earlier versions
-accepted are gone, and a configuration still carrying one is warned that it is
-ignored. See `tools/xtc_filters/README.md` and the measurements in
-`tools/python_xtc_filters/compare_frac_delay.py`.
+bulk delay common to both filters, which is what keeps that response from being
+clipped at n = 0. XTC depends only on the delay *between* the two filters, so a
+delay common to both costs latency and nothing else.
+
+That delay is a **duration**, not a tap count: 1.33 ms, which is 64 samples at
+48 kHz and is scaled to the rate JACK reports — 59 at 44.1 kHz, 128 at 96 kHz,
+by `xtc_model_delay()` in `lib/xtc.c`. What has to be compensated for elsewhere
+is the time: a subwoofer fed on a path that bypasses XTC needs those samples
+added to the `<delay>` of the `<convol>`s feeding it, and a fixed tap count
+would move that compensation with the sample rate. Scaling costs almost nothing
+in accuracy — the discarded pre-ring goes from −54.7 to −54.1 dB at 44.1 kHz —
+and gains at higher rates, from −83.0 to −87.7 dB at 96 kHz. `<length>` must
+exceed it, checked and reported with the rate it was computed at.
+
+None of this is configurable: the `<frac_delay>` and `<model_delay>` tags
+earlier versions accepted are gone, and a configuration still carrying one is
+warned that it is ignored. See `tools/xtc_filters/README.md` and the
+measurements in `tools/python_xtc_filters/compare_frac_delay.py` — note that
+the offline tools keep their own explicit `model_delay`, unscaled.
 
 The pair is generated at the JACK sample rate (probed at start-up — there is no
 `<sample_rate>` tag) by `NaConf::build_xtc_coeffs()` (see the `NaConf` component

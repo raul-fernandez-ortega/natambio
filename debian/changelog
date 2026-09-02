@@ -1,3 +1,28 @@
+natambio (1.1.1) unstable; urgency=medium
+
+  * XTC: the model delay is now derived from the sample rate instead of being
+    a fixed 64 samples. It is a duration -- 1.33 ms -- and what has to be
+    compensated for elsewhere is the time, so 1.1.0's fixed tap count made
+    that compensation move with the rate: 64 taps are 1.45 ms at 44.1 kHz and
+    0.67 ms at 96 kHz. xtc_model_delay() (lib/xtc.c) scales it: 59 samples at
+    44.1 kHz, 64 at 48, 128 at 96. A system with a subwoofer fed on a path
+    that bypasses XTC compensates one figure in milliseconds and it holds at
+    every rate; a 96 kHz configuration written against 1.1.0 was compensating
+    64 samples where the design added 64 but should have added 128.
+  * XTC: scaling costs almost nothing in accuracy and gains at high rates.
+    Measured on the cross filter (ITD 180 us, 4096 taps) the discarded
+    pre-ring goes from -54.7 dB with a fixed 64 to -54.1 dB with the scaled 59
+    at 44.1 kHz, and from -83.0 to -87.7 dB with the scaled 128 at 96 kHz.
+  * XTC: the configuration report prints the model delay with its duration,
+    and the <length> lower bound is reported with the rate it was computed at,
+    since the bound moves with the rate.
+  * Tools: natambio-xtc-filters derives its model delay from the sample rate
+    too when neither -M nor a model_delay key is given, so a filter generated
+    offline carries the latency natambio would have added to the same design.
+    An explicit -M or key still wins, and a negative one is still refused.
+
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Wed, 02 Sep 2026 18:00:00 +0200
+
 natambio (1.1.0) unstable; urgency=medium
 
   * NAE: new <pan_scale>, a width control on the engine's input pair -- a

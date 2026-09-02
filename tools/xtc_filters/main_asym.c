@@ -33,6 +33,7 @@
  * ITDs independently and the round-trip period inherits both errors.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,7 +91,7 @@ int main(int argc, char **argv) {
         .sample_rate = 48000,
         .filter_len  = 4096,
         .frac_delay  = 0,
-        .model_delay = XTC_DEFAULT_MODEL_DELAY,
+        .model_delay = INT_MIN,   /* unset; resolved from the rate below */
         .directory   = "filters",
         .prefix      = "",
     };
@@ -124,6 +125,13 @@ int main(int argc, char **argv) {
         fprintf(stderr, "xtc_asym: %s: %s\n", config_path, err);
         return 4;
     }
+
+    /* Resolve the model delay now that the sample rate is final. An explicit
+     * -M or a model_delay in the config file wins; otherwise it comes from the
+     * rate, as it does in natambio, so a filter generated here carries the
+     * same latency as the same design generated inside the processor. */
+    if (cfg.model_delay == INT_MIN)
+        cfg.model_delay = xtc_model_delay(cfg.sample_rate);
 
     if (make_output_dir(cfg.directory) != 0) return 2;
 

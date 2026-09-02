@@ -95,8 +95,8 @@ int get_xtc_asym_frac(int length,
  *   frac_delay  : non-zero to run the recursion at the exact, unrounded ITDs
  *                 (get_xtc_asym_frac); zero to round each to whole samples
  *   model_delay : bulk delay for the fractional path, ignored when frac_delay
- *                 is zero. Pass XTC_DEFAULT_MODEL_DELAY (xtc.h) unless you have
- *                 a reason not to.
+ *                 is zero. Pass xtc_model_delay(sample_rate) from xtc.h
+ *                 unless you have a reason not to.
  *   direct_out, cross_left_out, cross_right_out : filter_len-double buffers
  *                                                 allocated by the caller.
  *

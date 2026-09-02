@@ -262,7 +262,7 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frac_delay") ||
                !xmlStrcmp(xmlnode->name, (const xmlChar *)"model_delay")) {
       // Both retired: the recursion always runs at the exact ITD, with the
-      // model delay fixed at XTC_DEFAULT_MODEL_DELAY. Say so rather than drop
+      // model delay derived from the sample rate. Say so rather than drop
       // the tag in silence -- whoever wrote it expects it to mean something,
       // and this file does not let a configuration go quietly unread.
       std::cerr << "NatAmbio: warning: xtc <" << (const char*)xmlnode->name
@@ -300,12 +300,14 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
   }
   // get_xtc_frac() needs the whole model delay to fit inside the filter: at or
   // past the end it would push the shifted response out of the buffer and
-  // return silence. Caught here, where the length is still nameable.
-  if (xtc->filter_len <= XTC_DEFAULT_MODEL_DELAY) {
-    char lenmsg[160];
+  // return silence. Caught here, where the length is still nameable. The bound
+  // moves with the sample rate, so it is reported rather than assumed known.
+  const int xtc_md = xtc_model_delay(jack_sample_rate);
+  if (xtc->filter_len <= xtc_md) {
+    char lenmsg[180];
     snprintf(lenmsg, sizeof(lenmsg),
              "Error: xtc <length> must be > %d, the model delay the fractional "
-             "design carries.", XTC_DEFAULT_MODEL_DELAY);
+             "design carries at %d Hz.", xtc_md, jack_sample_rate);
     parse_error(lenmsg);
     delete xtc;
     return NULL;
@@ -323,8 +325,9 @@ struct xtc* NaConf::parse_xtc(xmlNodePtr xmlnode)
     std::cout << "\tILD alpha: " << xtc->ild_alpha << std::endl;
     std::cout << "\tAzimuth: " << xtc->azimuth_deg << " degrees" << std::endl;
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
-    std::cout << "\tModel delay: " << XTC_DEFAULT_MODEL_DELAY << " samples"
-              << std::endl;
+    std::cout << "\tModel delay: " << xtc_md << " samples ("
+              << (1000.0 * (double)xtc_md / (double)jack_sample_rate)
+              << " ms)" << std::endl;
   }
 
   return xtc;
@@ -484,12 +487,14 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
     delete xtc;
     return NULL;
   }
-  // As in <xtc>: the model delay has to fit inside the filter.
-  if (xtc->filter_len <= XTC_DEFAULT_MODEL_DELAY) {
-    char lenmsg[170];
+  // As in <xtc>: the model delay has to fit inside the filter, and it moves
+  // with the sample rate.
+  const int xtc_md = xtc_model_delay(jack_sample_rate);
+  if (xtc->filter_len <= xtc_md) {
+    char lenmsg[190];
     snprintf(lenmsg, sizeof(lenmsg),
              "Error: xtc_asym <length> must be > %d, the model delay the "
-             "fractional design carries.", XTC_DEFAULT_MODEL_DELAY);
+             "fractional design carries at %d Hz.", xtc_md, jack_sample_rate);
     parse_error(lenmsg);
     delete xtc;
     return NULL;
@@ -522,8 +527,9 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
                 << " samples, used exactly" << std::endl;
     }
     std::cout << "\tFilter length: " << xtc->filter_len << " samples" << std::endl;
-    std::cout << "\tModel delay: " << XTC_DEFAULT_MODEL_DELAY << " samples"
-              << std::endl;
+    std::cout << "\tModel delay: " << xtc_md << " samples ("
+              << (1000.0 * (double)xtc_md / (double)jack_sample_rate)
+              << " ms)" << std::endl;
   }
 
   return xtc;
@@ -1217,12 +1223,12 @@ bool NaConf::build_xtc_coeffs(void)
       right.ild_alpha   = r->right.ild_alpha;
       right.azimuth_deg = r->right.azimuth_deg;
       rc = process_asym(&left, &right, jack_sample_rate, r->filter_len,
-                        1, XTC_DEFAULT_MODEL_DELAY,
+                        1, xtc_model_delay(jack_sample_rate),
                         buf[0], buf[1], buf[2]);
     } else {
       rc = process(r->itd_us, r->ild_db, r->ild_alpha, r->azimuth_deg,
                    jack_sample_rate, r->filter_len,
-                   1, XTC_DEFAULT_MODEL_DELAY, buf[0], buf[1]);
+                   1, xtc_model_delay(jack_sample_rate), buf[0], buf[1]);
     }
     if (rc != 0) {
       for (size_t i = 0; i < n; i++) free(buf[i]);

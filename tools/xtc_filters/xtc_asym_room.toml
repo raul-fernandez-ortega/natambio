@@ -37,8 +37,10 @@ filter_len = 4096
 # is a linear-phase factor and neither ITD needs rounding. model_delay is the
 # bulk delay that path adds to all three filters so the two-sided response of a
 # fractional shift is not clipped at n = 0; being common to all three it costs
-# latency and nothing else. 64 taps is 1.3 ms at 48 kHz and leaves ~20 dB of
-# margin.
+# latency and nothing else. Omit it and it comes from sample_rate -- 1.33 ms,
+# which is 64 taps at 48 kHz, 59 at 44.1 and 128 at 96 -- the same figure
+# natambio uses, so a filter generated here carries the latency the processor
+# would have added. Set it only to override that.
 #
 # With no output.prefix the default one becomes XTC_asym_frac, so the two
 # designs cannot overwrite each other; an explicit prefix, as below, is used as
@@ -46,7 +48,7 @@ filter_len = 4096
 # tools/python_xtc_filters/compare_frac_delay.py, which measures both against
 # the modelled plant.
 # frac_delay  = true
-# model_delay = 64
+# model_delay = 64   # omit: derived from sample_rate
 [left]
 itd_us = 170
 # 21 dB: a high value, i.e. a gentle cancellation on this side.

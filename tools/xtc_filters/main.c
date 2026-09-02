@@ -4,6 +4,7 @@
  * Licensed under the GNU General Public License v3 (GPLv3); see the LICENSE file.
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,9 +27,10 @@ static void usage(const char *prog) {
         "           170 us is 8.16 samples, and rounding it to 8 caps crosstalk\n"
         "           suppression near 10 kHz some 55 dB above where the exact\n"
         "           ITD lands. Appends _frac to the output filenames.\n"
-        "  -M N     bulk model delay in samples for -F.\n"
+        "  -M N     bulk model delay in samples for -F. Defaults to the value\n"
+        "           for the sample rate: %d samples at 48 kHz, scaled from there.\n"
         "\n"
-        "Defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096 -M %d\n",
+        "Defaults: -t 170 -l 14 -a 2.0 -z 20 -r 48000 -f 4096\n",
         prog, XTC_DEFAULT_MODEL_DELAY);
 }
 
@@ -80,7 +82,7 @@ int main(int argc, char **argv) {
         .sample_rate = 48000,
         .filter_len  = 4096,
         .frac_delay  = 0,
-        .model_delay = XTC_DEFAULT_MODEL_DELAY,
+        .model_delay = INT_MIN,   /* unset; resolved from the rate below */
         .xtc = { .itd_us = 170, .ild_db = 14.0, .ild_alpha = 2.0, .azimuth_deg = 20 },
         .directory = "filters",
         .prefix    = "",
@@ -128,6 +130,13 @@ int main(int argc, char **argv) {
             }
         }
     }
+
+    /* Resolve the model delay now that the sample rate is final. An explicit
+     * -M or a model_delay in the config file wins; otherwise it comes from the
+     * rate, as it does in natambio, so a filter generated here carries the
+     * same latency as the same design generated inside the processor. */
+    if (cfg.model_delay == INT_MIN)
+        cfg.model_delay = xtc_model_delay(cfg.sample_rate);
 
     if (make_output_dir(cfg.directory) != 0) return 2;
 

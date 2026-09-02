@@ -31,6 +31,19 @@ int write_wav(const char *path, const double *data, int n, int sample_rate);
 #define XTC_MAX_SAMPLE_RATE 768000
 #define XTC_MAX_ILD_ALPHA   100.0
 
+int xtc_model_delay(int sample_rate) {
+    if (sample_rate <= 0) return XTC_DEFAULT_MODEL_DELAY;
+    /* Formed in double and rounded rather than integer-divided: at 44.1 kHz
+     * the exact value is 58.8, and truncating would drift the compensation by
+     * a sample for nothing. Bounded so an absurd rate cannot ask for a delay
+     * no filter could hold; callers still check it against their own length. */
+    const double d = (double)XTC_DEFAULT_MODEL_DELAY
+                   * (double)sample_rate / (double)XTC_MODEL_DELAY_REF_RATE;
+    if (d < 1.0)                                  return 1;
+    if (d > (double)(XTC_MAX_FILTER_LEN / 2))     return XTC_MAX_FILTER_LEN / 2;
+    return (int)lround(d);
+}
+
 /* Context and callback for firwin2_db_model_fn.
  *   - HF (f > FLIM):  -ild_log_empirical(theta, f, alpha)
  *   - LF (f <= FLIM): -6 dB/oct anchored to the model value at FLIM

@@ -7,13 +7,28 @@
 #ifndef XTC_H
 #define XTC_H
 
-/* Bulk delay the fractional-ITD path adds to both filters, in samples, so that
- * the two-sided impulse response of a fractional shift is not clipped at n = 0.
+/* Bulk delay the fractional-ITD path adds to both filters, so that the
+ * two-sided impulse response of a fractional shift is not clipped at n = 0.
  * 64 taps leave the discarded pre-ring at -52 dB of the cross filter, about
  * 20 dB below the recursion's own residual; the cost is 1.3 ms of latency at
  * 48 kHz, applied equally to direct and cross and therefore inaudible as
- * anything but latency. */
-#define XTC_DEFAULT_MODEL_DELAY 64
+ * anything but latency.
+ *
+ * It is a DURATION and not a tap count. What has to be compensated for
+ * elsewhere in a system -- the delay of a subwoofer fed on a path that
+ * bypasses XTC -- is the time this adds, and a fixed tap count would make that
+ * time move with the sample rate: 64 taps are 1.45 ms at 44.1 kHz and 0.67 ms
+ * at 96 kHz. So XTC_DEFAULT_MODEL_DELAY is the value at
+ * XTC_MODEL_DELAY_REF_RATE, and xtc_model_delay() scales it to the rate in
+ * use. One compensation figure then holds at every rate. */
+#define XTC_DEFAULT_MODEL_DELAY  64
+#define XTC_MODEL_DELAY_REF_RATE 48000
+
+/* The model delay to use at `sample_rate`, in samples: 59 taps at 44.1 kHz,
+ * 64 at 48 kHz, 128 at 96 kHz -- the same 1.33 ms throughout. Returns the
+ * reference value for a non-positive rate, which every caller rejects before
+ * the design is reached anyway. */
+int xtc_model_delay(int sample_rate);
 
 /* getXTC — port of the XTC recursion from ambio_filters_scipy.py.
  *
@@ -56,7 +71,7 @@ int get_xtc(int length, double attenuation, int delay,
  * carries energy at negative time; model_delay shifts both filters forward so
  * that energy is kept rather than clipped. XTC depends only on the delay
  * BETWEEN the two filters, so a delay common to both changes nothing but
- * latency. XTC_DEFAULT_MODEL_DELAY is the recommended value.
+ * latency. Pass xtc_model_delay(sample_rate).
  *
  * Returns 0 on success, non-zero on error.
  */
@@ -69,8 +84,8 @@ int get_xtc_frac(int length, double attenuation, double delay,
  *   frac_delay  : non-zero to run the recursion at the exact, unrounded ITD
  *                 (get_xtc_frac); zero to round it to whole samples (get_xtc)
  *   model_delay : bulk delay for the fractional path, ignored when frac_delay
- *                 is zero. Pass XTC_DEFAULT_MODEL_DELAY unless you have a
- *                 reason not to.
+ *                 is zero. Pass xtc_model_delay(sample_rate) unless you have
+ *                 a reason not to.
  *   direct_out, cross_out : filter_len-double buffers allocated by the caller;
  *                           process fills them but does not persist them to disk.
  * If DEBUG is defined at compile time, writes peak-normalised filters/ILD_*.wav
