@@ -67,6 +67,38 @@ natambio (1.1.0) unstable; urgency=medium
     still a parse error. <length> must now exceed the 64-sample model delay,
     which the parser checks and names. get_xtc() and process()'s frac_delay
     argument stay in lib/xtc.c, and the offline tools keep their own switch.
+  * XTC: get_xtc() wrote cross_out[n] without checking n against the filter
+    length. The ladder starts at (NSTEPS-1)*delay, so any configuration where
+    31*ITD reached the filter length corrupted the heap on the first design
+    call. The rest of the arithmetic is bounded while there: index math in
+    long long with the delay capped so the ladder start and the 2*delay step
+    cannot overflow, filter_len and sample_rate bounded so next_pow2() cannot
+    shift into the sign bit, fft_convolve_truncate()'s return value checked,
+    and process() validating pointers, ranges and finiteness. ild_db must now
+    be a positive dB step -- that is what keeps the ladder convergent, and a
+    zero or negative value turned the per-step attenuations into gains and ran
+    away to +inf. A filter_len too short for the requested ITD is warned
+    about, since dropped taps mean cancellation that quietly does not cancel.
+  * DSP: the filter design math moved from the single- to the double-precision
+    FFTW API. minimum_phase() takes log|X| of a linear-phase FIR that has a
+    forced zero at Nyquist, where |X| lands on the transform's own noise floor
+    -- around 1e-5 in single precision, seven orders of magnitude above
+    LOG_EPS, so log|X| returned the log of the rounding error and get_xtc()
+    fed that through sixteen chained convolutions. Also hypot() there, whose
+    squares underflowed at exactly those bins. Filter coefficients stay single
+    precision: naconf.cpp narrows to float for zita-convolver, which is the
+    right boundary. Only the design math is double, and it runs offline at
+    configuration time, never on the RT path. Measured against the resulting
+    filters, the previous output was off by about 2e-2 relative L2 on the
+    cross filter.
+  * DSP: minimum_phase() oversamples the cepstral transform. The complex
+    cepstrum of a FIR has infinite support and decays only as 1/k, so running
+    it on a transform the length of the filter wrapped its tail back onto
+    itself and exp() turned that aliasing into a magnitude error -- 0.2 dB max
+    deviation from the linear-phase response it has to match, which those same
+    sixteen convolutions amplified into roughly 5% on the delivered filters.
+    At eight times the length, zero-padded and truncated back, the deviation
+    is 0.0004 dB.
 
  -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Wed, 02 Sep 2026 12:00:00 +0200
 
