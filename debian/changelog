@@ -1,9 +1,12 @@
 natambio (1.1.0) unstable; urgency=medium
 
-  * NAE: new <pan_scale> control, a mid/side rescale of the decomposition's
-    two components, and <pan_rotate>, a rotation of the placement frame that
-    tracks the measured axis. Placement smoothed by <pan_scale_tau>. Both
-    available in alpha and beta modes; positive closes towards mono.
+  * NAE: new <pan_scale>, a width control on the engine's input pair -- a
+    power-complementary mid/side matrix applied before anything looks at the
+    signal, ahead of the decomposition and of the correlation the beta mode
+    weighting rides on. +1 collapses the pair to mono, 0 leaves it untouched,
+    -1 puts the two channels in opposite polarity. Read in both modes. An
+    exploratory control: it promises no improvement in quality, and leaving it
+    at 0 is a perfectly good answer.
   * NAE: internal naming reworked around the two components (c1, c2), and the
     beta mode output called ambient rather than surround.
   * XTC: new <frac_delay> in <xtc> and <xtc_asym>, which runs the crosstalk
@@ -26,6 +29,35 @@ natambio (1.1.0) unstable; urgency=medium
     a parse error. <frac_delay> and <model_delay> describe the whole design
     and belong to the <xtc_asym> block itself; tried inside a side block they
     previously did nothing at all, and said nothing about it.
+  * New <remote> block: a TCP command socket, one command per line, that moves
+    gains and NAE parameters while natambio runs. The tag's content is the
+    port; there is no default, so a configuration that says nothing about
+    remote control gets no socket. natambio refuses to start if the port
+    cannot be bound. Bound to 127.0.0.1, and the commands carry no credential
+    of any kind, so driving it from another machine means an SSH forward.
+  * Remote: "up" and "down" move named ports' gains relative to what they are
+    now, "upin"/"downin"/"upout"/"downout" move every input or every output
+    port bodily, and "get" reports the gains as they stand. Results are
+    clamped to [-120, +20] dB and slewed at the start/stop fade rate rather
+    than applied as a step. A command that fails changes and reports nothing.
+  * Remote: "mute" takes every output to -120 dB and leaves the ports' own
+    gains alone, so up/down go on working through it; "unmute" brings them
+    back and "toggle" is the two of them for a caller with a single button.
+    The input ports are deliberately left running, so the convolution tails
+    and the NAE window are not drained into silence.
+  * Remote: "naegain" sets an NAE engine's <front_gain>, <ambience_gain> and
+    <rear_gain> by the engine's <name>, and "naepan" its <pan_scale>. Both
+    are absolute rather than relative, being a balance and a width rather
+    than a volume; naepan refuses a value outside [-1, +1] instead of
+    quietly clamping it.
+  * Remote: "naeget" reports one engine's configuration as its XML block, and
+    "getxmlconfig" the whole live configuration, valid to start another
+    natambio with. Every command that changes something writes the new value
+    back into the configuration as well as into the running audio, so there
+    is one place holding what the system is set to.
+  * The <port>s of <jack_input> and <jack_output> take a <gain> in dB
+    (default 0 dB, following the common gain convention), which is what the
+    remote's gain commands move.
 
  -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Wed, 02 Sep 2026 12:00:00 +0200
 
