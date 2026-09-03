@@ -29,6 +29,7 @@ extern "C" {
 #include <cstring>
 
 #include "structs.hpp"
+#include "cycletime.hpp"
 
 using namespace std;
 
@@ -119,6 +120,13 @@ private:
   /* Per-sample slew, from the sample rate: the rate ioJack fades at, so a NAE
      gain and a port gain arriving together move as one. */
   float ramp_inc;
+  /* How long one block of the decomposition takes, cycle by cycle: the whole
+     of what this thread does between two semaphore signals. It is the figure
+     the "timecycle" command reports for this engine, and the one that says
+     whether the engine keeps up -- the callback signals it once per period and
+     does not wait for it, so a block that takes longer than a period is an
+     engine falling behind rather than an xrun. */
+  CycleTimer proc_time;
   RunningSums covM;
   RunningSums icorrv;
   PCATrans pca;
@@ -214,6 +222,12 @@ public:
   string getChannelOut(enum side n_side);
   void fillInputBuffer(enum side n_side, const float *n_input);
   void fillOutputBuffer(enum side n_side, float *n_output);
+  /* The per-block times, for the remote manager: read from its thread, never
+     from the worker's, and racing with the worker no more than any other
+     reader of a running timer does (cycletime.hpp). */
+  void timeStats(struct na_time_stats *st) { proc_time.stats(st); };
+  void resetTimeStats(void) { proc_time.reset(); };
+
   void load(int abspri, int policy);
   void signal(void);
   void thr_process(void);

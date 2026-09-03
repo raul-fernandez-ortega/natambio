@@ -83,10 +83,14 @@ ioJack::na_process_callback()   [JACK real-time thread]
   ├─ ConvChannel::processOutput()  → apply delay, scale, mix to JACK output ports
   └─ NAE::signal()            → post semaphore to each NAE thread
 
+  (timed end to end, and the convolution stage within it, into the two
+   CycleTimers ioJack owns — see `CycleTimer` below)
+
 NAE::thr_process()         [worker real-time thread, per instance]
   ├─ sem_wait()                    → block until signaled by JACK callback
   ├─ PCA decomposition             → see algorithm section below
-  └─ write left_out / right_out    → mutex-protected output buffers
+  ├─ write left_out / right_out    → mutex-protected output buffers
+  └─ (timed from after the sem_wait into the engine's own CycleTimer)
 ```
 
 ---
@@ -244,6 +248,8 @@ Key responsibilities:
 - Wire ports to `ConvChannel` and `NAE` instances
 - Drive the audio processing pipeline on every buffer cycle
 - Detect and timestamp xrun (buffer underrun) events
+- Time the callback and the convolution stage within it (`cycleTimeStats`,
+  `convTimeStats`, `naeTimeStatsAt`, `resetTimeStats`)
 - Handle JACK shutdown and latency callbacks
 
 Static JACK callbacks (`jack_process_callback`, `xrun_callback`, etc.) delegate to
@@ -277,6 +283,14 @@ as the gains are, but as the **scalar**: `thr_process()` derives the weight pair
 from it once a block (`pan_weights()`) and interpolates between two such pairs
 across the block, so every point of a move is a matrix that is a width.  See the `<remote>` section
 of `README.md` for the protocol.
+
+`timecycle` is the one command that reports on the process rather than on its
+settings: it reduces the `CycleTimer` histories — the callback's two and each
+engine's — to a mean, a deviation, a minimum and a maximum, and expresses the
+mean as a fraction of the period it reads back from `getPartSize()` and
+`getSampleRate()`.  The answer is two tab-separated tables, each under a `#`
+header line naming its columns, the data lines keeping the protocol's `ok`;
+`timecycle reset` empties every history through `ioJack::resetTimeStats()`.
 
 It runs in one plain (non-RT) thread of its own that accepts and serves
 connections sequentially.  The thread blocks `SIGINT`/`SIGTERM` so the main
@@ -380,6 +394,31 @@ Helper functions in `nae.cpp`:
 
 ---
 
+### `CycleTimer` — Per-Cycle Timing (`cycletime.hpp`)
+
+A header-only ring of the last `NA_TIME_HISTORY` (1000) elapsed times of one
+stage, in nanoseconds, plus the reduction of them the `timecycle` command
+reports.  Four of them are live in a typical run: `ioJack` owns the whole
+callback and the convolution stage inside it, and every `NAE` times its own
+block, from just after the `sem_wait()` — the wait is the callback's period, not
+the engine's work — to the end of the block.
+
+The write path is what makes it usable from the audio threads: two
+`clock_gettime(CLOCK_MONOTONIC)` (vDSO reads, no syscall) and two relaxed stores
+into a fixed array, with no allocation, no lock and nothing that can block.  A
+stage that runs in pieces — the convolution, which the callback interrupts to
+fill the output ports — uses `begin()`/`accumulate()` around each piece and
+`commit()` once, so the period contributes a single sample.
+
+Reads are deliberately unsynchronised.  `stats()` copies the ring while the
+timed thread may be writing into it, so a snapshot can mix a fresh sample with
+older ones; the alternative is a lock in the RT path to protect a statistic
+taken over a thousand samples, which is a worse trade.  The mean and the sample
+deviation are computed in two passes over the copy, in the manager thread, where
+the second pass costs nothing.
+
+---
+
 ### `structs.hpp` — Shared Data Structures
 
 | Struct | Fields | Purpose |
@@ -402,6 +441,7 @@ Helper functions in `nae.cpp`:
 | `sem_t semaphore` | JACK callback signals each NAE thread once per buffer |
 | `pthread_mutex_t mutex` | Protects NAE output buffers during write |
 | Real-time scheduling | NAE threads use `SCHED_FIFO` or `SCHED_RR` at the JACK thread priority |
+| `std::atomic` (relaxed) | `CycleTimer` histories: written by the timed thread, read unsynchronised by the manager thread |
 
 The JACK process callback must not allocate memory, block, or perform I/O. All
 buffer management is pre-allocated during initialization.

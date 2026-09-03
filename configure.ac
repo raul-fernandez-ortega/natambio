@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------
 
 AC_PREREQ([2.69])
-AC_INIT([NatAmbio], [1.1.1],
+AC_INIT([NatAmbio], [1.1.2],
         [natambio.audio@gmail.com], [NatAmbio])
 
 AC_CONFIG_AUX_DIR([build-aux])

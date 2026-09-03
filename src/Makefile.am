@@ -20,6 +20,7 @@ natambio_SOURCES = \
 	convchannel.hpp \
 	nae.hpp         \
 	remote.hpp      \
+	cycletime.hpp   \
 	structs.hpp
 
 natambio_CPPFLAGS = \

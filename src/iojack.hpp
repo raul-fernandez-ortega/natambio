@@ -30,6 +30,7 @@ extern "C" {
 #include <ctime>
 
 #include "structs.hpp"
+#include "cycletime.hpp"
 #include "convchannel.hpp"
 #include "nae.hpp"
 
@@ -113,6 +114,23 @@ private:
   volatile float ramp_target;   /* 1.0 running, 0.0 muted -- main thread writes */
   volatile float ramp_gain;     /* current gain -- RT thread writes */
   float ramp_inc;               /* per-sample slew, set from the sample rate */
+
+  /* Where the period goes. Two timers written by the RT callback and read by
+     the manager thread (cycletime.hpp): cycle_time is the callback end to end,
+     conv_time the convolution stage alone -- the input sums, zita-convolver's
+     own process(), and the delay/scale/mix on the way out, which the callback
+     runs in two pieces with the output ports filled in between, and which the
+     timer adds back into one figure per cycle. What is left between the two is
+     the port plumbing and the gain ramps, and it is left rather than timed:
+     the number worth having there is the total, and a stage that costs
+     nanoseconds does not need its own history. The NAE engines time
+     themselves, each in its own thread (NAE::timeStats()).
+     They cost four clock_gettime() per period between them -- vDSO reads, a
+     few tens of nanoseconds each -- against a period of a thousand
+     microseconds or more, so they are always on: a load figure that has to be
+     switched on first is one nobody has when the xruns start. */
+  CycleTimer cycle_time;
+  CycleTimer conv_time;
 
   /* Mute: one word, written by the manager thread and read by the RT callback,
      the same single-writer discipline as ramp_target. Both directions are
@@ -237,6 +255,22 @@ public:
   bool naeGain(string nae_name, enum nae_gain which, double *gain_db, bool *active);
   bool setNaeGain(string nae_name, enum nae_gain which, double db,
                   double *new_gain_db, bool *active);
+
+  /* Per-cycle times for the remote manager ("timecycle"), all four from its
+     thread and none from the RT one. The figures are microseconds; what they
+     are computed over, and what the reader races with, is cycletime.hpp.
+     The engines are addressed by position and not by name, as naeConfigAt()
+     is and for the same reason: an engine configured without a <name> is part
+     of what the period has to fit in, and a report of where the time goes is
+     the last place one should be missing from. naeTimeStatsAt() returns false
+     past the end of the list and reports the engine's name, empty for an
+     unnamed one. resetTimeStats() clears the callback's two timers and every
+     engine's, so that a measurement starts where the caller asked it to and
+     not where the last one left off. */
+  void cycleTimeStats(struct na_time_stats *st) { cycle_time.stats(st); };
+  void convTimeStats(struct na_time_stats *st) { conv_time.stats(st); };
+  bool naeTimeStatsAt(size_t index, struct na_time_stats *st, string *name);
+  void resetTimeStats(void);
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

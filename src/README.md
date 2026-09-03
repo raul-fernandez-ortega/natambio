@@ -220,6 +220,7 @@ naegain [<nae> [front|amb|rear <dB> ...]]   set or report an NAE's gains
 naepan  [<nae> [<scale>]]        the width of an NAE's input pair
 naeget  [<nae>]                  an NAE's configuration, as the XML block
 getxmlconfig                     the whole live configuration, as XML
+timecycle [reset]                where the period goes, cycle by cycle
 mute                             silence every output, gains untouched
 unmute                           bring them back
 toggle                           whichever of the two is not the case now
@@ -437,6 +438,65 @@ only at the far end.  Two natambios cannot share a control port or a JACK client
 name, so a dump used to start a *second* instance beside the first needs those
 two changed; used the way it is meant to be — as the file the next run starts
 from — it needs nothing.
+
+`timecycle` is the one command that reports on natambio itself rather than on
+what it is set to: how long each stage of the period actually takes.  Every
+cycle of the JACK callback is timed, and inside it the convolution stage — the
+input sums, zita-convolver's own `process()`, and the delay/scale/mix on the way
+out — and every `<nae>` engine times its block in its own thread.  The last
+thousand of each are kept in a FIFO and reduced on request:
+
+```
+$ echo timecycle | nc -q0 localhost 7000 | column -t -s $'\t'
+#   period_us  frames          rate
+ok  21333.333  1024            48000
+#   stage      name            cycles  n     mean_us  sd_us   min_us   max_us   load_pct
+ok  total      -               1086    1000  358.707  68.190  114.968  725.522  1.681
+ok  conv       -               1086    1000  317.368  61.587  100.027  662.417  1.488
+ok  nae        "front stereo"  1086    1000  294.079  60.451  78.011   490.547  1.378
+ok  nae        ""              1086    1000  254.470  50.352  78.679   468.486  1.193
+```
+
+The answer is two tab-separated tables, each under a header line naming its
+columns — seven numbers in a row are unreadable without one, and nobody
+remembers which of them is the deviation.  Header lines begin with `#` and data
+lines with `ok`, so a caller skips the headers the way it already skips the
+`muted` line of a `get` and reads the rest with `awk -F'\t'`; `column -t -s
+$'\t'`, as above, is what turns the same answer into something to look at.
+
+The first table is the period — microseconds, frames, sample rate — a table of
+its own because it is what the machine is given rather than what it spends, and
+first so that what follows has something to be read against without the caller
+knowing the configuration.  The second is one row per stage: `<cycles>` is every
+cycle timed since the last reset and `<n>` how many of them the figures cover —
+the same number until the FIFO fills, a thousand from then on, as above.  The
+four times are microseconds, the deviation is the sample one, and `<load_pct>`
+is the mean as a percentage of the period.  A stage with no name of its own
+carries a `-` in that column, an empty one between two tabs reading as a field
+that went missing; an engine with no `<name>` is reported at its position under
+an empty quoted name, this being the report where its absence would go
+unnoticed.
+
+The `total` row is the callback end to end and `conv` the convolution inside it; the
+difference is the port plumbing and the gain ramps, which are left untimed
+because the number worth having there is the total.  The NAE lines are not part
+of `total` at all — each engine runs in its own thread, signalled once per
+period and not waited for — which is why their cycle count is worth as much as
+their times: an engine whose count trails the callback's is not being given the
+periods, and no mean of the periods it did get would say so.
+
+`timecycle reset` empties every history and answers `ok timecycle reset`, so a
+measurement can be made to start when the music does, or after a filter is
+swapped, rather than where the last one left off.
+
+The counters are always on.  They cost two `clock_gettime` per stage per period
+— vDSO reads, a few tens of nanoseconds — against a period of a thousand
+microseconds or more, and a load figure that has to be switched on first is one
+nobody has when the xruns start.  Implemented in `cycletime.hpp`: a fixed ring
+of a thousand `std::atomic<unsigned>` per timer, written by the real-time thread
+with no allocation, no lock and nothing that can block, and read without
+synchronisation — a snapshot may mix a fresh sample with older ones, which is a
+cheaper price than a lock in the RT path for a statistic over a thousand of them.
 
 The socket is bound to `127.0.0.1` and the commands carry no credential:
 anything that can reach the port owns the volume of the system.  Reach it from

@@ -1,3 +1,34 @@
+natambio (1.1.2) unstable; urgency=medium
+
+  * New per-cycle timing counters and the "timecycle" remote command. The JACK
+    callback is timed end to end, the convolution stage within it (the input
+    sums, zita-convolver's process() and the delay/scale/mix on the way out),
+    and every <nae> engine's block in its own thread. Each keeps the last 1000
+    cycles in a FIFO, and "timecycle" reports the mean, the sample deviation,
+    the shortest and the longest of them in microseconds, plus the mean as a
+    percentage of the period, which is reported in a small table of its own so
+    the figures can be read without knowing the configuration.
+  * Remote: the report is two tab-separated tables, each under a header line
+    naming its columns -- seven numbers in a row are unreadable without one.
+    Header lines begin with "#" and data lines with "ok", so a caller skips the
+    headers as it already skips the "muted" line of a "get" and reads the rest
+    with awk -F'\t'; column -t -s $'\t' lines the answer up on a terminal.
+  * Remote: every "timecycle" stage row carries two counts, the cycles timed
+    since the last reset and how many of them the figures cover. The first
+    matters for the NAE engines: the callback signals them once per period and
+    does not wait, so an engine whose count trails the callback's is one that
+    is not keeping up, which no mean of the periods it did get would show.
+    "timecycle reset" empties every history, so a measurement can be made to
+    start when the music does rather than where the last one left off.
+  * The counters are always on: two clock_gettime() per stage per period, vDSO
+    reads of a few tens of nanoseconds against a period of a thousand
+    microseconds or more. The history is a fixed ring of std::atomic written
+    with no allocation, no lock and nothing that can block (src/cycletime.hpp);
+    it is read without synchronisation, a snapshot being a cheaper price than a
+    lock in the real-time path for a statistic over a thousand samples.
+
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Thu, 03 Sep 2026 12:00:00 +0200
+
 natambio (1.1.1) unstable; urgency=medium
 
   * XTC: the model delay is now derived from the sample rate instead of being

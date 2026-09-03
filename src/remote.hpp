@@ -39,6 +39,7 @@ extern "C" {
  *     naepan  [<nae> [<scale>]]       the width of an NAE's input pair
  *     naeget  [<nae>]                 an NAE's configuration, as XML
  *     getxmlconfig                    the whole live configuration, as XML
+ *     timecycle [reset]               where the period goes, cycle by cycle
  *     mute                            silence every output, gains untouched
  *     unmute                          bring them back
  *     toggle                          whichever of the two is not the case now
@@ -115,6 +116,40 @@ extern "C" {
  * do when someone asks for it. The reply ends at </main>, and its length, like
  * that of a bare "get", is known only at this end.
  *
+ * "timecycle" is the only command that reports on natambio itself rather than
+ * on what it is set to: the mean and standard deviation of the last thousand
+ * cycles of the JACK callback, of the convolution stage inside it, and of each
+ * NAE engine's block in its own thread, with the shortest and the longest of
+ * them and the mean as a percentage of the period.
+ *
+ * It answers with two tab-separated tables, each under a header line naming its
+ * columns, because a row of seven numbers is unreadable without one and nobody
+ * remembers which of them is the deviation:
+ *
+ *     #	period_us	frames	rate
+ *     ok	21333.333	1024	48000
+ *     #	stage	name	cycles	n	mean_us	sd_us	min_us	max_us	load_pct
+ *     ok	total	-	1086	1000	358.707	68.190	114.968	725.522	1.681
+ *     ok	conv	-	1086	1000	317.368	61.587	100.027	662.417	1.488
+ *     ok	nae	"front stereo"	1086	1000	294.079	60.451	78.011	490.547	1.378
+ *
+ * The header lines begin with "#" and the data lines with "ok", so a caller
+ * skips the headers the way it already skips "muted" and reads the rest with
+ * awk -F'\t'; a reader wanting columns instead of tabs pipes the answer through
+ * column -t -s $'\t'. The period is its own table because it is what the
+ * machine is given rather than what it spends, and it comes first so the
+ * percentages have something to be read against without the caller knowing the
+ * configuration. A stage with no name of its own is a "-" in that column.
+ *
+ * Every stage row carries two counts: the cycles timed since the last reset and
+ * how many of them the figures cover, which are the same number until the
+ * thousand-deep FIFO fills and differ afterwards. For an NAE the first count is
+ * worth as much as the times: the callback signals the engines once per period
+ * and does not wait for them, so an engine whose count trails the callback's is
+ * one that is not keeping up -- which shows there and in no mean. "timecycle
+ * reset" empties every history, and is how a measurement is made to start where
+ * the caller wants it to rather than where the last one left off.
+ *
  * "mute" and "unmute" take nothing at all and apply to every output at once.
  * The ports' own gains are untouched, so up/down and get go on working through
  * a mute and the levels come back exactly as they were. "toggle" is the pair of
@@ -159,6 +194,7 @@ private:
   std::string naePan(std::istringstream& is);
   std::string naeConfigs(std::istringstream& is);
   std::string xmlConfig(std::istringstream& is);
+  std::string cycleTimes(std::istringstream& is);
   std::string reportNaeConfig(struct nae_config& cfg);
 
 public:

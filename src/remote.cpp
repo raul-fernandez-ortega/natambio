@@ -43,7 +43,7 @@ extern "C" {
 static const char *REMOTE_GRAMMAR =
   "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | "
   "naegain [<nae> [front|amb|rear <dB> ...]] | naepan [<nae> [<scale>]] | "
-  "naeget [<nae>] | getxmlconfig | mute | unmute | toggle";
+  "naeget [<nae>] | getxmlconfig | timecycle [reset] | mute | unmute | toggle";
 
 /* The three NAE gains as the protocol spells them, in the order a report lists
    them. Kept together so the parser and the reporter cannot drift apart. */
@@ -111,6 +111,43 @@ static std::string quote_name(const std::string& name)
   }
   out.push_back('"');
   return out;
+}
+
+/* The two headers of a timecycle report, and the placeholder that keeps the
+   stage table rectangular. They are the column names and not a sentence, since
+   what they are for is to be read once, above the numbers they name. A leading
+   "#" rather than "ok": a header is not an answer, and this is how a caller
+   tells the two apart -- the same trick "get" plays with its "muted" line, and
+   the reason the data lines keep the "ok" they would otherwise have no use for
+   in a table. */
+#define REMOTE_TIME_PERIOD_HEADER  "#\tperiod_us\tframes\trate\n"
+#define REMOTE_TIME_STAGE_HEADER   \
+  "#\tstage\tname\tcycles\tn\tmean_us\tsd_us\tmin_us\tmax_us\tload_pct\n"
+/* The name column of a stage that has no name. Not empty: an empty column in
+   the middle of a tab-separated line is two tabs together, which reads as a
+   missing field rather than as a field with nothing in it. It cannot be
+   confused with an engine's name either -- an unnamed engine is reported as
+   the empty quoted string, and a named one is quoted the moment it holds
+   anything that would need quoting. */
+#define REMOTE_TIME_NO_NAME        "-"
+
+/* The numbers of one timer, in the order the stage header names them: the
+   cycles timed, how many of them the figures cover, the mean, the deviation,
+   the shortest and the longest -- all microseconds -- and the mean as a
+   percentage of the period. Tab-separated, like the rest of the line and like
+   the header above it, so that the report is a table both to read and to cut
+   fields out of. The caller has already set the stream's precision; this
+   returns the tail of a line, newline included, so that the three kinds of
+   stage line differ only in what comes before it. */
+static std::string report_time_stats(const struct na_time_stats& st, double period_us)
+{
+  std::ostringstream out;
+  out << std::fixed << std::setprecision(3);
+  out << st.cycles << "\t" << st.n << "\t"
+      << st.mean_us << "\t" << st.sd_us << "\t"
+      << st.min_us << "\t" << st.max_us << "\t"
+      << ((period_us > 0.0) ? (100.0 * st.mean_us / period_us) : 0.0) << "\n";
+  return out.str();
 }
 
 static std::string usage_error(void)
@@ -629,6 +666,71 @@ std::string Remote::xmlConfig(std::istringstream& is)
   return doc;
 }
 
+/* "timecycle [reset]": where the period goes, as the running mean and
+   deviation of the last thousand cycles of each stage that has a history
+   (cycletime.hpp).
+ *
+ * It is a report and not a value to act on, but it keeps the protocol's shape
+ * anyway -- one "ok <thing> <numbers>" line per stage -- because unlike naeget,
+ * whose answer is a configuration to paste, every line here is a set of numbers
+ * a caller will want to pull a field out of. The first line is the period
+ * itself, so that the figures below have something to be a fraction of without
+ * the caller having to know the configuration; the last field of every stage
+ * line is that fraction, as a percentage, since it is what the question
+ * "is this machine keeping up" actually asks.
+ *
+ * Two counts per stage: the cycles it has timed since the last reset, and how
+ * many of those the figures cover -- the FIFO's thousand, or fewer just after
+ * a reset. The first is worth reporting for the NAE engines in particular: the
+ * callback signals them once per period and does not wait, so an engine whose
+ * cycle count trails the callback's is one that is not being given the periods,
+ * which no mean of the periods it did get would show. */
+std::string Remote::cycleTimes(std::istringstream& is)
+{
+  std::string arg;
+  if(is >> arg) {
+    if(strcasecmp(arg.c_str(), "reset") != 0)
+      return "error: timecycle takes 'reset' or nothing at all\n";
+    std::string extra;
+    if(is >> extra)
+      return "error: timecycle reset takes no arguments\n";
+    naJack->resetTimeStats();
+    return "ok timecycle reset\n";
+  }
+
+  int rate = naJack->getSampleRate();
+  int frames = naJack->getPartSize();
+  /* The period, in the same microseconds as everything below it. Zero rate
+     means the client is not open yet, which the manager should not be able to
+     see; report the period as 0 rather than divide by it, and the load figures
+     go to 0 with it. */
+  double period_us = (rate > 0) ? (1000000.0 * (double)frames / (double)rate) : 0.0;
+
+  /* Two tables, each under its own header: the period, which is one row of
+     three numbers, and then one row per stage. They are separate because they
+     are not the same thing measured -- the period is what the machine is given,
+     the stages are what it spends -- and folding them into one table would mean
+     a row of dashes where the statistics would go. */
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+  reply << REMOTE_TIME_PERIOD_HEADER;
+  reply << "ok\t" << period_us << "\t" << frames << "\t" << rate << "\n";
+  reply << REMOTE_TIME_STAGE_HEADER;
+
+  struct na_time_stats st;
+  naJack->cycleTimeStats(&st);
+  reply << "ok\ttotal\t" << REMOTE_TIME_NO_NAME << "\t" << report_time_stats(st, period_us);
+  naJack->convTimeStats(&st);
+  reply << "ok\tconv\t" << REMOTE_TIME_NO_NAME << "\t" << report_time_stats(st, period_us);
+
+  std::string nae_name;
+  for(size_t i = 0; naJack->naeTimeStatsAt(i, &st, &nae_name); i++)
+    reply << "ok\tnae\t" << quote_name(nae_name) << "\t"
+          << report_time_stats(st, period_us);
+
+  return reply.str();
+}
+
 std::string Remote::runCommand(const std::string& line)
 {
   std::istringstream is(line);
@@ -651,6 +753,9 @@ std::string Remote::runCommand(const std::string& line)
 
   if(strcasecmp(cmd.c_str(), "getxmlconfig") == 0)
     return xmlConfig(is);
+
+  if(strcasecmp(cmd.c_str(), "timecycle") == 0)
+    return cycleTimes(is);
 
   if(strcasecmp(cmd.c_str(), "mute") == 0 || strcasecmp(cmd.c_str(), "unmute") == 0 ||
      strcasecmp(cmd.c_str(), "toggle") == 0) {

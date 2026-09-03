@@ -120,6 +120,10 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 {
   float *inpbuf, *outbuf;
 
+  /* The period starts being counted here and stops at the return: everything
+     the callback does, which is the figure the JACK period has to hold. */
+  cycle_time.begin();
+
 #ifdef RTDEBUG 
   std::cout << "ioJack callback: callback calling..." << std::endl;
 #endif
@@ -170,6 +174,12 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     }
   }
   
+  /* The convolution stage, first piece: the input sums and the convolution
+     itself, which run back to back. It is closed before the output ports are
+     filled and opened again for processOutput() below, so that the port
+     plumbing in between is not counted as convolution. */
+  conv_time.begin();
+
   // Processing convChannels input (processInput)
   for (vector<ConvChannel*>::iterator channel_p = conv_channels.begin() ; channel_p != conv_channels.end(); channel_p++) {
 #ifdef RTDEBUG
@@ -184,6 +194,8 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif
   if(!conv_channels.empty())
     convproc->process(true);
+
+  conv_time.accumulate();
 
 #ifdef RTDEBUG
   std::cout << "ioJack callback: convproc processing finished..." << std::endl;
@@ -230,6 +242,11 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
     }
   }
 
+  /* Second piece of the convolution stage: the delay, the scale and the mix
+     into the output ports. commit() below adds it to the first and writes the
+     cycle's one sample. */
+  conv_time.begin();
+
   // Processing convChannels (convolver  process) output 
   for (vector<ConvChannel*>::iterator channel_p = conv_channels.begin() ; channel_p != conv_channels.end(); channel_p++) {
 #ifdef RTDEBUG
@@ -237,6 +254,7 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #endif	
       (*channel_p)->processOutput(fragment_size);
     }
+  conv_time.end();
 
   /* Scale the outputs only here, with everything that feeds them already summed
      in. The loop above cannot do it: ConvChannel::fillOutputBuffer() does not
@@ -282,6 +300,8 @@ int ioJack::na_process_callback(jack_nframes_t n_frames)
 #ifdef RTDEBUG
   std::cout << "ioJack callback: finished" << std::endl;
 #endif
+
+  cycle_time.end();
   return(0);
 }
 
@@ -603,6 +623,34 @@ bool ioJack::setNaeGain(string nae_name, enum nae_gain which, double db,
               << (on ? "" : " (not used in this mode)") << std::endl;
   }
   return true;
+}
+
+/* One engine's per-block times, by position. Answered from the manager's
+   thread, and the engine goes on decomposing while it is read -- see
+   cycletime.hpp for what that costs and why it costs nothing worth locking
+   against. */
+bool ioJack::naeTimeStatsAt(size_t index, struct na_time_stats *st, string *name)
+{
+  if(index >= nae_channels.size())
+    return false;
+  if(st != NULL)
+    nae_channels[index]->timeStats(st);
+  if(name != NULL)
+    *name = nae_channels[index]->getName();
+  return true;
+}
+
+/* Every timer at once, the callback's two and the engines'. They are cleared
+   one after another rather than together -- there is no moment at which all of
+   them stop -- so the first cycles after this may be counted by one timer and
+   not by the next. Over a window of a thousand it is the difference between a
+   measurement starting on this period or the following one. */
+void ioJack::resetTimeStats(void)
+{
+  cycle_time.reset();
+  conv_time.reset();
+  for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++)
+    (*nae_p)->resetTimeStats();
 }
 
 vector<string> ioJack::inputPortNames(void)

@@ -535,6 +535,13 @@ void NAE::thr_process(void)
     std::cout << "NAE: processing " << name << std::endl;
 #endif
 
+    /* From here to the end of the block is what this engine costs per period,
+       and the clock starts after the wait rather than before it: the time
+       spent blocked on the semaphore is the callback's period, not this
+       thread's work, and counting it would report a load of 100% on an engine
+       that is idle. */
+    proc_time.begin();
+
     /* The width across this block: the scalar slewed towards its target, and
        the matrix at each end of that move. Both loops below walk the same
        sample_count with the same step, so the correlation in beta mode sees
@@ -741,6 +748,7 @@ void NAE::thr_process(void)
       c_sum_y = 0;
     }
     pthread_mutex_unlock(&mutex);
+    proc_time.end();
   }
   if(!quiet) {
     std::cout << "NAE: stopping thread " << this->name << std::endl;
