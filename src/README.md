@@ -511,8 +511,11 @@ Implemented in `remote.hpp` / `remote.cpp`.
 ### `<coeff>` — Convolution Coefficient Set
 
 A coeff is obtained either by loading a channel from an audio file, or by
-convolving other coeffs together. All `<coeff>` elements must appear before any
-`<convol>` that references them, and a derived coeff after every coeff it uses.
+convolving other coeffs together. Declaration order only matters between derived
+coeffs: one built from another derived coeff must appear after it. A `<convol>`
+may name a `<coeff>` declared further down, and a derived coeff may reference a
+file-loaded or generated coeff declared after it — those are all resolved once
+the whole file has been read.
 
 **File-loaded coeff:**
 
@@ -553,7 +556,7 @@ convolving other coeffs together. All `<coeff>` elements must appear before any
 | `<gain>` | Extra gain in dB applied to the result; positive amplifies, negative attenuates (optional, default 0 dB) |
 
 When `<convol_coeff>` is present, `<filename>` is ignored. The build happens after
-the whole config is parsed, via `NaConf::build_convol_coeffs()` (single-precision
+the whole config is parsed, via `NaConf::build_convol_coeffs()` (double-precision
 FFT convolution; see the `NaConf` component section). See
 `docs/config_samples/convol_drc_xtc.xml` for a full example.
 
@@ -1008,7 +1011,7 @@ src/                  natambio JACK application (C++)
 └── structs.hpp       Shared data structures and utility macros
 
 lib/                  shared plain-C filter-design code (libnatdsp.a) — used by src/ and tools/
-├── dsp.c/.h          Single-precision FFT helpers; fft_convolve_truncate() builds derived coeffs
+├── dsp.c/.h          Double-precision FFT helpers; fft_convolve_truncate() builds derived coeffs
 ├── xtc.c/.h         XTC crosstalk-cancellation filter generator; process() backs <xtc> blocks
 ├── xtc_asym.c/.h    asymmetric variant; process_asym() backs <xtc_asym> blocks. Self-contained
 │                    on purpose: xtc.c is mirrored by third-party ports and stays frozen, so the
