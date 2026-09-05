@@ -601,11 +601,25 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
 {
   std::ostringstream out;
 
-  out << "<nae>\n";
+  /* The tag the engine was declared with, so the block can be pasted back into
+     a configuration and start the same engine. An <nae_erb> reported as an
+     <nae> would start silently as the broadband one. */
+  const std::string& tag = cfg.engine.empty() ? std::string("nae") : cfg.engine;
+  bool erb = (tag == "nae_erb");
+
+  out << "<" << tag << ">\n";
   xml_line(out, "name", cfg.name);
   out << "  <steps_length>" << cfg.steps_length << "</steps_length>\n";
   out << "  <mode>" << (cfg.mode ? "beta" : "alpha") << "</mode>\n";
   out << std::fixed << std::setprecision(3);
+  if(erb) {
+    /* The three the ERB engine adds. Written whatever they are, defaults
+       included: the point of the block is to reproduce the engine, and a
+       default left out is a default that can change under the file. */
+    out << "  <cov_window_ms>" << cfg.erb_cov_window_ms << "</cov_window_ms>\n";
+    out << "  <delta_erb>" << cfg.erb_delta_erb << "</delta_erb>\n";
+    out << "  <band_min_hz>" << cfg.erb_band_min_hz << "</band_min_hz>\n";
+  }
   out << "  <pan_scale>" << cfg.pan_scale << "</pan_scale>\n";
   if(cfg.mode) {
     out << "  <rear_gain>" << cfg.rear_gain_db << "</rear_gain>\n";
@@ -621,7 +635,7 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
   xml_line(out, "front_output_right", cfg.front_output_right);
   xml_line(out, "amb_output_left", cfg.amb_output_left);
   xml_line(out, "amb_output_right", cfg.amb_output_right);
-  out << "</nae>\n";
+  out << "</" << tag << ">\n";
   return out.str();
 }
 

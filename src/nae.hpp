@@ -193,6 +193,10 @@ public:
 
   void setQuiet(void) { quiet = true; };
   string getName(void) { return name; };
+  /* The tag this engine is declared with, for a report that has to write the
+     configuration back out. Virtual and not a flag because what the caller
+     actually wants is the word to print. */
+  virtual const char *engineTag(void) { return "nae"; };
   /* 0 = alpha (front), 1 = beta (rear), as <mode> spelled them. */
   int getMode(void) { return mode; };
   /* The configuration's three gains, LINEAR, as <front_gain> and the rest are

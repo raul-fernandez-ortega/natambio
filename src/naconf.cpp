@@ -1897,9 +1897,16 @@ xmlNodePtr NaConf::findNaeNode(const string& nae_name, struct s_nae **parsed)
   if(natambio == NULL || nae_name.empty())
     return NULL;
 
+  /* Both tags, and in document order, because naelist holds both in that order
+     too. Matching only "nae" would not merely fail to find an <nae_erb>: it
+     would leave index counting a different sequence from the list it indexes,
+     so a file with an <nae_erb> before an <nae> would have the gain of the
+     second written into the structure of the first. */
   size_t index = 0;
   for(xmlNodePtr n = natambio->children; n != NULL; n = n->next) {
-    if(n->type != XML_ELEMENT_NODE || xmlStrcmp(n->name, (const xmlChar *)"nae"))
+    if(n->type != XML_ELEMENT_NODE ||
+       (xmlStrcmp(n->name, (const xmlChar *)"nae") &&
+        xmlStrcmp(n->name, (const xmlChar *)"nae_erb")))
       continue;
     if(xml_child_text(n, "name") == nae_name) {
       if(parsed != NULL)

@@ -171,6 +171,7 @@ public:
      stopping would leave it running against half-destroyed state. */
   ~NaeErb(void);
 
+  const char *engineTag(void) { return "nae_erb"; };
   void setCovWindowMs(double ms);
   void setDeltaErb(double d);
   void setBandMinHz(double hz);

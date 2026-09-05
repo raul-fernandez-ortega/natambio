@@ -6,6 +6,7 @@
  */
 
 #include "iojack.hpp"
+#include "nae_erb.hpp"
 
 #define DEFAULT_CLIENTNAME "natambio"
 
@@ -545,6 +546,16 @@ vector<string> ioJack::naeNames(void)
 static void nae_config_fill(NAE *nae, struct nae_config *cfg)
 {
   cfg->name = nae->getName();
+  cfg->engine = nae->engineTag();
+  /* The ERB parameters, from the engine that has them. A cast rather than three
+     virtual getters on NAE: the broadband engine has no analysis window and no
+     bank, and giving it accessors that return zero would be inventing fields to
+     avoid asking a question with a plain answer. This runs in the manager's
+     thread, once per report. */
+  NaeErb *erb = dynamic_cast<NaeErb *>(nae);
+  cfg->erb_cov_window_ms = (erb != NULL) ? erb->getCovWindowMs() : 0.0;
+  cfg->erb_delta_erb = (erb != NULL) ? erb->getDeltaErb() : 0.0;
+  cfg->erb_band_min_hz = (erb != NULL) ? erb->getBandMinHz() : 0.0;
   cfg->mode = nae->getMode();
   cfg->steps_length = nae->getCovStepsLength();
   cfg->pan_scale = nae->getPanScale();

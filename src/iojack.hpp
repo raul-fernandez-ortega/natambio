@@ -73,6 +73,13 @@ struct jack_port {
    The output names are empty for the outputs this engine does not have. */
 struct nae_config {
   string name;
+  /* The tag the engine is declared with, "nae" or "nae_erb". The three fields
+     after the gains mean something only for the second, and are what a report
+     has to add to the block for it to start another natambio unchanged. */
+  string engine;
+  double erb_cov_window_ms;
+  double erb_delta_erb;
+  double erb_band_min_hz;
   int mode;                     /* 0 alpha, 1 beta */
   int steps_length;
   double pan_scale;
