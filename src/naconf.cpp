@@ -31,6 +31,17 @@ void parse_error(const char msg[])
   throw std::runtime_error(msg);
 }
 
+/* A parsing complaint that does not stop the load. Unknown elements are the
+   one configuration mistake natambio cannot catch by validation -- a tag it
+   does not know is a tag it cannot tell from a tag that is not there -- so the
+   only defence is to say so. It goes to cerr and not through parse_error(),
+   which throws: a typo is worth a line on the console and not worth refusing
+   to start a system that is otherwise configured. */
+void parse_warning(const std::string& msg)
+{
+  cerr << "Parsing warning: " << msg << std::endl;
+}
+
 void parse_error_exit(const char msg[])
 {
   cerr << "Parsing error:" << std::endl;
@@ -771,11 +782,22 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
   nae->left_out = "";
   nae->right_out = "";
   
+  /* Every child element this block holds that means nothing here, kept until
+     the name is known so that the complaint can say which engine it is about.
+     Text and comment nodes are not children in the sense that matters: libxml2
+     hands back the whitespace between two tags as a node of its own, and it is
+     no more a misspelt parameter than the indentation is. */
+  std::vector<std::string> unknown;
+
   while (xmlnode != NULL) {
+    if (xmlnode->type != XML_ELEMENT_NODE) {
+      xmlnode = xmlnode->next;
+      continue;
+    }
     xmlChar *cnt = xmlNodeGetContent(xmlnode);
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"name")) {
       nae->name = (char*)cnt;
-    } if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"steps_length")) {
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"steps_length")) {
       nae->steps_length = (int) strtol((char*) cnt, NULL, 10);
     } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"cov_window_ms")) {
       nae->erb_cov_window_ms = strtod((char*) cnt, NULL);
@@ -809,10 +831,21 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
       nae->c2_left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_right")) {
       nae->c2_right_out = (char*)cnt;
+    } else {
+      unknown.push_back((const char*)xmlnode->name);
     }
     xmlFree(cnt);
     xmlnode = xmlnode->next;
   }
+  /* Said once the block has been read, because a misspelt <steps_lenght> does
+     not fail: it leaves the default in place and the engine runs a window the
+     configuration never asked for, with the latency that goes with it. There
+     is nothing downstream that can notice. */
+  for(size_t u = 0; u < unknown.size(); u++)
+    parse_warning("<" + std::string(erb ? "nae_erb" : "nae") + "> " +
+                  (nae->name.empty() ? std::string("(unnamed)") : nae->name) +
+                  ": unknown element <" + unknown[u] + ">, ignored -- "
+                  "the parameter it was meant to set keeps its default");
   if(nae->left_in.empty()) {
     parse_error("Error: nae left_channel not defined.");
     this->naelist.clear();
