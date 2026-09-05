@@ -96,17 +96,24 @@ int ioJack::xrun_callback(void *arg)
    The counters exist because that line is all there was: it goes to a terminal
    or a journal, which is to say to a person reading afterwards, and a manager
    asking "is this system keeping up" over the control port had no way to know.
-   The delay is what JACK says the period ran late by, in microseconds, which
-   is the unit the rest of the report is in; jack_get_xrun_delayed_usecs()
-   returns 0.0 on backends that do not measure it, and that zero is stored
-   rather than dropped -- see xrunTimeStats(). */
+
+   The delay is what JACK says the period ran late by. It is pushed in
+   MICROSECONDS and therefore read back in milliseconds, unlike the stage timers
+   which are pushed nanoseconds and read microseconds (cycletime.hpp). The first
+   version pushed nanoseconds, and the ring's unsigned int stopped at 4.29 s:
+   an eight-second break from a source resynchronising its clock came back as
+   4294967.295 us for every one of them, which is a clamp and not a measurement.
+   A dropout is a thing of milliseconds and seconds and has to be reported as
+   one. jack_get_xrun_delayed_usecs() returns 0.0 on backends that do not
+   measure it, and that zero is stored rather than dropped -- see
+   xrunTimeStats(). */
 void ioJack::na_xrun_callback(void)
 {
   time_t timestamp;
   time(&timestamp);
   float xusecs = jack_get_xrun_delayed_usecs(this->jackclient);
   xrun_total.fetch_add(1, std::memory_order_relaxed);
-  xrun_time.push((xusecs > 0.0f) ? (uint64_t)(xusecs * 1000.0f) : 0);
+  xrun_time.push((xusecs > 0.0f) ? (uint64_t)xusecs : 0);
   std::cerr << ctime(&timestamp) << "\t\t XRUN detected with " << (xusecs/1000.0f) << " ms delay\n";
 }
 

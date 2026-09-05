@@ -136,14 +136,21 @@ private:
   /* Scratch, all of it allocated once. */
   fftw_plan plan_fwd_mid;
   fftw_plan plan_fwd_side;
-  fftw_plan plan_inv[4];
+  /* Two inverses and not four, and three coefficient arrays and not six,
+     because G2 never has to be built. eigen_2x2_symmetric() returns an
+     orthonormal pair -- the product of the two eigenvector slopes works out to
+     exactly -1 -- so P1 + P2 = I, and summing that over the bands and over the
+     ring gives G1 + G2 = covsteps * I. C2 is therefore covsteps times the input
+     minus C1, which is a subtraction against the history this class already
+     holds rather than a second pair of transforms. */
+  fftw_plan plan_inv[2];
   fftw_complex *spec_mid;
   fftw_complex *spec_side;
-  fftw_complex *prod[4];        /* C1 mid, C1 side, C2 mid, C2 side */
-  double *out_time[4];
+  fftw_complex *prod[2];        /* C1 mid, C1 side */
+  double *out_time[2];
   double *p_mm, *p_ss, *p_ms;   /* n_bins, the folded spectral products */
   double *r_mm, *r_ss, *r_ms;   /* n_bands, the 2x2 covariances */
-  double *gcoef[6];             /* n_bins: G1 mm/ms/ss then G2 mm/ms/ss */
+  double *gcoef[3];             /* n_bins: G1 mm/ms/ss */
 
   /* The last covsteps sets of projector coefficients, three per band per
      component, and where the next one goes. Summing the filters of the last
@@ -152,10 +159,8 @@ private:
      synthesis happen at the moment of emission, when the frame has context on
      both sides. Only the per-band coefficients are kept, not the per-bin
      arrays: sum_k masks^T p_k = masks^T sum_k p_k. */
-  double *ring1;                /* covsteps * 3 * n_bands */
-  double *ring2;
+  double *ring1;                /* covsteps * 3 * n_bands, P1 only */
   double *sum1;                 /* 3 * n_bands, the ring summed */
-  double *sum2;
   int ring_pos;
 
   bool erb_ready;

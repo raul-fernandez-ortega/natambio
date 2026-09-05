@@ -89,17 +89,39 @@ a todo lo que sea antisimétrico entre las dos componentes.
 
 Medido con `timecycle` contra jackd a 256 tramas, un engine alpha:
 
-- primera versión: 1396 µs por periodo de 5333 → **26.2 %**. Mi estimación de
-  diseño decía ~1 %: me dejé el factor `covsteps` en el ensamblado de `G` y los
-  accesos a las máscaras iban a contrapelo de la caché.
-- tras sumar el anillo antes de tocar las máscaras y almacenar el banco
-  bin-major: 625 µs → **11.7 % de media, 23.5 % de pico**.
+| versión | media | carga | nota |
+|---|---|---|---|
+| NAE broadband (referencia) | 42.5 µs | 0.80 % | para saber el sobrecoste |
+| primera ERB | 1396 µs | 26.2 % | estimé ~1 %, me equivoqué en 25× |
+| + anillo sumado antes y banco bin-major | 625 µs | 11.7 % | |
+| **+ `G2 = covsteps·I − G1`** | **469 µs** | **8.8 %** | |
+
+En panambio01, la versión de 625 µs medía 524 µs (9.8 % media, 12.3 % pico) con
+dos engines, alpha y beta; el pico es mucho mejor que en horace porque la
+máquina está más limpia. El sobrecoste sobre el NAE broadband es de **~11×**.
 
 El pico es el número que provoca xruns, no la media.
 
+Las tres optimizaciones son **exactas**, no aproximaciones:
+
+1. `Σ_s masksᵀ p_s = masksᵀ Σ_s p_s` — sumar el anillo antes de tocar las
+   máscaras. Recorría el banco `covsteps` veces para nada.
+2. Banco almacenado bin-major: los dos bucles que lo leen recorren cada bin y,
+   en cada uno, cada banda.
+3. `eigen_2x2_symmetric` devuelve un par ortonormal (el producto de las
+   pendientes de los dos autovectores sale exactamente −1), luego `P1 + P2 = I`
+   y sumando sobre bandas y sobre el anillo `G1 + G2 = covsteps·I`. Así que
+   **G2 no se construye nunca**: desaparecen la mitad de los coeficientes, la
+   mitad de las transformadas inversas y el anillo de P2, y C2 sale del propio
+   historial, `c2_mid = covsteps·mid_hist[offset] − c1_mid`. C1 queda bit a bit
+   igual; C2 difiere en 4.66e-10 (−186 dB), que es el redondeo de restar en vez
+   de filtrar.
+
 Queda margen sin explotar: dar a cada banda el rango de bins donde realmente
-pesa recortaría otro ~5×, pero trunca la partición de la unidad y la
-reconstrucción deja de ser exacta. No tomado.
+pesa. **Pero cuidado**, no es lo que parece: como las máscaras están
+normalizadas punto a punto, lejos del centro `W_b` no tiende a cero sino a una
+fracción de reparto, así que truncar es una aproximación real y rompe la
+partición de la unidad. No tomado.
 
 ## Trampas encontradas (y por las que no volver a pasar)
 
@@ -118,12 +140,18 @@ reconstrucción deja de ser exacta. No tomado.
    en `load()`, que por eso es virtual. En el bloque solo `fftw_execute`.
 5. **Denormales.** Las máscaras caen como f⁻⁴ y los productos espectrales se
    hunden en denormales en cualquier pasaje silencioso. FTZ/DAZ en el bloque.
-6. **El OLA del script Python no es el de `nae.cpp`.** Con eje fijo difieren en
+6. **El anillo de xruns guardaba nanosegundos** en un `unsigned int`, que
+   satura a 4.295 s. Un corte de 8 s del WiiM en panambio01 salía como
+   `4294967.295 µs` para todos: un recorte, no una medida. Ahora se empuja en
+   microsegundos y `timecycle` reporta esa fila en **milisegundos** (el resto de
+   tablas sigue en µs). `CycleTimer::stats()` devuelve milésimas de la unidad
+   empujada; quien empuja decide y tiene que decirlo.
+7. **El OLA del script Python no es el de `nae.cpp`.** Con eje fijo difieren en
    0.59 sobre un RMS de 1.0. `nae.cpp` acumula cada ranura sobre `covsteps`
    ventanas y emite la más vieja entre `covsteps+1`; el script suma su
    acumulador entero cada ventana y lo arrastra dividido por `covsteps`. El modo
    `matrix` del script sigue al motor, no al script.
-7. **Beta.** `nae.cpp` escribe `side_weight` solo en la trama que entra; las
+8. **Beta.** `nae.cpp` escribe `side_weight` solo en la trama que entra; las
    viejas conservan el peso con que se escribieron. El script Python
    remultiplica toda la cola cada ventana, así que en beta **compone** el
    escalado. `NaeErb` sigue a `nae.cpp`.

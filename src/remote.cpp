@@ -123,11 +123,14 @@ static std::string quote_name(const std::string& name)
 #define REMOTE_TIME_PERIOD_HEADER  "#\tperiod_us\tframes\trate\n"
 /* The xrun table's three counts, in the order they narrow: every xrun since
    natambio started, those since the last "timecycle reset", and how many of
-   them the delay figures cover. No load column -- an xrun is a period that did
-   not fit, and a percentage of the period it overran by would be read as a
-   share of one, which is the opposite of what it says. */
+   them the delay figures cover. In MILLISECONDS, unlike every other table here:
+   a dropout is a thing of milliseconds and seconds, and the microseconds the
+   stages are measured in would need eight digits to hold one. No load column --
+   an xrun is a period that did not fit, and a percentage of the period it
+   overran by would be read as a share of one, which is the opposite of what it
+   says. */
 #define REMOTE_TIME_XRUN_HEADER    \
-  "#\txruns\tsince_reset\tn\tmean_us\tsd_us\tmin_us\tmax_us\n"
+  "#\txruns\tsince_reset\tn\tmean_ms\tsd_ms\tmin_ms\tmax_ms\n"
 #define REMOTE_TIME_STAGE_HEADER   \
   "#\tstage\tname\tcycles\tn\tmean_us\tsd_us\tmin_us\tmax_us\tload_pct\n"
 /* The name column of a stage that has no name. Not empty: an empty column in

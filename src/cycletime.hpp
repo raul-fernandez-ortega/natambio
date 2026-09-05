@@ -26,14 +26,25 @@ extern "C" {
    part of the timer, so this is also what every timer costs -- 4 KB each. */
 #define NA_TIME_HISTORY 1000
 
-/* One timer's history, reduced. The times are microseconds because that is the
-   scale a JACK period is measured on: 1333 us at 48 kHz and 64 frames, and a
-   stage that takes tens of them. cycles is every cycle timed since the last
-   reset and n only the ones still in the FIFO, so a caller can tell a mean
-   over a full window from one over the first few cycles after a reset. */
+/* One timer's history, reduced.
+ *
+ * The figures come back in THOUSANDTHS OF WHATEVER UNIT WAS PUSHED. A timer fed
+ * by begin()/end() is pushed nanoseconds and reads microseconds, which is the
+ * scale a JACK period is measured on: 1333 us at 48 kHz and 64 frames, and a
+ * stage that takes tens of them. A timer fed durations of another size through
+ * push() chooses its own: the xrun delays are pushed microseconds and read
+ * milliseconds, because a dropout is a thing of milliseconds and seconds and
+ * nanoseconds in an unsigned int would stop at 4.3 seconds -- which is under
+ * the length of a real one. Whoever pushes decides, and has to say so.
+ *
+ * cycles is every cycle timed since the last reset and n only the ones still in
+ * the FIFO, so a caller can tell a mean over a full window from one over the
+ * first few cycles after a reset. */
 struct na_time_stats {
   unsigned long long cycles;
   size_t n;
+  /* Thousandths of the pushed unit; the _us names are the common case and not
+     a promise. See above. */
   double mean_us;
   double sd_us;
   double min_us;
@@ -67,9 +78,12 @@ class CycleTimer {
 
 private:
 
-  /* Nanoseconds per cycle, saturating at 4.29 s: an unsigned int is stored and
-     loaded atomically on every machine natambio builds for, and a period that
-     took longer than four seconds has stopped being a timing question. */
+  /* One duration per cycle, saturating at 4294967295 of whatever unit the
+     caller pushes: an unsigned int is stored and loaded atomically on every
+     machine natambio builds for. In nanoseconds that is 4.29 s, which is past
+     the point where a PERIOD has stopped being a timing question -- but not
+     past the length of a dropout, which is why the xrun delays are pushed in
+     microseconds and get 4294 seconds of range instead. */
   std::atomic<unsigned int> ring[NA_TIME_HISTORY];
   std::atomic<unsigned long long> count;
 
