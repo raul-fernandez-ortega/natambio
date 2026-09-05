@@ -1,0 +1,2 @@
+# The bench is built from source against the object the main build produces.
+nae_bench
