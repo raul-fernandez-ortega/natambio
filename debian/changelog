@@ -39,8 +39,20 @@ natambio (1.1.2) unstable; urgency=medium
     can block (src/cycletime.hpp); it is read without synchronisation, a
     snapshot being a cheaper price than a lock in the real-time path for a
     statistic over a thousand samples.
+  * Docs: the <convol_coeff> convolution is documented as the double precision
+    it has been since 4089b27 -- fftw_* with double buffers end to end in
+    lib/dsp.c, which is also not the src/dsp.c the text pointed at. And the
+    coeff declaration-order rule is narrowed to what the code enforces: only a
+    reference between derived coeffs is ordered, because file-loaded coeffs are
+    read while parsing and the xtc / low_and_high_filter / loudness ones are
+    built before the convolutions. A <convol> may likewise name a <coeff>
+    declared further down, that binding happening once the file has been read.
+  * Docs: the XTC fractional-ITD change log gains an English version, and the
+    pair follows the _en/_es convention of the rest of docs/. The 1.1.0 note in
+    both is corrected: the model delay stopped being a fixed 64 samples in
+    b9a374d and is the 1.33 ms that xtc_model_delay() scales to the rate in use.
 
- -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Thu, 03 Sep 2026 12:00:00 +0200
+ -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Fri, 04 Sep 2026 12:00:00 +0200
 
 natambio (1.1.1) unstable; urgency=medium
 

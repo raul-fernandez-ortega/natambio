@@ -8,12 +8,13 @@ Rama `pan_scale` (2026-08-28). Ficheros tocados: `lib/dsp.c`, `lib/dsp.h`,
 `src/README.md`, `docs/README.CONFIG`.
 
 > **Nota posterior (1.1.0).** Los tags `<frac_delay>` y `<model_delay>` que
-> describe este documento ya no existen en la configuracion XML: el camino
-> fraccionario es el unico, con el retardo de modelo fijo en
-> `XTC_DEFAULT_MODEL_DELAY` (64 muestras). `get_xtc()` y el argumento
-> `frac_delay` de `process()` siguen en `lib/xtc.c`, y las herramientas offline
-> conservan su interruptor. Lo que sigue se mantiene como registro del cambio
-> tal como se hizo.
+> describe este documento ya no existen en la configuración XML: el camino
+> fraccionario es el único, y el retardo de modelo está fijo en 1,33 ms --
+> `XTC_DEFAULT_MODEL_DELAY` (64 muestras) a `XTC_MODEL_DELAY_REF_RATE`
+> (48 kHz), escalado al rate en uso por `xtc_model_delay()`. `get_xtc()` y el
+> argumento `frac_delay` de `process()` siguen en `lib/xtc.c`, y las
+> herramientas offline conservan su interruptor. Lo que sigue se mantiene como
+> registro del cambio tal como se hizo.
 
 **Aviso para el port [NatAmbio-VST3](https://github.com/digitalfrost84/NatAmbio-VST3):
 `lib/xtc.c` deja de estar congelado.** Hasta ahora `lib/xtc_asym.c` duplicaba a

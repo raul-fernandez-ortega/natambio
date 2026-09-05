@@ -1462,7 +1462,9 @@ bool NaConf::build_loudness_coeffs(void)
  * verbatim; several are convolved together (left to right) with
  * fft_convolve_truncate(). The result is stored, truncated/zero-padded to the
  * coeff's own <length> (or to the full convolution length when <length> is 0),
- * in coeff->coeffs. Referenced coeffs must be declared before the derived one. */
+ * in coeff->coeffs. This is a single pass in coefslist order, so a referenced
+ * coeff that is itself derived must be declared before this one; file-loaded and
+ * generated coeffs already hold data and may be declared in any order. */
 bool NaConf::build_convol_coeffs(void)
 {
   char msg[300];

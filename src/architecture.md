@@ -170,10 +170,14 @@ otherwise (e.g. a reference to a XTC/low-high/loudness filter generated after
 parsing) `build_convol_coeffs()` sets it once all coeffs exist. Both arrive at
 the same value.
 
-The convolution is done in single precision (`fftwf_*`), consistent with the
-rest of the audio path; `dsp.c` keeps `double` signatures and converts at the
-boundaries. Sources are resolved in document order, so a derived coeff must be
-declared after every coeff it references.
+The convolution is done in double precision (`fftw_*`) end to end in
+`lib/dsp.c`; `build_convol_coeffs()` converts the `float` coeffs of the audio
+path to `double` on the way in and back to `float` when writing the result.
+Sources are resolved in a single pass over `coefslist` in document order, so a
+derived coeff must be declared after any *derived* coeff it references.
+File-loaded coeffs (read in `parse_coeff()`) and generated ones (appended by
+`build_xtc_coeffs()` and friends, which run first) already hold their samples, so
+those references resolve whatever the order.
 
 **XTC coeffs.** A `<xtc>` block synthesises a direct/cross XTC
 crosstalk-cancellation filter pair from scratch rather than loading or
