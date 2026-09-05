@@ -16,6 +16,8 @@ extern "C" {
 #include <sys/stat.h>
 }
 
+#include <sys/mman.h>
+
 #include "natambio.hpp"
 
 #define PRESENTATION_STRING \
@@ -42,6 +44,33 @@ int main(int argc,char *argv[])
     char *config_filename = NULL;
     bool quiet = false;
     int n;
+
+    /* LOCK THE MEMORY DOWN, before anything is allocated. Every thread that
+       matters here is real time, and a real-time thread that takes a major page
+       fault is not late by microseconds but by however long the kernel needs to
+       fetch the page -- hundreds of milliseconds is ordinary. JACK reports that
+       as "client was not finished" and stops the graph; from the outside it
+       looks exactly like the DSP overrunning, and it is not.
+ 
+       It never mattered while the working set was a few kilobytes that no
+       reclaim would ever choose. <nae_erb> touches about a megabyte a period per
+       engine -- the band masks, the transform buffers, the history -- and that
+       is the size of thing a kernel under pressure reclaims, thirty seconds
+       into a run, on a machine that is otherwise idle.
+ 
+       MCL_FUTURE as well as MCL_CURRENT, since the engines allocate at load()
+       and the convolver allocates when its filters are read. Failure is a
+       warning and not an exit: the limits may be absent (docs/install.md sets
+       them), and a natambio that runs and may glitch is more use than one that
+       refuses to start. */
+    if(mlockall(MCL_CURRENT | MCL_FUTURE) != 0) {
+        fprintf(stderr,
+                "natambio: WARNING: could not lock memory (%s).\n"
+                "          Real-time threads may take page faults, which JACK\n"
+                "          reports as xruns and as \"client was not finished\".\n"
+                "          Check the memlock limits in /etc/security/limits.d\n"
+                "          (see docs/install.md).\n", strerror(errno));
+    }
 
     NatAmbio *n_NatAmbio = new NatAmbio();
 
