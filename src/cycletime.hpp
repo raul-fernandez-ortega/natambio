@@ -60,6 +60,8 @@ struct na_time_stats {
  * with other work in between -- the convolution, which the callback interrupts
  * to fill the output ports -- uses begin() ... accumulate() around each piece
  * and commit() once, so the cycle contributes one sample made of all of them.
+ * A duration this class did not measure -- the delay JACK reports with an xrun
+ * -- goes in through push(), which is the same history without the clock.
  */
 class CycleTimer {
 
@@ -115,6 +117,10 @@ public:
     commit();
   }
 
+  /* One sample, straight in. The entry point for a duration measured
+     elsewhere, and what commit() is built on; count is the number of samples
+     ever pushed, so a caller reading it back gets every event and not just the
+     ones still in the ring. */
   void push(uint64_t ns)
   {
     unsigned int v = (ns > 0xFFFFFFFFULL) ? 0xFFFFFFFFu : (unsigned int)ns;

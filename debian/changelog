@@ -20,12 +20,25 @@ natambio (1.1.2) unstable; urgency=medium
     is not keeping up, which no mean of the periods it did get would show.
     "timecycle reset" empties every history, so a measurement can be made to
     start when the music does rather than where the last one left off.
+  * The xruns are counted, and "timecycle" reports them in a table of their own
+    between the period and the stages: every xrun since natambio started, those
+    since the last reset, and the mean, deviation, shortest and longest of the
+    delays JACK reported with the last 1000 of them. Until now the only record
+    of an xrun was the line natambio prints to stderr -- a person reading a log
+    afterwards -- and nothing a manager watching the control port could see.
+    The line is still printed; the two are the same events from either side.
+  * "timecycle reset" clears the xrun delays with every other history, but not
+    the count of the xruns themselves. Every other figure in the report is a
+    window the caller may start where it likes; an xrun is an event and not a
+    measurement, and a caller resetting to time the next minute is not asking
+    to be told that the last hour was clean.
   * The counters are always on: two clock_gettime() per stage per period, vDSO
     reads of a few tens of nanoseconds against a period of a thousand
-    microseconds or more. The history is a fixed ring of std::atomic written
-    with no allocation, no lock and nothing that can block (src/cycletime.hpp);
-    it is read without synchronisation, a snapshot being a cheaper price than a
-    lock in the real-time path for a statistic over a thousand samples.
+    microseconds or more, and one increment per xrun. The history is a fixed
+    ring of std::atomic written with no allocation, no lock and nothing that
+    can block (src/cycletime.hpp); it is read without synchronisation, a
+    snapshot being a cheaper price than a lock in the real-time path for a
+    statistic over a thousand samples.
 
  -- Raul Fernandez Ortega <natambio.audio@gmail.com>  Thu, 03 Sep 2026 12:00:00 +0200
 

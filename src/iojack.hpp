@@ -132,6 +132,20 @@ private:
   CycleTimer cycle_time;
   CycleTimer conv_time;
 
+  /* The xruns, which are the other half of the same question: the timers above
+     say how close the periods that survived came, and these say how many did
+     not. Two figures rather than one. xrun_total is every xrun since the
+     process started and is never cleared -- a "timecycle reset" taken to start
+     a measurement would otherwise throw away the one number in the report that
+     is worth keeping across one, and an xrun that nobody counted is an xrun
+     nobody knows happened. xrun_time is the delay JACK reports with each of
+     them, in the same FIFO every other stage uses, so the report can say how
+     late the machine was and not only how often. Written by the xrun callback,
+     which JACK calls from the process thread: an increment and the same two
+     relaxed stores as any other timer. */
+  std::atomic<unsigned long long> xrun_total;
+  CycleTimer xrun_time;
+
   /* Mute: one word, written by the manager thread and read by the RT callback,
      the same single-writer discipline as ramp_target. Both directions are
      slewed like any other gain change -- cutting or restoring a signal
@@ -264,13 +278,24 @@ public:
      of what the period has to fit in, and a report of where the time goes is
      the last place one should be missing from. naeTimeStatsAt() returns false
      past the end of the list and reports the engine's name, empty for an
-     unnamed one. resetTimeStats() clears the callback's two timers and every
-     engine's, so that a measurement starts where the caller asked it to and
-     not where the last one left off. */
+     unnamed one. resetTimeStats() clears the callback's two timers, every
+     engine's and the xrun delays, so that a measurement starts where the
+     caller asked it to and not where the last one left off; the count of the
+     xruns is the one thing it does not clear. */
   void cycleTimeStats(struct na_time_stats *st) { cycle_time.stats(st); };
   void convTimeStats(struct na_time_stats *st) { conv_time.stats(st); };
   bool naeTimeStatsAt(size_t index, struct na_time_stats *st, string *name);
   void resetTimeStats(void);
+
+  /* The xruns: how many since the process started, and the delays JACK
+     reported with the last thousand of them. The count survives
+     resetTimeStats(); the delays do not, being a window like every other one
+     here. The delay figures are only as good as the backend, which is free to
+     report zero, and a zero is stored as the zero it was measured as rather
+     than dropped -- a row of zeroes says the backend does not report delays,
+     which is worth knowing, and a dropped sample would say nothing at all. */
+  unsigned long long xrunCount(void) { return xrun_total.load(std::memory_order_relaxed); };
+  void xrunTimeStats(struct na_time_stats *st) { xrun_time.stats(st); };
 
   const char **get_jack_port_connections(string port_name);
   const char **get_jack_ports(void);

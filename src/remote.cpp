@@ -121,6 +121,13 @@ static std::string quote_name(const std::string& name)
    the reason the data lines keep the "ok" they would otherwise have no use for
    in a table. */
 #define REMOTE_TIME_PERIOD_HEADER  "#\tperiod_us\tframes\trate\n"
+/* The xrun table's three counts, in the order they narrow: every xrun since
+   natambio started, those since the last "timecycle reset", and how many of
+   them the delay figures cover. No load column -- an xrun is a period that did
+   not fit, and a percentage of the period it overran by would be read as a
+   share of one, which is the opposite of what it says. */
+#define REMOTE_TIME_XRUN_HEADER    \
+  "#\txruns\tsince_reset\tn\tmean_us\tsd_us\tmin_us\tmax_us\n"
 #define REMOTE_TIME_STAGE_HEADER   \
   "#\tstage\tname\tcycles\tn\tmean_us\tsd_us\tmin_us\tmax_us\tload_pct\n"
 /* The name column of a stage that has no name. Not empty: an empty column in
@@ -684,7 +691,15 @@ std::string Remote::xmlConfig(std::istringstream& is)
  * a reset. The first is worth reporting for the NAE engines in particular: the
  * callback signals them once per period and does not wait, so an engine whose
  * cycle count trails the callback's is one that is not being given the periods,
- * which no mean of the periods it did get would show. */
+ * which no mean of the periods it did get would show.
+ *
+ * And the xruns, in a table between the two: the periods that did not fit at
+ * all, which is what the load figures are read in order to predict. The count
+ * of them since the process started is the one number here that a "timecycle
+ * reset" leaves alone -- a caller resetting to time the next minute is not
+ * asking to forget that the last hour dropped four periods, and until now the
+ * only record of that was a line on stderr, which is to say a person reading a
+ * log afterwards rather than a manager reading a socket. */
 std::string Remote::cycleTimes(std::istringstream& is)
 {
   std::string arg;
@@ -715,9 +730,25 @@ std::string Remote::cycleTimes(std::istringstream& is)
   reply << std::fixed << std::setprecision(3);
   reply << REMOTE_TIME_PERIOD_HEADER;
   reply << "ok\t" << period_us << "\t" << frames << "\t" << rate << "\n";
-  reply << REMOTE_TIME_STAGE_HEADER;
 
   struct na_time_stats st;
+
+  /* The xruns, between the two and in a table of their own, because they are
+     neither: not what the machine is given and not a stage of what it spends,
+     but the periods it already failed to fit into the first. They come second
+     because they are the outcome the stage table below exists to explain --
+     what you were given, what you lost, and then where the time went. The
+     delays are JACK's own figure for how late the period ran, so a report can
+     say a machine dropped four periods by a millisecond each rather than only
+     that it dropped four. */
+  naJack->xrunTimeStats(&st);
+  reply << REMOTE_TIME_XRUN_HEADER;
+  reply << "ok\t" << naJack->xrunCount() << "\t" << st.cycles << "\t" << st.n << "\t"
+        << st.mean_us << "\t" << st.sd_us << "\t"
+        << st.min_us << "\t" << st.max_us << "\n";
+
+  reply << REMOTE_TIME_STAGE_HEADER;
+
   naJack->cycleTimeStats(&st);
   reply << "ok\ttotal\t" << REMOTE_TIME_NO_NAME << "\t" << report_time_stats(st, period_us);
   naJack->convTimeStats(&st);

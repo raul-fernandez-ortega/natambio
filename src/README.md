@@ -450,14 +450,16 @@ thousand of each are kept in a FIFO and reduced on request:
 $ echo timecycle | nc -q0 localhost 7000 | column -t -s $'\t'
 #   period_us  frames          rate
 ok  21333.333  1024            48000
-#   stage      name            cycles  n     mean_us  sd_us   min_us   max_us   load_pct
-ok  total      -               1086    1000  358.707  68.190  114.968  725.522  1.681
-ok  conv       -               1086    1000  317.368  61.587  100.027  662.417  1.488
-ok  nae        "front stereo"  1086    1000  294.079  60.451  78.011   490.547  1.378
-ok  nae        ""              1086    1000  254.470  50.352  78.679   468.486  1.193
+#   xruns      since_reset     n       mean_us   sd_us    min_us    max_us
+ok  23         9               9       1452.000  31.400   1401.000  1498.000
+#   stage      name            cycles  n         mean_us  sd_us     min_us    max_us   load_pct
+ok  total      -               1086    1000      358.707  68.190    114.968   725.522  1.681
+ok  conv       -               1086    1000      317.368  61.587    100.027   662.417  1.488
+ok  nae        "front stereo"  1086    1000      294.079  60.451    78.011    490.547  1.378
+ok  nae        ""              1086    1000      254.470  50.352    78.679    468.486  1.193
 ```
 
-The answer is two tab-separated tables, each under a header line naming its
+The answer is three tab-separated tables, each under a header line naming its
 columns — seven numbers in a row are unreadable without one, and nobody
 remembers which of them is the deviation.  Header lines begin with `#` and data
 lines with `ok`, so a caller skips the headers the way it already skips the
@@ -467,7 +469,23 @@ $'\t'`, as above, is what turns the same answer into something to look at.
 The first table is the period — microseconds, frames, sample rate — a table of
 its own because it is what the machine is given rather than what it spends, and
 first so that what follows has something to be read against without the caller
-knowing the configuration.  The second is one row per stage: `<cycles>` is every
+knowing the configuration.
+
+The second is the xruns — the periods that did not fit at all, which is what the
+load figures below are read in order to predict — and sits between the two
+because it is the outcome the stage table exists to explain: what the machine
+was given, what it lost, and then where the time went.  Three counts, narrowing:
+every xrun since the process started, those since the last reset, and how many
+of them the delay figures cover.  The delays are JACK's own figure for how late
+the period ran, in the same microseconds, so the row says the machine dropped
+nine periods by about 1.45 ms each rather than only that it dropped nine.  There
+is no load column: an xrun is a period that did not fit, and a percentage of the
+period it overran by would read as a share of one.  A backend that does not
+measure the delay reports `0.0` for it, which is stored as measured rather than
+dropped, so a non-zero count against a row of zeroes is that backend and not an
+absence of xruns.
+
+The third is one row per stage: `<cycles>` is every
 cycle timed since the last reset and `<n>` how many of them the figures cover —
 the same number until the FIFO fills, a thousand from then on, as above.  The
 four times are microseconds, the deviation is the sample one, and `<load_pct>`
@@ -487,12 +505,19 @@ periods, and no mean of the periods it did get would say so.
 
 `timecycle reset` empties every history and answers `ok timecycle reset`, so a
 measurement can be made to start when the music does, or after a filter is
-swapped, rather than where the last one left off.
+swapped, rather than where the last one left off.  The count of xruns since the
+process started is the one figure it does not clear: every other number here is
+a window the caller may start where it likes, but an xrun is an event and not a
+measurement, and a caller resetting to time the next minute is not asking to be
+told the last hour was clean.  Each xrun is still printed to stderr with the
+time of day on it — the log is for a person reading it afterwards, the count for
+a manager watching the port while it happens.
 
 The counters are always on.  They cost two `clock_gettime` per stage per period
 — vDSO reads, a few tens of nanoseconds — against a period of a thousand
-microseconds or more, and a load figure that has to be switched on first is one
-nobody has when the xruns start.  Implemented in `cycletime.hpp`: a fixed ring
+microseconds or more, an xrun costing one increment and only when there is one
+to count, and a load figure that has to be switched on first is one nobody has
+when the xruns start.  Implemented in `cycletime.hpp`: a fixed ring
 of a thousand `std::atomic<unsigned>` per timer, written by the real-time thread
 with no allocation, no lock and nothing that can block, and read without
 synchronisation — a snapshot may mix a fresh sample with older ones, which is a

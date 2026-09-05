@@ -22,6 +22,7 @@ ioJack::ioJack(string clientName, bool n_quiet)
   ramp_target = 1.0f;
   ramp_inc = 1.0f / 1536.0f;
   mute_target = 0;
+  xrun_total = 0;
   if (client_name == NULL) 
     client_name = strdup(DEFAULT_CLIENTNAME);
   if(!quiet)
@@ -83,12 +84,29 @@ int ioJack::xrun_callback(void *arg)
   return 0;
 }
 
+/* JACK calls this from the process thread, so the count and the delay are
+   taken the way the timers around them are: one increment and one store into a
+   fixed ring, nothing that allocates or blocks. The line on stderr is neither,
+   and stays because a log with the time of day on it is what tells an xrun at
+   three in the morning from one during the last track -- an xrun is a rare
+   event and the period it lands in is already lost, so the print costs nothing
+   that was not already spent.
+
+   The counters exist because that line is all there was: it goes to a terminal
+   or a journal, which is to say to a person reading afterwards, and a manager
+   asking "is this system keeping up" over the control port had no way to know.
+   The delay is what JACK says the period ran late by, in microseconds, which
+   is the unit the rest of the report is in; jack_get_xrun_delayed_usecs()
+   returns 0.0 on backends that do not measure it, and that zero is stored
+   rather than dropped -- see xrunTimeStats(). */
 void ioJack::na_xrun_callback(void)
 {
   time_t timestamp;
   time(&timestamp);
-  float xdelay = jack_get_xrun_delayed_usecs(this->jackclient)/1000.0f;
-  std::cerr << ctime(&timestamp) << "\t\t XRUN detected with " << xdelay << " ms delay\n";
+  float xusecs = jack_get_xrun_delayed_usecs(this->jackclient);
+  xrun_total.fetch_add(1, std::memory_order_relaxed);
+  xrun_time.push((xusecs > 0.0f) ? (uint64_t)(xusecs * 1000.0f) : 0);
+  std::cerr << ctime(&timestamp) << "\t\t XRUN detected with " << (xusecs/1000.0f) << " ms delay\n";
 }
 
 void ioJack::jack_shutdown_callback(void *arg)
@@ -649,6 +667,10 @@ void ioJack::resetTimeStats(void)
 {
   cycle_time.reset();
   conv_time.reset();
+  /* The delays go with the rest of the histories; the count of the xruns
+     themselves does not, and is the one figure in the report a reset leaves
+     alone. */
+  xrun_time.reset();
   for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++)
     (*nae_p)->resetTimeStats();
 }

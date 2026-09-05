@@ -247,7 +247,8 @@ Key responsibilities:
 - Own the port gains, and slew them when they change (`portGain`, `adjustPortGain`)
 - Wire ports to `ConvChannel` and `NAE` instances
 - Drive the audio processing pipeline on every buffer cycle
-- Detect and timestamp xrun (buffer underrun) events
+- Detect, timestamp and count xrun (buffer underrun) events, and keep JACK's
+  reported delay for the last 1000 of them (`xrunCount`, `xrunTimeStats`)
 - Time the callback and the convolution stage within it (`cycleTimeStats`,
   `convTimeStats`, `naeTimeStatsAt`, `resetTimeStats`)
 - Handle JACK shutdown and latency callbacks
@@ -285,12 +286,15 @@ across the block, so every point of a move is a matrix that is a width.  See the
 of `README.md` for the protocol.
 
 `timecycle` is the one command that reports on the process rather than on its
-settings: it reduces the `CycleTimer` histories — the callback's two and each
-engine's — to a mean, a deviation, a minimum and a maximum, and expresses the
-mean as a fraction of the period it reads back from `getPartSize()` and
-`getSampleRate()`.  The answer is two tab-separated tables, each under a `#`
-header line naming its columns, the data lines keeping the protocol's `ok`;
-`timecycle reset` empties every history through `ioJack::resetTimeStats()`.
+settings: it reduces the `CycleTimer` histories — the callback's two, the xrun
+delays and each engine's — to a mean, a deviation, a minimum and a maximum, and
+expresses the stage means as a fraction of the period it reads back from
+`getPartSize()` and `getSampleRate()`.  The answer is three tab-separated
+tables, each under a `#` header line naming its columns, the data lines keeping
+the protocol's `ok`: the period, the xruns, and one row per stage.
+`timecycle reset` empties every history through `ioJack::resetTimeStats()` —
+every history but `xrunCount()`, which counts since the process started and is
+the one figure a reset is not allowed to lose.
 
 It runs in one plain (non-RT) thread of its own that accepts and serves
 connections sequentially.  The thread blocks `SIGINT`/`SIGTERM` so the main
@@ -398,10 +402,15 @@ Helper functions in `nae.cpp`:
 
 A header-only ring of the last `NA_TIME_HISTORY` (1000) elapsed times of one
 stage, in nanoseconds, plus the reduction of them the `timecycle` command
-reports.  Four of them are live in a typical run: `ioJack` owns the whole
-callback and the convolution stage inside it, and every `NAE` times its own
-block, from just after the `sem_wait()` — the wait is the callback's period, not
-the engine's work — to the end of the block.
+reports.  Five of them are live in a typical run: `ioJack` owns the whole
+callback, the convolution stage inside it and the xrun delays, and every `NAE`
+times its own block, from just after the `sem_wait()` — the wait is the
+callback's period, not the engine's work — to the end of the block.
+
+The xrun history is the one that is not a stage of the cycle, and is fed through
+`push()` rather than `begin()`/`end()`: the duration is not measured here but
+handed over by JACK (`jack_get_xrun_delayed_usecs()`) in the xrun callback, one
+sample per xrun instead of one per period.
 
 The write path is what makes it usable from the audio threads: two
 `clock_gettime(CLOCK_MONOTONIC)` (vDSO reads, no syscall) and two relaxed stores

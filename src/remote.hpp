@@ -117,17 +117,20 @@ extern "C" {
  * that of a bare "get", is known only at this end.
  *
  * "timecycle" is the only command that reports on natambio itself rather than
- * on what it is set to: the mean and standard deviation of the last thousand
- * cycles of the JACK callback, of the convolution stage inside it, and of each
- * NAE engine's block in its own thread, with the shortest and the longest of
- * them and the mean as a percentage of the period.
+ * on what it is set to: how many xruns there have been, and the mean and
+ * standard deviation of the last thousand cycles of the JACK callback, of the
+ * convolution stage inside it, and of each NAE engine's block in its own
+ * thread, with the shortest and the longest of them and the mean as a
+ * percentage of the period.
  *
- * It answers with two tab-separated tables, each under a header line naming its
- * columns, because a row of seven numbers is unreadable without one and nobody
- * remembers which of them is the deviation:
+ * It answers with three tab-separated tables, each under a header line naming
+ * its columns, because a row of seven numbers is unreadable without one and
+ * nobody remembers which of them is the deviation:
  *
  *     #	period_us	frames	rate
  *     ok	21333.333	1024	48000
+ *     #	xruns	since_reset	n	mean_us	sd_us	min_us	max_us
+ *     ok	23	9	9	1452.000	31.400	1401.000	1498.000
  *     #	stage	name	cycles	n	mean_us	sd_us	min_us	max_us	load_pct
  *     ok	total	-	1086	1000	358.707	68.190	114.968	725.522	1.681
  *     ok	conv	-	1086	1000	317.368	61.587	100.027	662.417	1.488
@@ -141,14 +144,34 @@ extern "C" {
  * percentages have something to be read against without the caller knowing the
  * configuration. A stage with no name of its own is a "-" in that column.
  *
+ * The xruns are a table of their own for the same reason and sit between the
+ * two, since they are the outcome the stage table exists to explain: what the
+ * machine was given, what it failed to fit into it, and then where the time
+ * went. Three counts, narrowing: every xrun since natambio started, those since
+ * the last reset, and how many of them the delay figures cover. The delays are
+ * JACK's own figure for how late the period ran, in the same microseconds as
+ * everything else, so a report can say a machine dropped four periods by a
+ * millisecond each and not merely that it dropped four; a backend that does
+ * not measure the delay reports 0.0 for it, and a row of zeroes with a
+ * non-zero count is that backend and not an absence of xruns. There is no load
+ * column: an xrun is a period that did not fit, and a percentage of the period
+ * it overran by would read as a share of one.
+ *
+ * The count since natambio started is the one figure "timecycle reset" does
+ * not clear. Every other number here is a window the caller is entitled to
+ * start where it likes, but an xrun is an event rather than a measurement: a
+ * caller resetting to time the next minute is not asking to be told that the
+ * last hour was clean.
+ *
  * Every stage row carries two counts: the cycles timed since the last reset and
  * how many of them the figures cover, which are the same number until the
  * thousand-deep FIFO fills and differ afterwards. For an NAE the first count is
  * worth as much as the times: the callback signals the engines once per period
  * and does not wait for them, so an engine whose count trails the callback's is
  * one that is not keeping up -- which shows there and in no mean. "timecycle
- * reset" empties every history, and is how a measurement is made to start where
- * the caller wants it to rather than where the last one left off.
+ * reset" empties every history but the xrun count, and is how a measurement is
+ * made to start where the caller wants it to rather than where the last one
+ * left off.
  *
  * "mute" and "unmute" take nothing at all and apply to every output at once.
  * The ports' own gains are untouched, so up/down and get go on working through
