@@ -244,7 +244,11 @@ public:
   void timeStats(struct na_time_stats *st) { proc_time.stats(st); };
   void resetTimeStats(void) { proc_time.reset(); };
 
-  void load(int abspri, int policy);
+  /* Virtual so a subclass can build what it needs -- a filter bank, a set of
+     FFTW plans -- before the thread exists, which is the only moment at which
+     the rate, the period and the covariance length are all known and nothing
+     is running yet. */
+  virtual void load(int abspri, int policy);
   void signal(void);
   void thr_process(void);
 

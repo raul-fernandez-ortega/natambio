@@ -13,12 +13,14 @@ natambio_SOURCES = \
 	iojack.cpp      \
 	convchannel.cpp \
 	nae.cpp         \
+	nae_erb.cpp     \
 	remote.cpp      \
 	natambio.hpp    \
 	naconf.hpp      \
 	iojack.hpp      \
 	convchannel.hpp \
 	nae.hpp         \
+	nae_erb.hpp     \
 	remote.hpp      \
 	cycletime.hpp   \
 	structs.hpp

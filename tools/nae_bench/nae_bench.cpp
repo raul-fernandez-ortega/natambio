@@ -49,6 +49,7 @@ extern "C" {
 #include <string>
 
 #include "nae.hpp"
+#include "nae_erb.hpp"
 
 static void usage(const char *me)
 {
@@ -56,6 +57,11 @@ static void usage(const char *me)
           "usage: %s <in.wav> <out_c1.wav> <out_c2.wav>\n"
           "          [mode 0|1] [frame_size] [covsteps] [pan_scale] [settle_us]\n"
           "       %s --check <in.wav> [mode] [frame_size] [covsteps] [pan] [us]\n"
+          "\n"
+          "  --erb                 use the per-ERB-band engine (NaeErb)\n"
+          "  --cov-ms <ms>         its analysis window.        Default 64\n"
+          "  --delta-erb <d>       centre spacing in ERB.      Default 2\n"
+          "  --band-min <hz>       width floor in Hz.          Default 125\n"
           "\n"
           "  mode       0 = alpha (front), 1 = beta (rear).   Default 0\n"
           "  frame_size JACK period in samples.               Default 256\n"
@@ -72,7 +78,8 @@ static void usage(const char *me)
    double: the engine works in double and the point of this is to compare two
    builds exactly, so nothing is rounded on the way out. */
 static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
-                     double pan_scale, int settle_us,
+                     double pan_scale, int settle_us, bool erb,
+                     double cov_ms, double d_erb, double bmin,
                      std::vector<double>& c1, std::vector<double>& c2,
                      int *samplerate)
 {
@@ -90,7 +97,19 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
   }
   *samplerate = info.samplerate;
 
-  NAE nae("bench", mode);
+  /* The engine under test. NaeErb is a NAE, so everything below it here is
+     the same call sequence; only the decomposition differs. */
+  NAE *engine;
+  if(erb) {
+    NaeErb *e = new NaeErb("bench", mode);
+    e->setCovWindowMs(cov_ms);
+    e->setDeltaErb(d_erb);
+    e->setBandMinHz(bmin);
+    engine = e;
+  } else {
+    engine = new NAE("bench", mode);
+  }
+  NAE& nae = *engine;
   nae.setQuiet();
   /* Linear, as the configuration parses them: unity everywhere, so what comes
      out is the decomposition and not a mix of it. */
@@ -149,6 +168,7 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
   }
 
   sf_close(in);
+  delete engine;
   return true;
 }
 
@@ -177,6 +197,33 @@ static bool write_wav(const char *path, const std::vector<double>& data, int rat
 
 int main(int argc, char **argv)
 {
+  /* --erb selects the per-band engine; --cov-ms, --delta-erb and --band-min
+     set its three parameters. Named rather than positional: a bare --erb
+     followed by the positional mode and frame size would otherwise swallow
+     them and build a bank out of a frame size, which is exactly what it did
+     the first time. Removed from argv before the positional parsing below. */
+  bool erb = false;
+  double cov_ms = NA_ERB_COV_WINDOW_MS;
+  double d_erb = NA_ERB_DELTA_ERB;
+  double bmin = NA_ERB_BAND_MIN_HZ;
+  std::vector<char*> args;
+  args.push_back(argv[0]);
+  for(int i = 1; i < argc; i++) {
+    if(strcmp(argv[i], "--erb") == 0) {
+      erb = true;
+    } else if(strcmp(argv[i], "--cov-ms") == 0 && i + 1 < argc) {
+      cov_ms = atof(argv[++i]);
+    } else if(strcmp(argv[i], "--delta-erb") == 0 && i + 1 < argc) {
+      d_erb = atof(argv[++i]);
+    } else if(strcmp(argv[i], "--band-min") == 0 && i + 1 < argc) {
+      bmin = atof(argv[++i]);
+    } else {
+      args.push_back(argv[i]);
+    }
+  }
+  argv = &args[0];
+  argc = (int)args.size();
+
   bool check = (argc > 1 && strcmp(argv[1], "--check") == 0);
   /* Where the optional arguments start. --check takes the input at argv[2] and
      no output paths, so its options begin one earlier than the normal form's. */
@@ -204,16 +251,21 @@ int main(int argc, char **argv)
 
   printf("nae_bench: %s  mode %d  frame %d  covsteps %d  pan %.3f  settle %d us\n",
          in_path, mode, frame, covsteps, pan, settle_us);
+  if(erb)
+    printf("nae_bench: ERB engine, cov_window %.1f ms, delta_erb %.2f, "
+           "band_min %.1f Hz\n", cov_ms, d_erb, bmin);
 
   std::vector<double> c1, c2;
   int rate = 0;
-  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, c1, c2, &rate))
+  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, erb,
+               cov_ms, d_erb, bmin, c1, c2, &rate))
     return 1;
 
   if(check) {
     std::vector<double> d1, d2;
     int rate2 = 0;
-    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, d1, d2, &rate2))
+    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, erb,
+                 cov_ms, d_erb, bmin, d1, d2, &rate2))
       return 1;
     if(c1.size() != d1.size() || c2.size() != d2.size()) {
       printf("nae_bench: FAIL, the two passes produced different lengths\n");
