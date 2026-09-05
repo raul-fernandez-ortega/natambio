@@ -28,6 +28,8 @@ extern "C" {
 #include <iostream>
 #include <cstring>
 
+#include <atomic>
+
 #include "structs.hpp"
 #include "cycletime.hpp"
 
@@ -146,12 +148,29 @@ protected:
   double icorr;
   float *left_in;
   float *right_in;
-  float *left_out;
-  float *right_out;
-  float *c1_left_out;
-  float *c2_left_out;
-  float *c1_right_out;
-  float *c2_right_out;
+  /* THE OUTPUT HANDOFF IS LOCK FREE, and it has to be. These six buffers are
+     written by this engine's worker and read by the JACK process thread, and
+     both are real-time threads. They used to be handed over under a mutex,
+     which meant the audio callback could block on a worker that had been
+     preempted while holding it -- for as long as the scheduler took to come
+     back, with no bound. JACK reports that as "client was not finished" and
+     stops the graph, which is what the journal of 2026-09-06 00:14 shows: an
+     xrun a second, none of them the DSP's fault, none of them recoverable.
+     Priority inheritance would not have saved it either, the worker running at
+     exactly the callback's priority and so having nothing to inherit.
+
+     So: two sets of buffers, and an index saying which one is complete. The
+     worker fills the set the callback is not reading and then publishes it in
+     one atomic store; the callback reads the index once and sums from that set.
+     Nobody waits for anybody. Two sets are enough because the worker publishes
+     at most once per period and the callback reads within one. */
+  float *left_out[2];
+  float *right_out[2];
+  float *c1_left_out[2];
+  float *c2_left_out[2];
+  float *c1_right_out[2];
+  float *c2_right_out[2];
+  std::atomic<int> out_pub;     /* the set the callback should read */
   string left_name_in;
   string right_name_in;
   string left_name_out;

@@ -24,6 +24,8 @@ ioJack::ioJack(string clientName, bool n_quiet)
   ramp_inc = 1.0f / 1536.0f;
   mute_target = 0;
   xrun_total = 0;
+  xrun_last_log = 0.0;
+  xrun_unlogged = 0;
   if (client_name == NULL) 
     client_name = strdup(DEFAULT_CLIENTNAME);
   if(!quiet)
@@ -109,12 +111,48 @@ int ioJack::xrun_callback(void *arg)
    xrunTimeStats(). */
 void ioJack::na_xrun_callback(void)
 {
-  time_t timestamp;
-  time(&timestamp);
   float xusecs = jack_get_xrun_delayed_usecs(this->jackclient);
   xrun_total.fetch_add(1, std::memory_order_relaxed);
   xrun_time.push((xusecs > 0.0f) ? (uint64_t)xusecs : 0);
-  std::cerr << ctime(&timestamp) << "\t\t XRUN detected with " << (xusecs/1000.0f) << " ms delay\n";
+
+  /* The line is RATE LIMITED to one a second, and that is a correctness
+     measure rather than tidiness. JACK calls this on the process thread, and
+     writing to stderr there is a write to a pipe that systemd-journald is at
+     the other end of: it can block, on the real-time path, for as long as the
+     journal takes. Which turns one xrun into the next one -- xrun, log, the
+     log blocks the callback, the callback misses its period, JACK reports the
+     client as not finished, another xrun -- a loop that never comes out of
+     itself. That loop is what the journal of 2026-09-06 00:14 shows, one xrun
+     a second for as long as it was left running.
+
+     Rate limiting does not make the write safe, it bounds how much damage it
+     can do while keeping the one thing the line is for: a record with the time
+     of day on it, which tells an xrun at three in the morning from one during
+     the last track. The count that matters is exact and costs nothing, and
+     "timecycle" reports it along with the delays. Suppressed events are
+     counted and the next line says how many.
+
+     CLOCK_MONOTONIC via clock_gettime is a vDSO read, no syscall. */
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  double t = (double)now.tv_sec + 1.0e-9 * (double)now.tv_nsec;
+  unsigned long long suppressed = xrun_unlogged.fetch_add(1, std::memory_order_relaxed);
+  if(t - xrun_last_log < 1.0)
+    return;
+  xrun_last_log = t;
+  xrun_unlogged.store(0, std::memory_order_relaxed);
+
+  time_t timestamp;
+  char stamp[32];
+  time(&timestamp);
+  /* ctime() returns a pointer into a static buffer shared by every thread. */
+  ctime_r(&timestamp, stamp);
+  for(char *p = stamp; *p; p++)
+    if(*p == '\n') *p = '\0';
+  std::cerr << stamp << "\t\t XRUN detected with " << (xusecs/1000.0f) << " ms delay";
+  if(suppressed > 0)
+    std::cerr << " (" << suppressed << " more not logged)";
+  std::cerr << std::endl;
 }
 
 void ioJack::jack_shutdown_callback(void *arg)

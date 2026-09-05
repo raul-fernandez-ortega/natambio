@@ -73,7 +73,13 @@ NAE::NAE(string n_name, int n_mode)
   name = n_name;
   quiet = false;
   mode = n_mode;
-  prio = 0;
+  /* One step BELOW the priority JACK gives its client threads. The worker is
+     asynchronous by design -- the callback signals it once a period and never
+     waits for it -- so it has no business competing with the audio thread for
+     the CPU, and at equal priority under SCHED_RR it does exactly that. It has
+     a whole period to do a fraction of one; what it must never do is make the
+     callback wait. */
+  prio = -1;
   left_name_in = "";
   left_name_out = "";
   right_name_in = "";
@@ -104,12 +110,14 @@ NAE::~NAE(void)
   pthread_join(t_proc, NULL);
   free(left_in);
   free(right_in);
-  free(left_out);
-  free(right_out);
-  free(c1_left_out);
-  free(c1_right_out);
-  free(c2_left_out);
-  free(c2_right_out);
+  for(int k = 0; k < 2; k++) {
+    free(left_out[k]);
+    free(right_out[k]);
+    free(c1_left_out[k]);
+    free(c1_right_out[k]);
+    free(c2_left_out[k]);
+    free(c2_right_out[k]);
+  }
   free(pca.mid_step);
   free(pca.side_step);
   free(pca.c1_mid);
@@ -279,20 +287,18 @@ void NAE::setSampleCount(int n_sample_count)
   memset(left_in, 0, sample_count);
   memset(right_in, 0, sample_count);
 
-  left_out = (float*) calloc(sample_count, sizeof(float));
-  right_out = (float*) calloc(sample_count, sizeof(float));
-  memset(left_out, 0, sample_count);
-  memset(right_out, 0, sample_count);
-  
-  c1_left_out = (float*) calloc(sample_count, sizeof(float));
-  c1_right_out = (float*) calloc(sample_count, sizeof(float));
-  memset(c1_left_out, 0, sample_count);
-  memset(c1_right_out, 0, sample_count);
-  
-  c2_left_out = (float*) calloc(sample_count, sizeof(float));
-  c2_right_out = (float*) calloc(sample_count, sizeof(float));
-  memset(c2_left_out, 0, sample_count);
-  memset(c2_right_out, 0, sample_count);
+  /* Two of each: see nae.hpp. calloc already zeroes them, which the memsets
+     that used to follow did not do anyway -- they passed sample_count as a byte
+     count for a buffer of floats. */
+  for(int k = 0; k < 2; k++) {
+    left_out[k] = (float*) calloc(sample_count, sizeof(float));
+    right_out[k] = (float*) calloc(sample_count, sizeof(float));
+    c1_left_out[k] = (float*) calloc(sample_count, sizeof(float));
+    c1_right_out[k] = (float*) calloc(sample_count, sizeof(float));
+    c2_left_out[k] = (float*) calloc(sample_count, sizeof(float));
+    c2_right_out[k] = (float*) calloc(sample_count, sizeof(float));
+  }
+  out_pub.store(0, std::memory_order_relaxed);
 }
 
 void NAE::setSampleRate(int n_sample_rate)
@@ -384,45 +390,25 @@ void NAE::fillInputBuffer(enum side n_side, const float *n_input)
 
 void NAE::fillOutputBuffer(enum side n_side, float* n_output)
 {
-  pthread_mutex_lock(&mutex);
-  if(n_side == LEFT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += left_out[i];
-#ifdef RTDEBUG
-    std::cout << "l_out:" << n_output[0] << std::endl;
-#endif
-  } else if(n_side == RIGHT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += right_out[i];
-#ifdef RTDEBUG
-    std::cout << "r_out:" << n_output[0] << std::endl;
-#endif
-  } else if(n_side == C1_LEFT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += c1_left_out[i];
-#ifdef RTDEBUG
-    std::cout << "l_out:" << n_output[0] << std::endl;
-#endif
-  } else if(n_side == C1_RIGHT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += c1_right_out[i];
-#ifdef RTDEBUG
-    std::cout << "r_out:" << n_output[0] << std::endl;
-#endif
-  } else if(n_side == C2_LEFT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += c2_left_out[i];
-#ifdef RTDEBUG
-    std::cout << "l_out:" << n_output[0] << std::endl;
-#endif
-  } else if(n_side == C2_RIGHT) {
-    for(int i = 0; i < sample_count; i++)
-      n_output[i] += c2_right_out[i];
-#ifdef RTDEBUG
-    std::cout << "r_out:" << n_output[0] << std::endl;
-#endif
-  }  
-  pthread_mutex_unlock(&mutex);
+  /* No lock. The published set is read once and summed from; the worker is
+     filling the other one and cannot touch this. What used to be here was a
+     pthread_mutex the worker also took, which let the audio callback block on a
+     worker thread that had been preempted -- and since both run at exactly the
+     priority JACK gives its clients, there was no inheritance to rescue it and
+     no bound on the wait. See nae.hpp. */
+  const int r = out_pub.load(std::memory_order_acquire);
+  const float *src = NULL;
+  switch(n_side) {
+    case LEFT:     src = left_out[r];     break;
+    case RIGHT:    src = right_out[r];    break;
+    case C1_LEFT:  src = c1_left_out[r];  break;
+    case C1_RIGHT: src = c1_right_out[r]; break;
+    case C2_LEFT:  src = c2_left_out[r];  break;
+    case C2_RIGHT: src = c2_right_out[r]; break;
+    default:       return;
+  }
+  for(int i = 0; i < sample_count; i++)
+    n_output[i] += src[i];
 }
 
 void NAE::load(int abspri, int policy)
@@ -488,7 +474,24 @@ void NAE::load(int abspri, int policy)
   else
     pthread_create(&t_proc, &attr, process_front, (void *)this);
   pthread_attr_destroy(&attr);
-  pthread_mutex_init(&mutex, NULL);
+  /* PRIORITY INHERITANCE, and it is not optional. This mutex is taken by the
+     JACK process thread (fillOutputBuffer, once per output side) and by this
+     engine's worker (emitBlock). Both are real-time threads. With default
+     attributes there is no inheritance, so a worker preempted while holding it
+     -- by the other engine's worker, by the convolution, by anything -- leaves
+     the audio callback blocked for as long as that lasts, which is unbounded.
+     JACK then reports "client was not finished" and the graph stops.
+
+     It was survivable while the worker held the lock for a few microseconds out
+     of every period. The per-band engine is active something like a tenth of
+     each period, and there are two of them, so the collision that used to be a
+     rarity became a routine event. Inheritance bounds the wait to the holder's
+     remaining critical section instead of to the scheduler's goodwill. */
+  pthread_mutexattr_t mattr;
+  pthread_mutexattr_init(&mattr);
+  pthread_mutexattr_setprotocol(&mattr, PTHREAD_PRIO_INHERIT);
+  pthread_mutex_init(&mutex, &mattr);
+  pthread_mutexattr_destroy(&mattr);
 }
 
 void NAE::signal(void)
@@ -664,7 +667,12 @@ void NAE::emitBlock(void)
   double c2_left;
   double c2_right;
 
-  pthread_mutex_lock(&mutex);
+  /* Fill the set the callback is not reading, and publish it at the end. */
+  const int w = 1 - out_pub.load(std::memory_order_relaxed);
+  float *l_out = left_out[w], *r_out = right_out[w];
+  float *c1l = c1_left_out[w], *c1r = c1_right_out[w];
+  float *c2l = c2_left_out[w], *c2r = c2_right_out[w];
+
   if(mode) {
       /* The rear gain across this block: where the last one left it, to where
          the slew takes it, interpolated sample by sample. A gain arriving from
@@ -679,10 +687,10 @@ void NAE::emitBlock(void)
       for(int  i = 0; i < sample_count; i++, gr += gr_step) {
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        left_out[i]  = gr*c2_left;
-        right_out[i] = gr*c2_right;
-        c2_left_out[i] = left_out[i];
-        c2_right_out[i] = right_out[i];
+        l_out[i]  = gr*c2_left;
+        r_out[i] = gr*c2_right;
+        c2l[i] = l_out[i];
+        c2r[i] = r_out[i];
       }
       gain_c2_rear = gr1;
   } else {
@@ -702,17 +710,19 @@ void NAE::emitBlock(void)
         c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        left_out[i]  = g1*c1_left + g2*c2_left;
-        right_out[i] = g1*c1_right + g2*c2_right;
-        c1_left_out[i] = g1*c1_left;
-        c1_right_out[i] = g1*c1_right;
-        c2_left_out[i] = g2*c2_left;
-        c2_right_out[i] = g2*c2_right;
+        l_out[i]  = g1*c1_left + g2*c2_left;
+        r_out[i] = g1*c1_right + g2*c2_right;
+        c1l[i] = g1*c1_left;
+        c1r[i] = g1*c1_right;
+        c2l[i] = g2*c2_left;
+        c2r[i] = g2*c2_right;
       }
       gain_c1 = g1_1;
       gain_c2 = g2_1;
   }
-  pthread_mutex_unlock(&mutex);
+  /* Release: everything written above is visible to whoever loads the index
+     with acquire, which is the callback and nobody else. */
+  out_pub.store(w, std::memory_order_release);
 }
 
 void NAE::advanceBlock(void)

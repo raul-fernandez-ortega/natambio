@@ -152,6 +152,12 @@ private:
      relaxed stores as any other timer. */
   std::atomic<unsigned long long> xrun_total;
   CycleTimer xrun_time;
+  /* What the rate limiter on the xrun log needs: when it last wrote, and how
+     many it has swallowed since. Both belong to the process thread, which is
+     the only one that calls the xrun callback; the counter is atomic only so
+     that it is read and written as one word. */
+  double xrun_last_log;
+  std::atomic<unsigned long long> xrun_unlogged;
 
   /* Mute: one word, written by the manager thread and read by the RT callback,
      the same single-writer discipline as ramp_target. Both directions are
