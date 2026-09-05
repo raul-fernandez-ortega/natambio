@@ -72,6 +72,13 @@ enum nae_gain {
 struct s_nae {
   string name;
   int mode;
+  /* Which engine: false for <nae>, true for <nae_erb>. The two tags parse
+     through the same function and share every field above the three below,
+     because <nae_erb> IS an NAE in everything but the decomposition. */
+  bool erb;
+  double erb_cov_window_ms;  // <cov_window_ms>: the analysis window
+  double erb_delta_erb;      // <delta_erb>: centre spacing, in ERB units
+  double erb_band_min_hz;    // <band_min_hz>: the width floor, in Hz
   double gain_c1;
   double gain_c2;
   double gain_c2_rear;

@@ -6,6 +6,7 @@
  */
 
 #include "natambio.hpp"
+#include "nae_erb.hpp"
 
 NatAmbio::NatAmbio(void)
 {
@@ -415,8 +416,16 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
 {
   if(!quiet) {
     std::cout << std::fixed << std::setprecision(3);
-    std::cout << "NatAmbio: new NAE process creation " << std::endl;
+    std::cout << "NatAmbio: new " << (n_nae->erb ? "NAE_ERB" : "NAE")
+              << " process creation " << std::endl;
     std::cout << "NatAmbio: NAE name " << n_nae->name << std::endl;
+    if(n_nae->erb) {
+      std::cout << "NatAmbio: NAE_ERB analysis window "
+                << n_nae->erb_cov_window_ms << " ms" << std::endl;
+      std::cout << "NatAmbio: NAE_ERB delta_erb " << n_nae->erb_delta_erb << std::endl;
+      std::cout << "NatAmbio: NAE_ERB band_min " << n_nae->erb_band_min_hz
+                << " Hz" << std::endl;
+    }
     std::cout << "NatAmbio: NAE mode " << n_nae->mode << std::endl;
     if(n_nae->mode) {
       std::cout << "NatAmbio: NAE ambient gain " << n_nae->gain_c2_rear << std::endl;
@@ -427,8 +436,19 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     if(n_nae->pan_scale != 0)
       std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
   }
+  /* The one place the two engines are told apart. Everything after this is
+     the NAE interface, which NaeErb is: the gains, the channels, the width and
+     the wiring into ioJack are the same calls whichever was built. */
   NAE *n_nae_p;
-  n_nae_p = new NAE(n_nae->name, n_nae->mode);
+  if(n_nae->erb) {
+    NaeErb *n_erb_p = new NaeErb(n_nae->name, n_nae->mode);
+    n_erb_p->setCovWindowMs(n_nae->erb_cov_window_ms);
+    n_erb_p->setDeltaErb(n_nae->erb_delta_erb);
+    n_erb_p->setBandMinHz(n_nae->erb_band_min_hz);
+    n_nae_p = n_erb_p;
+  } else {
+    n_nae_p = new NAE(n_nae->name, n_nae->mode);
+  }
   n_nae_p->setC1Gain(n_nae->gain_c1);
   n_nae_p->setC2Gain(n_nae->gain_c2);
   n_nae_p->setC2RearGain(n_nae->gain_c2_rear);

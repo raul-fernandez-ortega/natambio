@@ -55,7 +55,7 @@ NaeErb::NaeErb(string n_name, int n_mode) : NAE(n_name, n_mode)
   spec_mid = spec_side = NULL;
   p_mm = p_ss = p_ms = NULL;
   r_mm = r_ss = r_ms = NULL;
-  ring1 = ring2 = NULL;
+  ring1 = ring2 = sum1 = sum2 = NULL;
   ring_pos = 0;
   erb_ready = false;
   for(int i = 0; i < 4; i++) {
@@ -106,6 +106,8 @@ void NaeErb::freeEngine(void)
     free(gcoef[i]);
   free(ring1);
   free(ring2);
+  free(sum1);
+  free(sum2);
 }
 
 void NaeErb::setCovWindowMs(double ms)
@@ -188,7 +190,7 @@ void NaeErb::buildBank(void)
     double sum = 0.0;
     for(int b = 0; b < n_bands; b++) {
       double a = gammatone_mag(freq, centers[b], bandwidths[b], NA_ERB_ORDER);
-      masks[(size_t)b * n_bins + k] = a;
+      masks[(size_t)k * n_bands + b] = a;
       sum += a;
     }
     /* sum is never zero: a gammatone magnitude decays as a power of the
@@ -197,9 +199,9 @@ void NaeErb::buildBank(void)
     if(sum <= 0.0)
       sum = 1.0;
     for(int b = 0; b < n_bands; b++) {
-      double w = masks[(size_t)b * n_bins + k] / sum;
-      masks[(size_t)b * n_bins + k] = w;
-      masks2[(size_t)b * n_bins + k] = w * w;
+      double w = masks[(size_t)k * n_bands + b] / sum;
+      masks[(size_t)k * n_bands + b] = w;
+      masks2[(size_t)k * n_bands + b] = w * w;
     }
   }
 
@@ -261,6 +263,8 @@ void NaeErb::load(int abspri, int policy)
 
   ring1 = (double*) calloc((size_t)covsteps * 3 * n_bands, sizeof(double));
   ring2 = (double*) calloc((size_t)covsteps * 3 * n_bands, sizeof(double));
+  sum1 = (double*) calloc((size_t)3 * n_bands, sizeof(double));
+  sum2 = (double*) calloc((size_t)3 * n_bands, sizeof(double));
   ring_pos = 0;
 
   /* FFTW_MEASURE would time several algorithms and pick the fastest, which
@@ -343,17 +347,23 @@ void NaeErb::decompose(void)
      the one np.cov and nae.cpp both use, N and N-1 with the mean already gone
      with the DC bin. */
   double cov_norm = 1.0 / ((double)n_cov * (double)(n_cov - 1));
-  for(int b = 0; b < n_bands; b++) {
-    const double *w2 = masks2 + (size_t)b * n_bins;
-    double amm = 0.0, ass = 0.0, ams = 0.0;
-    for(int k = 0; k < n_bins; k++) {
-      amm += w2[k] * p_mm[k];
-      ass += w2[k] * p_ss[k];
-      ams += w2[k] * p_ms[k];
+  memset(r_mm, 0, sizeof(double) * n_bands);
+  memset(r_ss, 0, sizeof(double) * n_bands);
+  memset(r_ms, 0, sizeof(double) * n_bands);
+  for(int k = 0; k < n_bins; k++) {
+    const double *w2 = masks2 + (size_t)k * n_bands;
+    double vmm = p_mm[k], vss = p_ss[k], vms = p_ms[k];
+    for(int b = 0; b < n_bands; b++) {
+      double w = w2[b];
+      r_mm[b] += w * vmm;
+      r_ss[b] += w * vss;
+      r_ms[b] += w * vms;
     }
-    r_mm[b] = amm * cov_norm;
-    r_ss[b] = ass * cov_norm;
-    r_ms[b] = ams * cov_norm;
+  }
+  for(int b = 0; b < n_bands; b++) {
+    r_mm[b] *= cov_norm;
+    r_ss[b] *= cov_norm;
+    r_ms[b] *= cov_norm;
   }
 
   /* The axes, and this window's projectors into the ring. eigen_2x2_symmetric()
@@ -379,28 +389,38 @@ void NaeErb::decompose(void)
      frame has context on both sides and the circular product has somewhere to
      put its tails. Summed rather than kept as a running total: covsteps * 3 *
      n_bands additions is nothing, and a running total would drift. */
-  for(int i = 0; i < 6; i++)
-    memset(gcoef[i], 0, sizeof(double) * n_bins);
+  memset(sum1, 0, sizeof(double) * 3 * n_bands);
+  memset(sum2, 0, sizeof(double) * 3 * n_bands);
   for(int s = 0; s < covsteps; s++) {
     const double *q1 = ring1 + (size_t)s * 3 * n_bands;
     const double *q2 = ring2 + (size_t)s * 3 * n_bands;
-    for(int b = 0; b < n_bands; b++) {
-      const double *w = masks + (size_t)b * n_bins;
-      double c1mm = q1[b], c1ms = q1[n_bands + b], c1ss = q1[2 * n_bands + b];
-      double c2mm = q2[b], c2ms = q2[n_bands + b], c2ss = q2[2 * n_bands + b];
-      if(c1mm == 0.0 && c1ms == 0.0 && c1ss == 0.0 &&
-         c2mm == 0.0 && c2ms == 0.0 && c2ss == 0.0)
-        continue;               /* a ring slot not yet filled, at startup */
-      for(int k = 0; k < n_bins; k++) {
-        double wk = w[k];
-        gcoef[0][k] += wk * c1mm;
-        gcoef[1][k] += wk * c1ms;
-        gcoef[2][k] += wk * c1ss;
-        gcoef[3][k] += wk * c2mm;
-        gcoef[4][k] += wk * c2ms;
-        gcoef[5][k] += wk * c2ss;
-      }
+    for(int i = 0; i < 3 * n_bands; i++) {
+      sum1[i] += q1[i];
+      sum2[i] += q2[i];
     }
+  }
+  /* The ring is summed BEFORE the masks are touched, not inside the loop over
+     it: sum_s masks^T p_s is masks^T sum_s p_s, and doing it the other way
+     round walks the whole mask array covsteps times for nothing. It was three
+     quarters of the cost of the block. */
+  for(int k = 0; k < n_bins; k++) {
+    const double *w = masks + (size_t)k * n_bands;
+    double g0 = 0.0, g1 = 0.0, g2 = 0.0, g3 = 0.0, g4 = 0.0, g5 = 0.0;
+    for(int b = 0; b < n_bands; b++) {
+      double wk = w[b];
+      g0 += wk * sum1[b];
+      g1 += wk * sum1[n_bands + b];
+      g2 += wk * sum1[2 * n_bands + b];
+      g3 += wk * sum2[b];
+      g4 += wk * sum2[n_bands + b];
+      g5 += wk * sum2[2 * n_bands + b];
+    }
+    gcoef[0][k] = g0;
+    gcoef[1][k] = g1;
+    gcoef[2][k] = g2;
+    gcoef[3][k] = g3;
+    gcoef[4][k] = g4;
+    gcoef[5][k] = g5;
   }
 
   /* Apply, and back to time. The transform is unnormalised both ways, so the

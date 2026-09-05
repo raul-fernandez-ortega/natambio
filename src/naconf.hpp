@@ -57,7 +57,10 @@ private:
   struct lowhigh* parse_lowhigh(xmlNodePtr xmlnode);
   struct loudness* parse_loudness(xmlNodePtr xmlnode);
   struct convol* parse_convol(xmlNodePtr xmlnode);
-  struct s_nae* parse_nae(xmlNodePtr xmlnode);
+  /* <nae> with erb false, <nae_erb> with it true: the same fields plus three,
+     since the ERB engine inherits every parameter of the plain one that still
+     means something. */
+  struct s_nae* parse_nae(xmlNodePtr xmlnode, bool erb);
   bool parse_jackinput(xmlNodePtr xmlnode);
   bool parse_jackoutput(xmlNodePtr xmlnode);
   bool parse_remote(xmlNodePtr xmlnode);

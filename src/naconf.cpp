@@ -9,6 +9,7 @@
 #include <pwd.h>
 
 #include "naconf.hpp"
+#include "nae_erb.hpp"
 
 extern "C" {
 #include "dsp.h"
@@ -743,7 +744,12 @@ struct convol* NaConf::parse_convol(xmlNodePtr xmlnode)
   return naconvol;
 }
 
-struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
+/* <nae> and <nae_erb> alike: the second is the first plus three tags, because
+   the ERB engine is an NAE in everything but the decomposition and inherits
+   every parameter that still means something. The three that are its own are
+   read only for it, and a run that leaves them out gets the values the off-line
+   study settled on. */
+struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
 {
   struct s_nae *nae;
   string mode;
@@ -751,6 +757,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae = new struct s_nae;
   nae->name = "";
   nae->mode = -1;
+  nae->erb = erb;
+  nae->erb_cov_window_ms = NA_ERB_COV_WINDOW_MS;
+  nae->erb_delta_erb = NA_ERB_DELTA_ERB;
+  nae->erb_band_min_hz = NA_ERB_BAND_MIN_HZ;
   nae->gain_c1 = 0;
   nae->gain_c2 = 0;
   nae->gain_c2_rear = 0;
@@ -767,6 +777,12 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->name = (char*)cnt;
     } if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"steps_length")) {
       nae->steps_length = (int) strtol((char*) cnt, NULL, 10);
+    } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"cov_window_ms")) {
+      nae->erb_cov_window_ms = strtod((char*) cnt, NULL);
+    } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"delta_erb")) {
+      nae->erb_delta_erb = strtod((char*) cnt, NULL);
+    } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"band_min_hz")) {
+      nae->erb_band_min_hz = strtod((char*) cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"mode")) {
       mode = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_gain")) {
@@ -811,6 +827,26 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     parse_error("Error: nae steps_length must be >= 1.");
     this->naelist.clear();
     return NULL;
+  }
+  if(erb) {
+    /* Refused rather than clamped, as <pan_scale> is: these are not safety
+       margins but the domain of the parameter, and a zero analysis window or a
+       zero band width is not a degenerate bank, it is no bank at all. */
+    if(nae->erb_cov_window_ms <= 0.0) {
+      parse_error("Error: nae_erb cov_window_ms must be > 0.");
+      this->naelist.clear();
+      return NULL;
+    }
+    if(nae->erb_delta_erb <= 0.0) {
+      parse_error("Error: nae_erb delta_erb must be > 0.");
+      this->naelist.clear();
+      return NULL;
+    }
+    if(nae->erb_band_min_hz <= 0.0) {
+      parse_error("Error: nae_erb band_min_hz must be > 0.");
+      this->naelist.clear();
+      return NULL;
+    }
   }
   if(mode == "alpha") {
     nae->mode = 0;
@@ -1668,8 +1704,13 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
         return false;
       } else
         this->convollist.push_back(n_convol);
-    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"nae")) {
-      if((n_nae = parse_nae(xmlnode->children))==NULL) {
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"nae") ||
+               !xmlStrcmp(xmlnode->name, (const xmlChar *)"nae_erb")) {
+      /* The two engines land in the same list, in the order the file declares
+         them: ioJack keeps vector<NAE*> and a NaeErb is one, so nothing
+         downstream needs to know which is which until it asks. */
+      bool is_erb = !xmlStrcmp(xmlnode->name, (const xmlChar *)"nae_erb");
+      if((n_nae = parse_nae(xmlnode->children, is_erb))==NULL) {
         xmlCleanupParser();
         xmlFreeDoc(xmlconf);
         return false;

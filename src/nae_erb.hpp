@@ -115,8 +115,14 @@ private:
 
   double *centers;      /* n_bands */
   double *bandwidths;   /* n_bands */
-  double *masks;        /* n_bands * n_bins, W_b(f), a partition of unity */
-  double *masks2;       /* n_bands * n_bins, W_b(f)^2, the covariance weights */
+  /* The bank, stored BIN MAJOR: [k * n_bands + b]. Both loops that read it --
+     the covariances and the assembly of G -- walk every bin and, at each, every
+     band, so this layout puts the twenty numbers they need next to each other
+     and streams the array once. Band major meant twenty passes over it and cost
+     three times as much. masks is W_b(f), a partition of unity; masks2 is
+     W_b(f)^2, which is what a covariance weights with. */
+  double *masks;        /* n_bins * n_bands */
+  double *masks2;       /* n_bins * n_bands */
   double *fold;         /* n_bins, 2 except DC (0, which removes the mean) and
                            Nyquist (1): a one-sided spectrum summed as a full
                            one */
@@ -148,6 +154,8 @@ private:
      arrays: sum_k masks^T p_k = masks^T sum_k p_k. */
   double *ring1;                /* covsteps * 3 * n_bands */
   double *ring2;
+  double *sum1;                 /* 3 * n_bands, the ring summed */
+  double *sum2;
   int ring_pos;
 
   bool erb_ready;
