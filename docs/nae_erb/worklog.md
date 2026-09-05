@@ -128,10 +128,28 @@ reconstrucción deja de ser exacta. No tomado.
    remultiplica toda la cola cada ventana, así que en beta **compone** el
    escalado. `NaeErb` sigue a `nae.cpp`.
 
+## Escucha en tiempo real (panambio01, FFADO, 256 tramas)
+
+**Pasada, con varios discos.** Sin artefactos matemáticos ni anomalías.
+
+El resultado que no esperábamos, y que ninguna métrica de las que llevamos
+pedía: el margen utilizable de **C1/C2 sube hasta unos 15 dB**. A esa relación
+la escena rota de forma absurda porque C2 pasa a dominar — que es un límite
+musical, no un fallo del proceso — pero se llega hasta ahí **limpio**, sin que
+aparezca coloración ni inestabilidad por el camino.
+
+Eso es exactamente el criterio de éxito del §21 (*"menor compromiso geométrico
+entre fuentes espectralmente distintas"*) comprobado por vía indirecta: con un
+solo eje broadband, subir C2 amplifica el compromiso que ese eje representa
+entre geometrías distintas, y los artefactos aparecen mucho antes. Con un eje
+por banda no hay tal compromiso que amplificar.
+
+Vale la pena capturar en algún momento la salida de `timecycle` en esa máquina:
+las únicas cifras de carga que hay (11.7 % media, 23.5 % pico) son de horace
+contra el backend dummy, y el hardware y el planificador son otros.
+
 ## Pendiente
 
-- Escucha en tiempo real en panambio01 (FFADO, 256 tramas). **Es la prueba de
-  fuego y está sin hacer.**
 - Documentación de usuario (`README.CONFIG`, `architecture.md`, `src/README.md`)
   y changelog.
 - Bump a 2.0.0 en la consolidación.
