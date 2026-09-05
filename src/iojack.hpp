@@ -298,6 +298,11 @@ public:
   void cycleTimeStats(struct na_time_stats *st) { cycle_time.stats(st); };
   void convTimeStats(struct na_time_stats *st) { conv_time.stats(st); };
   bool naeTimeStatsAt(size_t index, struct na_time_stats *st, string *name);
+  /* The same engines, by the same index, reporting the backlog rather than the
+     times: blocks started, blocks started late, worst backlog. See nae.hpp for
+     why a late block is the one failure the stage table cannot show. */
+  bool naeLateAt(size_t index, unsigned long long *total,
+                 unsigned long long *late, unsigned int *worst, string *name);
   void resetTimeStats(void);
 
   /* The xruns: how many since the process started, and the delays JACK

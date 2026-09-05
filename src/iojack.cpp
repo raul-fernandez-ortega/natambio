@@ -714,6 +714,23 @@ bool ioJack::naeTimeStatsAt(size_t index, struct na_time_stats *st, string *name
   return true;
 }
 
+bool ioJack::naeLateAt(size_t index, unsigned long long *total,
+                       unsigned long long *late, unsigned int *worst,
+                       string *name)
+{
+  if(index >= nae_channels.size())
+    return false;
+  if(total != NULL)
+    *total = nae_channels[index]->totalBlocks();
+  if(late != NULL)
+    *late = nae_channels[index]->lateBlocks();
+  if(worst != NULL)
+    *worst = nae_channels[index]->lateMax();
+  if(name != NULL)
+    *name = nae_channels[index]->getName();
+  return true;
+}
+
 /* Every timer at once, the callback's two and the engines'. They are cleared
    one after another rather than together -- there is no moment at which all of
    them stop -- so the first cycles after this may be counted by one timer and
@@ -727,8 +744,10 @@ void ioJack::resetTimeStats(void)
      themselves does not, and is the one figure in the report a reset leaves
      alone. */
   xrun_time.reset();
-  for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++)
+  for (vector<NAE*>::iterator nae_p = nae_channels.begin() ; nae_p != nae_channels.end(); nae_p++) {
     (*nae_p)->resetTimeStats();
+    (*nae_p)->resetLate();
+  }
 }
 
 vector<string> ioJack::inputPortNames(void)

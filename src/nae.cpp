@@ -73,6 +73,9 @@ NAE::NAE(string n_name, int n_mode)
   name = n_name;
   quiet = false;
   mode = n_mode;
+  late_blocks = 0;
+  late_total = 0;
+  late_max = 0;
   /* One step BELOW the priority JACK gives its client threads. The worker is
      asynchronous by design -- the callback signals it once a period and never
      waits for it -- so it has no business competing with the audio thread for
@@ -772,6 +775,25 @@ void NAE::thr_process(void)
 
     // wait to semaphore signal
     sem_wait(&semaphore);
+    /* The backlog, read where it means something: sem_wait() has just taken one
+       signal off the semaphore, so what is left is the number of periods that
+       went out while this thread was still working on an earlier one. Zero is
+       the healthy answer and the only one that leaves the output continuous.
+       sem_getvalue() on Linux is a plain load of the futex word -- no syscall,
+       nothing to block on, and safe to call from a thread that must not
+       block. */
+    int backlog = 0;
+    sem_getvalue(&semaphore, &backlog);
+    late_total.fetch_add(1, std::memory_order_relaxed);
+    if(backlog > 0) {
+      late_blocks.fetch_add(1, std::memory_order_relaxed);
+      unsigned int seen = (unsigned int)backlog;
+      unsigned int worst = late_max.load(std::memory_order_relaxed);
+      while(seen > worst &&
+            !late_max.compare_exchange_weak(worst, seen,
+                                            std::memory_order_relaxed))
+        ;
+    }
 
 #ifdef RTDEBUG
     std::cout << "NAE: processing " << name << std::endl;

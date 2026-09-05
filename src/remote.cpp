@@ -140,6 +140,15 @@ static std::string quote_name(const std::string& name)
    the empty quoted string, and a named one is quoted the moment it holds
    anything that would need quoting. */
 #define REMOTE_TIME_NO_NAME        "-"
+/* The engines' backlog table, last because it is the one that says whether the
+   times above were paid on time. An engine is signalled once a period and the
+   callback never waits for it, so being slow and being late are different
+   failures: the stage table measures the first and only this measures the
+   second. "late" counts the blocks that started with a period already gone,
+   "max_backlog" the worst that gap ever got, in blocks. Anything but zero here
+   means the output repeated a block, and a repeated block is heard. */
+#define REMOTE_TIME_LATE_HEADER    \
+  "#\tengine\tname\tblocks\tlate\tlate_pct\tmax_backlog\n"
 
 /* The numbers of one timer, in the order the stage header names them: the
    cycles timed, how many of them the figures cover, the mean, the deviation,
@@ -775,6 +784,15 @@ std::string Remote::cycleTimes(std::istringstream& is)
   for(size_t i = 0; naJack->naeTimeStatsAt(i, &st, &nae_name); i++)
     reply << "ok\tnae\t" << quote_name(nae_name) << "\t"
           << report_time_stats(st, period_us);
+
+  reply << REMOTE_TIME_LATE_HEADER;
+  unsigned long long blocks, late;
+  unsigned int worst;
+  for(size_t i = 0; naJack->naeLateAt(i, &blocks, &late, &worst, &nae_name); i++)
+    reply << "ok\tnae\t" << quote_name(nae_name) << "\t"
+          << blocks << "\t" << late << "\t"
+          << (blocks ? (100.0 * (double)late / (double)blocks) : 0.0) << "\t"
+          << worst << "\n";
 
   return reply.str();
 }

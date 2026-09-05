@@ -141,6 +141,20 @@ protected:
      does not wait for it, so a block that takes longer than a period is an
      engine falling behind rather than an xrun. */
   CycleTimer proc_time;
+  /* What proc_time cannot see: whether the block STARTED on time. The timer is
+     opened after sem_wait() returns, so an engine that runs a period late still
+     reports a short block -- the work is the same work, it is simply being done
+     for a period that has already gone out. The semaphore counts the signals
+     the worker has not consumed yet, so its value read straight after a wait is
+     the backlog in blocks: 0 when the engine is keeping up, and one more for
+     every period it is behind. It matters because falling behind is SILENT --
+     the callback reads whatever emitBlock() published last, so a late engine
+     repeats the previous block rather than reporting anything, and a repeated
+     block is a step in the output where the signal had none. Which is what a
+     click is. */
+  std::atomic<unsigned long long> late_blocks;
+  std::atomic<unsigned long long> late_total;
+  std::atomic<unsigned int> late_max;
   RunningSums covM;
   RunningSums icorrv;
   PCATrans pca;
@@ -266,6 +280,23 @@ public:
      reader of a running timer does (cycletime.hpp). */
   void timeStats(struct na_time_stats *st) { proc_time.stats(st); };
   void resetTimeStats(void) { proc_time.reset(); };
+  /* The backlog, for the same reader: how many blocks have been started late,
+     out of how many were started at all, and the worst backlog seen. Relaxed
+     loads -- three counters that are only ever read together to be printed, and
+     a report that catches one of them a block later than the others says the
+     same thing about an engine as one that does not. */
+  unsigned long long lateBlocks(void) const
+    { return late_blocks.load(std::memory_order_relaxed); };
+  unsigned long long totalBlocks(void) const
+    { return late_total.load(std::memory_order_relaxed); };
+  unsigned int lateMax(void) const
+    { return late_max.load(std::memory_order_relaxed); };
+  void resetLate(void)
+  {
+    late_blocks.store(0, std::memory_order_relaxed);
+    late_total.store(0, std::memory_order_relaxed);
+    late_max.store(0, std::memory_order_relaxed);
+  };
 
   /* Virtual so a subclass can build what it needs -- a filter bank, a set of
      FFTW plans -- before the thread exists, which is the only moment at which
