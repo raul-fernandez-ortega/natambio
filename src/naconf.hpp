@@ -34,6 +34,7 @@ using namespace std;
 
 void parse_error(const char msg[]);
 
+void parse_warning(const std::string& msg);
 void parse_error_exit(const char msg[]);
 
 class NaConf {
