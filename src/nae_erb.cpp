@@ -7,11 +7,6 @@
 
 #include "nae_erb.hpp"
 
-#if defined(__SSE2__)
-#include <xmmintrin.h>
-#include <pmmintrin.h>
-#endif
-
 /* ---------------------------------------------------------------------------
  * The ERB scale, and the bank built on it
  * ------------------------------------------------------------------------- */
@@ -298,16 +293,10 @@ void NaeErb::load(int abspri, int policy)
 
 void NaeErb::decompose(void)
 {
-#if defined(__SSE2__)
-  /* Denormals off, once per block and costing two instructions. The band masks
-     decay as the fourth power of the frequency distance, so the spectral
-     products underflow into denormals in anything quiet, and a denormal on this
-     path is not a rounding question but a stall of a hundred cycles. What it
-     costs in exactness is values below 1e-308. */
-  _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
-  _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
-#endif
-
+  /* Denormals are flushed process wide in main(), before any thread exists, so
+     that every thread inherits it -- including the convolver's, which is where
+     the cost of this engine's output actually landed. Doing it here protected
+     this thread and nobody else. */
   if(!erb_ready)
     return;
 

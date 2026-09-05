@@ -17,6 +17,10 @@ extern "C" {
 }
 
 #include <sys/mman.h>
+#if defined(__SSE2__)
+#include <xmmintrin.h>
+#include <pmmintrin.h>
+#endif
 
 #include "natambio.hpp"
 
@@ -44,6 +48,32 @@ int main(int argc,char *argv[])
     char *config_filename = NULL;
     bool quiet = false;
     int n;
+
+    /* DENORMALS OFF, FOR EVERY THREAD, and this has to be the first thing that
+       happens. The MXCSR is per thread and INHERITED across pthread_create, so
+       setting it here -- before jack_client_open makes the process thread,
+       before zita-convolver makes its workers, before the engines make theirs
+       -- is what puts every thread in the process on the same footing. Setting
+       it in one worker, as nae_erb.cpp did, protects that worker and nobody
+       else.
+ 
+       What it costs: values below about 1.2e-38 become zero. What it saves: an
+       arithmetic operation on a denormal takes upwards of a hundred cycles
+       instead of one, on the audio path.
+ 
+       This is not theoretical. Measured on panambio01, the same convolution
+       with the same filters cost 2.3 % of a core fed by the broadband engine
+       and 20.3 % -- peaking at 44 % -- fed by the per-band one, and a
+       convolution's cost does not depend on its input unless denormals are in
+       it. The source there is mono, so the broadband engine puts EXACTLY zero
+       into the ambience path and the per-band engine puts about 1e-17: not
+       zero, and small enough that the filter state decays into the denormal
+       range and stays there. Zero xruns in five minutes became something like
+       a hundred and seventy. */
+#if defined(__SSE2__)
+    _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
+    _MM_SET_DENORMALS_ZERO_MODE(_MM_DENORMALS_ZERO_ON);
+#endif
 
     /* LOCK THE MEMORY DOWN, before anything is allocated. Every thread that
        matters here is real time, and a real-time thread that takes a major page
