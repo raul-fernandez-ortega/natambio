@@ -96,9 +96,25 @@ Medido con `timecycle` contra jackd a 256 tramas, un engine alpha:
 | + anillo sumado antes y banco bin-major | 625 µs | 11.7 % | |
 | **+ `G2 = covsteps·I − G1`** | **469 µs** | **8.8 %** | |
 
-En panambio01, la versión de 625 µs medía 524 µs (9.8 % media, 12.3 % pico) con
-dos engines, alpha y beta; el pico es mucho mejor que en horace porque la
-máquina está más limpia. El sobrecoste sobre el NAE broadband es de **~11×**.
+### En panambio01, que es la máquina que suena
+
+Dos engines, alpha (front) y beta (rear), 256 tramas, 48 kHz:
+
+| | media | pico | desviación | carga |
+|---|---|---|---|---|
+| antes de `G2 = covsteps·I − G1` | 524.4 / 522.6 µs | 657.9 / 690.2 µs | 17.7 / 21.8 | 9.83 % |
+| **después** | **370.3 / 370.1 µs** | **459.6 / 476.1 µs** | 13.1 / 17.6 | **6.94 %** |
+
+Un 29 % en la media y un **31 % en el pico**, mejor que el 25 % medido en
+horace. Efecto no anticipado: **baja también la dispersión**, y el mínimo cae de
+488 a 341 µs. Menos transformadas es menos varianza, y contra los xruns eso vale
+tanto como bajar la media, porque el número que decide es el pico — que queda en
+el 8.9 % de un periodo.
+
+El callback no se mueve: 178 µs y 3.34 %, contra 181 µs y 3.40 % antes.
+
+El sobrecoste sobre el NAE broadband es de **~9×** (el 42.5 µs de referencia es
+de horace, así que la razón cruza máquinas y es aproximada).
 
 El pico es el número que provoca xruns, no la media.
 
