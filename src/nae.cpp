@@ -499,48 +499,24 @@ void NAE::signal(void)
   sem_post(&semaphore); 
 }
 
-void NAE::thr_process(void)
-{ 
-  double cov_matrix[2][2];
-  double eigvalues[2];
-  double eigvectors[2][2];
-  double c1_factor, c2_factor;
-  double sum_xy = 0;
-  double sum_x2 = 0;
-  double sum_y2 = 0;
-  double sum_x = 0;
-  double sum_y = 0;
+/* One period, in four steps. The split is what lets a second engine
+   (nae_erb.cpp) replace the decomposition and inherit everything else; the
+   contract between them is written out in nae.hpp. Nothing here was changed on
+   the way out of thr_process() except where the width weights are kept, which
+   moved from locals to members so that all four steps can see them.
+
+   One real change: the mutex now covers the write to the output buffers and
+   nothing else. It used to span the accumulation and the buffer shifts as well,
+   which fillOutputBuffer() has no interest in -- it reads left_out and its four
+   companions, and those are written in emitBlock() alone. */
+
+void NAE::prepareBlock(void)
+{
   double c_sum_xy = 0;
   double c_sum_x2 = 0;
   double c_sum_y2 = 0;
   double c_sum_x = 0;
   double c_sum_y = 0;
-  int norm_covsteps = covsteps + 1;
-  double c1_left;
-  double c1_right;
-  double c2_left;
-  double c2_right;
-  int N = (covsteps)*sample_count;
-
-  if(!quiet) {
-    std::cout << "NAE: running thread " << this->name << std::endl;
-    }  
-
-  while(run) {
-   
-    // wait to semaphore signal
-    sem_wait(&semaphore);
-
-#ifdef RTDEBUG
-    std::cout << "NAE: processing " << name << std::endl;
-#endif
-
-    /* From here to the end of the block is what this engine costs per period,
-       and the clock starts after the wait rather than before it: the time
-       spent blocked on the semaphore is the callback's period, not this
-       thread's work, and counting it would report a load of 100% on an engine
-       that is idle. */
-    proc_time.begin();
 
     /* The width across this block: the scalar slewed towards its target, and
        the matrix at each end of that move. Both loops below walk the same
@@ -549,19 +525,20 @@ void NAE::thr_process(void)
        interpolated between two matrices rather than recomputed per sample --
        a cosine a sample would buy an exactness that a 30 ms move between two
        neighbouring widths has no room to be wrong by. */
-    double ps0 = pan_scale_now;
-    double ps1 = slewGain(ps0, (double)pan_scale_target);
-    double pa0 = pan_a, pb0 = pan_b, pa1, pb1;
-    pan_weights(ps1, &pa1, &pb1);
-    double pa_step = (pa1 - pa0)/(double)sample_count;
-    double pb_step = (pb1 - pb0)/(double)sample_count;
-
-    // process input
-    covM.sum_xy_array[covsteps - 1] = 0;
-    covM.sum_x2_array[covsteps - 1] = 0;
-    covM.sum_y2_array[covsteps - 1] = 0;
-    covM.sum_x_array[covsteps - 1] = 0;
-    covM.sum_y_array[covsteps - 1] = 0;
+  double ps0 = pan_scale_now;
+  double ps1 = slewGain(ps0, (double)pan_scale_target);
+  double pa1, pb1;
+  pan_a_begin = pan_a;
+  pan_b_begin = pan_b;
+  pan_weights(ps1, &pa1, &pb1);
+  pan_a_step = (pa1 - pan_a_begin)/(double)sample_count;
+  pan_b_step = (pb1 - pan_b_begin)/(double)sample_count;
+  /* Where the block will leave the width. Committed here rather than at the end
+     because nothing between reads it: the loops walk from pan_a_begin by
+     pan_a_step and never look at pan_a again. */
+  pan_scale_now = ps1;
+  pan_a = pa1;
+  pan_b = pb1;
 
     if(mode) {
       // beta mode only
@@ -574,8 +551,8 @@ void NAE::thr_process(void)
       // Correlation, of the pair as the width control leaves it: <pan_scale>
       // acts before anything else looks at the signal, so the weighting this
       // correlation drives follows the width too.
-      double pa = pa0, pb = pb0;
-      for (int i = 0; i < sample_count; i++, pa += pa_step, pb += pb_step) {
+      double pa = pan_a_begin, pb = pan_b_begin;
+      for (int i = 0; i < sample_count; i++, pa += pan_a_step, pb += pan_b_step) {
         double l = pa*left_in[i] + pb*right_in[i];
         double r = pb*left_in[i] + pa*right_in[i];
         icorrv.sum_xy_array[ICORRL - 1] += l * r;
@@ -600,10 +577,31 @@ void NAE::thr_process(void)
     else {
       side_weight = 1.0;
     }
-    
-    double pa = pa0, pb = pb0;
+}
+
+void NAE::decompose(void)
+{
+  double cov_matrix[2][2];
+  double eigvalues[2];
+  double eigvectors[2][2];
+  double c1_factor, c2_factor;
+  double sum_xy = 0;
+  double sum_x2 = 0;
+  double sum_y2 = 0;
+  double sum_x = 0;
+  double sum_y = 0;
+  int N = (covsteps)*sample_count;
+
+    // process input
+    covM.sum_xy_array[covsteps - 1] = 0;
+    covM.sum_x2_array[covsteps - 1] = 0;
+    covM.sum_y2_array[covsteps - 1] = 0;
+    covM.sum_x_array[covsteps - 1] = 0;
+    covM.sum_y_array[covsteps - 1] = 0;
+
+    double pa = pan_a_begin, pb = pan_b_begin;
     for (int i = 0, j = (covsteps - 1) * sample_count; i < sample_count;
-         i++, j++, pa += pa_step, pb += pb_step) {
+         i++, j++, pa += pan_a_step, pb += pan_b_step) {
       // Width first, then the decomposition works on the pair as it leaves it.
       double l = pa*left_in[i] + pb*right_in[i];
       double r = pb*left_in[i] + pa*right_in[i];
@@ -637,17 +635,37 @@ void NAE::thr_process(void)
     // Eigenvalues and eigenvectors
     eigen_2x2_symmetric(cov_matrix[0][0], cov_matrix[1][0], cov_matrix[1][1], &eigvalues[0], &eigvalues[1], eigvectors[0], eigvectors[1]);
     
-    //Components
-    pthread_mutex_lock(&mutex);
-    
-    // Output: ambient
-    if(mode) {
+
+  if(mode) {
       // Beta ambient calculation
       for(int i = 0; i < covsteps * sample_count; i ++) {
         c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
         pca.c2_mid[i] += c2_factor * eigvectors[1][0];
         pca.c2_side[i] += c2_factor * eigvectors[1][1];
       }
+  } else {
+      // Alpha / Front main and ambient calculation
+      for(int i = 0; i < covsteps * sample_count; i ++) {
+        c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
+        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
+        pca.c1_mid[i] += c1_factor * eigvectors[0][0];
+        pca.c1_side[i] += c1_factor * eigvectors[0][1];
+        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
+        pca.c2_side[i] += c2_factor * eigvectors[1][1];
+      }
+  }
+}
+
+void NAE::emitBlock(void)
+{
+  int norm_covsteps = covsteps + 1;
+  double c1_left;
+  double c1_right;
+  double c2_left;
+  double c2_right;
+
+  pthread_mutex_lock(&mutex);
+  if(mode) {
       /* The rear gain across this block: where the last one left it, to where
          the slew takes it, interpolated sample by sample. A gain arriving from
          the remote manager is heard as a short fade this way; applied whole at
@@ -667,16 +685,7 @@ void NAE::thr_process(void)
         c2_right_out[i] = right_out[i];
       }
       gain_c2_rear = gr1;
-    } else {
-      // Alpha / Front main and ambient calculation
-      for(int i = 0; i < covsteps * sample_count; i ++) {
-        c1_factor =  eigvectors[0][0] * pca.mid_step[i] + eigvectors[0][1] * pca.side_step[i];
-        c2_factor = eigvectors[1][0] * pca.mid_step[i] + eigvectors[1][1] * pca.side_step[i];
-        pca.c1_mid[i] += c1_factor * eigvectors[0][0];
-        pca.c1_side[i] += c1_factor * eigvectors[0][1];
-        pca.c2_mid[i] += c2_factor * eigvectors[1][0];
-        pca.c2_side[i] += c2_factor * eigvectors[1][1];
-      }
+  } else {
       /* Both gains slewed across the block, each towards its own target and
          each on its own line: the two components are mixed back together here,
          and a step in either is a step in the sum. See the beta branch. */
@@ -702,13 +711,12 @@ void NAE::thr_process(void)
       }
       gain_c1 = g1_1;
       gain_c2 = g2_1;
-    }
-    
-    /* Where the block left the width, for the next one to start from. */
-    pan_scale_now = ps1;
-    pan_a = pa1;
-    pan_b = pb1;
+  }
+  pthread_mutex_unlock(&mutex);
+}
 
+void NAE::advanceBlock(void)
+{
     for(int i = 0, j = sample_count; i < sample_count *(covsteps - 1); i++, j++) {
       pca.c1_mid[i] = pca.c1_mid[j];
       pca.c1_side[i] = pca.c1_side[j];
@@ -741,20 +749,39 @@ void NAE::thr_process(void)
       icorrv.sum_x_array[i] = icorrv.sum_x_array[i + 1];
       icorrv.sum_y_array[i] = icorrv.sum_y_array[i + 1];
       }
-      c_sum_xy = 0;
-      c_sum_x2 = 0;
-      c_sum_y2 = 0;
-      c_sum_x = 0;
-      c_sum_y = 0;
     }
-    pthread_mutex_unlock(&mutex);
+}
+
+void NAE::thr_process(void)
+{
+  if(!quiet) {
+    std::cout << "NAE: running thread " << this->name << std::endl;
+  }
+
+  while(run) {
+
+    // wait to semaphore signal
+    sem_wait(&semaphore);
+
+#ifdef RTDEBUG
+    std::cout << "NAE: processing " << name << std::endl;
+#endif
+
+    /* From here to the end of the block is what this engine costs per period,
+       and the clock starts after the wait rather than before it: the time
+       spent blocked on the semaphore is the callback's period, not this
+       thread's work, and counting it would report a load of 100% on an engine
+       that is idle. */
+    proc_time.begin();
+
+    prepareBlock();
+    decompose();
+    emitBlock();
+    advanceBlock();
+
     proc_time.end();
   }
   if(!quiet) {
     std::cout << "NAE: stopping thread " << this->name << std::endl;
-  } 
+  }
 }
-
-
-
-

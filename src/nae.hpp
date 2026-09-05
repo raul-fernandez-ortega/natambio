@@ -74,7 +74,11 @@ int eigen_2x2_symmetric(double a, double b, double d,double* eig1, double* eig2,
 
 class NAE {
 
-private:
+  /* Protected rather than private: an engine that decomposes differently
+     (nae_erb.hpp) is a subclass, and it needs the buffers, the gains, the width
+     and the timer -- everything the block is made of except the decomposition
+     itself. */
+protected:
 
   string name;
   sem_t semaphore;
@@ -102,6 +106,14 @@ private:
   double pan_scale_now;
   double pan_a;        // same-channel weight of the width matrix
   double pan_b;        // opposite-channel weight of the width matrix
+  /* Where the width matrix starts this block and how much it moves per sample.
+     prepareBlock() computes them and commits pan_a/pan_b to where the block
+     ends, so a decomposition walks from *_begin by *_step and never has to know
+     how the slew was worked out. */
+  double pan_a_begin;
+  double pan_b_begin;
+  double pan_a_step;
+  double pan_b_step;
   int covsteps;
   int sample_rate;
   /* Where a gain change is heard as a fade rather than a step. The three
@@ -173,7 +185,11 @@ private:
 public:
   
   NAE(string n_name, int n_mode);
-  ~NAE(void);
+  /* Virtual because ioJack keeps vector<NAE*> and deletes through it: with a
+     derived engine in that vector, a non-virtual destructor would run only the
+     base's and leave the derived part -- FFTW plans and all -- unfreed, which
+     is undefined behaviour and not merely a leak. */
+  virtual ~NAE(void);
 
   void setQuiet(void) { quiet = true; };
   string getName(void) { return name; };
@@ -231,7 +247,31 @@ public:
   void load(int abspri, int policy);
   void signal(void);
   void thr_process(void);
-  
+
+protected:
+
+  /* One period, in four steps, in this order and no other.
+   *
+   * prepareBlock()  the width across the block and, in beta, the correlation
+   *                 that sets side_weight. Both engines want exactly this, so
+   *                 it is not virtual.
+   * decompose()     VIRTUAL, and the only thing that differs between engines:
+   *                 take the period that has just arrived, estimate whatever
+   *                 axis the engine estimates, and leave the components of the
+   *                 frame about to be emitted in pca.c1_mid / c1_side / c2_mid
+   *                 / c2_side over [0, sample_count), UNNORMALISED -- the
+   *                 division by covsteps+1 belongs to the step below.
+   * emitBlock()     the gains, slewed, and the write to the output buffers
+   *                 under the mutex. Identical in both engines.
+   * advanceBlock()  VIRTUAL: the engine's own buffers, shifted on by a frame.
+   *                 It runs AFTER emitBlock() because emitBlock() reads the
+   *                 frame this is about to shift out from under it.
+   */
+  void prepareBlock(void);
+  virtual void decompose(void);
+  void emitBlock(void);
+  virtual void advanceBlock(void);
+
 };
 
 #endif
