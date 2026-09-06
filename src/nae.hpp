@@ -278,6 +278,15 @@ public:
   /* The per-block times, for the remote manager: read from its thread, never
      from the worker's, and racing with the worker no more than any other
      reader of a running timer does (cycletime.hpp). */
+  /* Whether this engine has a principal component to hand out in beta mode.
+     The broadband engine does not: its decompose() takes the beta branch and
+     accumulates the second axis alone, C1 being work nobody had asked for.
+     The ERB engine always has it -- it computes C1 and gets the ambience by
+     subtracting it -- so there the tap costs nothing but the store. An engine
+     that answers false leaves the C1 buffers as calloc left them, which is
+     silence, and natambio.cpp says so at load time rather than let a
+     configuration connect a port that will never carry anything. */
+  virtual bool c1InBeta(void) const { return false; };
   void timeStats(struct na_time_stats *st) { proc_time.stats(st); };
   void resetTimeStats(void) { proc_time.reset(); };
   /* The backlog, for the same reader: how many blocks have been started late,

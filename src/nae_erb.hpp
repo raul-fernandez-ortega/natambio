@@ -177,6 +177,10 @@ public:
   ~NaeErb(void);
 
   const char *engineTag(void) { return "nae_erb"; };
+  /* C1 exists in both modes here. The ambience is what is left of the input
+     after the principal component is removed, so C1 is computed before C2 is,
+     beta included, and the tap costs nothing beyond the store. */
+  bool c1InBeta(void) const { return true; };
   void setCovWindowMs(double ms);
   void setDeltaErb(double d);
   void setBandMinHz(double hz);

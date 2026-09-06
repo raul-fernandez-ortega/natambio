@@ -788,6 +788,7 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
      hands back the whitespace between two tags as a node of its own, and it is
      no more a misspelt parameter than the indentation is. */
   std::vector<std::string> unknown;
+  std::vector<std::string> deprecated;
 
   while (xmlnode != NULL) {
     if (xmlnode->type != XML_ELEMENT_NODE) {
@@ -823,10 +824,21 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
       nae->left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"output_right")) {
       nae->right_out = (char*)cnt;
+    } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"main_output_left")) {
+      nae->c1_left_out = (char*)cnt;
+    } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"main_output_right")) {
+      nae->c1_right_out = (char*)cnt;
+    /* The name these two had until the tap was worth connecting. "front" named
+       where the component usually goes rather than what it is, and in beta it
+       does not go to the front at all -- the ambience does. Still read, because
+       a configuration in service must not lose an output to a rename, and said
+       out loud so it does not stay read forever. */
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_output_left")) {
       nae->c1_left_out = (char*)cnt;
+      deprecated.push_back("front_output_left");
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"front_output_right")) {
       nae->c1_right_out = (char*)cnt;
+      deprecated.push_back("front_output_right");
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_left")) {
       nae->c2_left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_right")) {
@@ -841,6 +853,13 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
      not fail: it leaves the default in place and the engine runs a window the
      configuration never asked for, with the latency that goes with it. There
      is nothing downstream that can notice. */
+  for(size_t u = 0; u < deprecated.size(); u++)
+    parse_warning("<" + std::string(erb ? "nae_erb" : "nae") + "> " +
+                  (nae->name.empty() ? std::string("(unnamed)") : nae->name) +
+                  ": <" + deprecated[u] + "> is the old name for <" +
+                  (deprecated[u] == "front_output_left" ? "main_output_left"
+                                                        : "main_output_right") +
+                  ">, still read but due to go");
   for(size_t u = 0; u < unknown.size(); u++)
     parse_warning("<" + std::string(erb ? "nae_erb" : "nae") + "> " +
                   (nae->name.empty() ? std::string("(unnamed)") : nae->name) +
@@ -895,6 +914,16 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
     }
   } else if(mode == "beta") {
     nae->mode = 1;
+    /* <front_gain> is optional here and unity when it is absent, where alpha
+       refuses to start without it. Beta's main pair carries the ambience and
+       takes <rear_gain>; the principal component only reaches the optional
+       <front_output_*> tap, so a gain for it is a trim on an output that may
+       not even be connected, not a parameter of the process. Unity and not
+       zero because zero is silence, and a tap that is silent because a gain
+       nobody wrote defaulted to nothing is the failure this parser spent the
+       afternoon learning not to repeat. */
+    if(nae->gain_c1 == 0)
+      nae->gain_c1 = 1.0;
     if(nae->gain_c2_rear == 0) {
       parse_error("Error: nae beta mode rear_gain not defined.");
       delete nae;

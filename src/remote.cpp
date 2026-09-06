@@ -643,8 +643,8 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
   xml_line(out, "input_right", cfg.input_right);
   xml_line(out, "output_left", cfg.output_left);
   xml_line(out, "output_right", cfg.output_right);
-  xml_line(out, "front_output_left", cfg.front_output_left);
-  xml_line(out, "front_output_right", cfg.front_output_right);
+  xml_line(out, "main_output_left", cfg.front_output_left);
+  xml_line(out, "main_output_right", cfg.front_output_right);
   xml_line(out, "amb_output_left", cfg.amb_output_left);
   xml_line(out, "amb_output_right", cfg.amb_output_right);
   out << "</" << tag << ">\n";

@@ -462,6 +462,14 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     n_nae_p->setChannelOut(LEFT, n_nae->left_out);
   if(!n_nae->right_out.empty())
     n_nae_p->setChannelOut(RIGHT, n_nae->right_out);
+  /* A beta engine that cannot produce C1 would connect these to silence. Said
+     here rather than left to be discovered downstream: the port appears, the
+     graph connects, and nothing ever comes out of it. */
+  if((!n_nae->c1_left_out.empty() || !n_nae->c1_right_out.empty()) &&
+     n_nae->mode == 1 && !n_nae_p->c1InBeta())
+    parse_warning("<" + std::string(n_nae_p->engineTag()) + "> " + n_nae->name +
+                  ": beta mode has no principal component in this engine, so "
+                  "<main_output_left>/<main_output_right> will carry silence");
   if(!n_nae->c1_left_out.empty())
     n_nae_p->setChannelOut(C1_LEFT, n_nae->c1_left_out);
   if(!n_nae->c1_right_out.empty())
