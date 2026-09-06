@@ -14,6 +14,7 @@ ConvChannel::ConvChannel(Convproc* n_convproc, unsigned int n_ptsize, string n_n
   index(n_index),
   ptsize(n_ptsize),
   delay(0),
+  coeff_delay(0),
   scale(1),
   convproc(n_convproc),
   outbuf(NULL),
