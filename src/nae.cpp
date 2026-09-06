@@ -687,15 +687,34 @@ void NAE::emitBlock(void)
       double gr1 = slewGain(gr0, (double)gain_c2_rear_target);
       double gr_step = (gr1 - gr0)/(double)sample_count;
       double gr = gr0;
-      for(int  i = 0; i < sample_count; i++, gr += gr_step) {
+      /* The C1 tap, for an engine that has a principal component in this mode.
+         The main pair carries the ambience alone -- that is what beta is -- so
+         C1 goes to <front_output_left>/<front_output_right> and nowhere else,
+         on its own gain and its own slew, exactly as alpha does it. Hoisted
+         out of the loop because it is a virtual call and the answer cannot
+         change between two samples. */
+      const bool emit_c1 = c1InBeta();
+      double g1_0 = gain_c1;
+      double g1_1 = emit_c1 ? slewGain(g1_0, (double)gain_c1_target) : g1_0;
+      double g1_step = (g1_1 - g1_0)/(double)sample_count;
+      double g1 = g1_0;
+      for(int  i = 0; i < sample_count; i++, gr += gr_step, g1 += g1_step) {
         c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
         c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
         l_out[i]  = gr*c2_left;
         r_out[i] = gr*c2_right;
         c2l[i] = l_out[i];
         c2r[i] = r_out[i];
+        if(emit_c1) {
+          c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
+          c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
+          c1l[i] = g1*c1_left;
+          c1r[i] = g1*c1_right;
+        }
       }
       gain_c2_rear = gr1;
+      if(emit_c1)
+        gain_c1 = g1_1;
   } else {
       /* Both gains slewed across the block, each towards its own target and
          each on its own line: the two components are mixed back together here,
