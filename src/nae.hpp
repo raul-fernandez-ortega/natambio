@@ -265,6 +265,14 @@ public:
      number is what the file holds. */
   double getPanScale(void) { return pan_scale; };
   int getCovStepsLength(void) { return covsteps; };
+  /* What the engine costs in latency, in frames: the reconstruction window,
+     which is covsteps periods long, because a block cannot be emitted until the
+     overlap-add that spans it has finished. The ANALYSIS window costs nothing
+     at all -- it looks backwards, over samples already played -- so widening
+     <cov_window_ms> does not move this number and <steps_length> is the only
+     tag that does. Virtual because an engine that reconstructed differently
+     would answer differently; neither of the two here does. */
+  virtual int latency(void) const { return covsteps * sample_count; };
   void setSampleCount(int n_sample_count);
   /* For the gain ramp; JACK's rate, taken once the client is open. */
   void setSampleRate(int n_sample_rate);

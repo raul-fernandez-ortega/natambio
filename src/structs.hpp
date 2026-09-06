@@ -104,6 +104,20 @@ struct coeff {
   float *coeffs;
   SF_INFO snfinfo;
   vector<string> convol_coeffs;  // names of <convol_coeff> coeffs to convolve to build this one
+  /* Samples of pure shift that the response was DESIGNED around, as opposed to
+     the group delay every filter has. The difference matters because this one
+     is latency and can be declared to JACK as such, and a group delay is a
+     property of the response that varies with frequency and cannot.
+
+     Only the XTC pair carries one: its fractional-delay design has a two-sided
+     impulse response and xtc_model_delay() moves BOTH filters forward so that
+     nothing is clipped at n = 0. XTC depends only on the delay between the two,
+     so a shift common to both costs latency and nothing else. The crossover and
+     the loudness filter are generated in minimum phase and carry none.
+
+     A coeff built by chaining others carries the sum of theirs: convolving two
+     responses adds their delays. */
+  int bulk_delay;
 };
 
 // One speaker's parameters in an asymmetric <xtc_asym> block: exactly the four

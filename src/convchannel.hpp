@@ -64,6 +64,7 @@ private:
   int index;
   unsigned int ptsize;
   int delay;
+  int coeff_delay;
   float scale;
   Convproc *convproc;
   float* outbuf;
@@ -83,6 +84,13 @@ public:
   void set_bypass(bool bps) { bypass = bps; }; 
   void set_delay(int dl);
   int get_delay(void) { return delay; };
+  /* The bulk delay the COEFFICIENTS carry, kept apart from delay, which is what
+     the configuration asked for with <delay>. The convolution uses neither --
+     the first is already inside the response and the second is applied to the
+     output -- but both are latency, which is what the latency callback needs.
+     See struct coeff::bulk_delay. */
+  void set_coeff_delay(int dl) { coeff_delay = dl; };
+  int get_coeff_delay(void) { return coeff_delay; };
   void set_scale(float n_scale) { scale = n_scale; };
   float get_scale(void) { return scale; };
   int get_index(void) { return index; };
@@ -91,6 +99,9 @@ public:
   vector<struct iobuffer*> get_jack_inp(void) { return jack_inp; };
   vector<struct iobuffer*> get_jack_out(void) { return jack_out; };
   vector<struct nae_channel*> get_o_nae_inp(void) { return o_nae_inp; };
+  /* The other channels feeding this one, for whoever has to walk the routing
+     backwards -- which is the latency callback and nothing else so far. */
+  vector<ConvChannel*> get_o_conv_inp(void) { return o_conv_inp; };
   void addInputBuffer(string port_name);
   void addOutputBuffer(string port_name);
   void addBypassBuffer(int size);

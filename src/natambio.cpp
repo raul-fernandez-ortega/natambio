@@ -154,11 +154,13 @@ bool NatAmbio::startConvProc(void)
     }
     for(std::vector<struct convol*>::iterator cv = naConf->convollist.begin(); cv != naConf->convollist.end(); ++cv) {
       found = false;
+      int n_bulk = 0;
       for(std::vector<struct coeff*>::iterator cf = naConf->coefslist.begin(); cf != naConf->coefslist.end(); ++cf) {
         if((*cf)->name == (*cv)->coeff_name) {
           found = true;
           n_coeff = (*cf)->coeffs;
           n_length = (*cf)->length;
+          n_bulk = (*cf)->bulk_delay;
           // Sample-rate coherence is already enforced in NaConf (WAVs checked on
           // load, generated coeffs created at the JACK rate), so no check here.
           if(!quiet)
@@ -189,6 +191,7 @@ bool NatAmbio::startConvProc(void)
       ConvChannel *newchannel = new ConvChannel(convproc, part, (*cv)->name, (*cv)->index, quiet);
       newchannel->set_name((*cv)->name);
       newchannel->set_delay((*cv)->delay);
+      newchannel->set_coeff_delay(n_bulk);
       newchannel->set_scale((*cv)->scale);
       if((*cv)->coeff_name == "delta") {
         newchannel->set_bypass(true);

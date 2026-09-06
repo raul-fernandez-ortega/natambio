@@ -71,13 +71,218 @@ void ioJack::latency_callback(jack_latency_callback_mode_t mode, void *arg)
   CallbackJackObject->na_latency_callback(mode);
 }
 
+/* JACK's latency model in two sentences, because none of what follows reads
+   right without them. CAPTURE latency is how long ago the sample now in a
+   buffer entered the machine; it grows as the signal moves forward, and a
+   client answers it on its OUTPUT ports from what its inputs report. PLAYBACK
+   latency is how long a sample written now will take to get out; it grows
+   backwards, and a client answers it on its INPUT ports from what its outputs
+   report. JACK asks for one mode at a time, whenever the graph changes.
+
+   What natambio adds is not one number. Every engine delays by its
+   reconstruction window, every convolver by its <delay>, and the XTC filters by
+   the bulk shift their design carries -- and a signal arriving at
+   front_output_left has been through a different set of those than one arriving
+   at sub_output_right. That is what a min/max range is for, and it is why this
+   walks the routing instead of declaring a constant to every port, which is
+   what it used to do.
+
+   What is deliberately NOT declared is the group delay of a filter. The
+   crossover, the DRC and the loudness filters are responses: their delay varies
+   with frequency, JACK's model has no way to say that, and a convolution host
+   that pretended otherwise would be reporting one frequency's answer for all of
+   them. The XTC model delay is a different kind of thing -- a constant shift
+   applied equally to both filters of the pair, there so the two-sided design is
+   not clipped at n = 0 -- which is why struct coeff carries it separately from
+   the response and why it is counted here.
+
+   This runs in the manager thread and never in the RT callback, so it is free
+   to walk vectors and to recurse. */
+
+/* Fold one contributor into a range: the first one seen sets it, and after that
+   the range widens to hold both. Several paths arriving at one port with
+   different delays is the normal case here, not something to be averaged away
+   -- the range is how that gets said. */
+static void la_merge(jack_latency_range_t *acc, const jack_latency_range_t *one, bool *any)
+{
+  if(!*any) {
+    *acc = *one;
+    *any = true;
+    return;
+  }
+  if(one->min < acc->min) acc->min = one->min;
+  if(one->max > acc->max) acc->max = one->max;
+}
+
+/* A node's own delay, added to both ends: it lengthens every path through the
+   node by the same amount and so shifts the range rather than widening it. */
+static void la_add(jack_latency_range_t *range, int frames)
+{
+  if(frames <= 0)
+    return;
+  range->min += (jack_nframes_t)frames;
+  range->max += (jack_nframes_t)frames;
+}
+
+/* Convolvers feeding convolvers go a handful of links deep. The limit is here
+   so that a configuration that somehow closed a loop stops instead of recursing
+   until the stack is gone. */
+#define NA_LATENCY_MAX_DEPTH 32
+
+void ioJack::naeCaptureLatency(NAE *n_nae, jack_latency_range_t *range)
+{
+  bool any = false;
+  range->min = range->max = 0;
+
+  for(vector<struct jack_port*>::iterator p = jack_inputs.begin(); p != jack_inputs.end(); ++p)
+    for(vector<struct nae_channel*>::iterator nc = (*p)->nae_channels.begin();
+        nc != (*p)->nae_channels.end(); ++nc)
+      if((*nc)->n_nae == n_nae) {
+        jack_latency_range_t one;
+        jack_port_get_latency_range((*p)->port, JackCaptureLatency, &one);
+        la_merge(range, &one, &any);
+      }
+
+  la_add(range, n_nae->latency());
+}
+
+void ioJack::convCaptureLatency(ConvChannel *channel, jack_latency_range_t *range, int depth)
+{
+  bool any = false;
+  range->min = range->max = 0;
+
+  vector<struct iobuffer*> ins = channel->get_jack_inp();
+  for(vector<struct iobuffer*>::iterator b = ins.begin(); b != ins.end(); ++b) {
+    struct jack_port *p = findPort((*b)->port_name);
+    if(p == NULL)
+      continue;
+    jack_latency_range_t one;
+    jack_port_get_latency_range(p->port, JackCaptureLatency, &one);
+    la_merge(range, &one, &any);
+  }
+
+  vector<struct nae_channel*> naes = channel->get_o_nae_inp();
+  for(vector<struct nae_channel*>::iterator nc = naes.begin(); nc != naes.end(); ++nc) {
+    jack_latency_range_t one;
+    naeCaptureLatency((*nc)->n_nae, &one);
+    la_merge(range, &one, &any);
+  }
+
+  if(depth < NA_LATENCY_MAX_DEPTH) {
+    vector<ConvChannel*> ups = channel->get_o_conv_inp();
+    for(vector<ConvChannel*>::iterator u = ups.begin(); u != ups.end(); ++u) {
+      jack_latency_range_t one;
+      convCaptureLatency(*u, &one, depth + 1);
+      la_merge(range, &one, &any);
+    }
+  }
+
+  la_add(range, channel->get_delay() + channel->get_coeff_delay());
+}
+
+void ioJack::convPlaybackLatency(ConvChannel *channel, jack_latency_range_t *range, int depth)
+{
+  bool any = false;
+  range->min = range->max = 0;
+
+  vector<struct iobuffer*> outs = channel->get_jack_out();
+  for(vector<struct iobuffer*>::iterator b = outs.begin(); b != outs.end(); ++b) {
+    struct jack_port *p = findPort((*b)->port_name);
+    if(p == NULL)
+      continue;
+    jack_latency_range_t one;
+    jack_port_get_latency_range(p->port, JackPlaybackLatency, &one);
+    la_merge(range, &one, &any);
+  }
+
+  /* The channels this one feeds. The routing is stored the other way round --
+     a channel knows its sources, not its sinks -- so the edge is found by
+     asking every channel whether this one is among its sources. There are tens
+     of channels, this runs when the graph changes and not per period, and the
+     alternative is a second list to be kept in step with the first. */
+  if(depth < NA_LATENCY_MAX_DEPTH)
+    for(vector<ConvChannel*>::iterator d = conv_channels.begin(); d != conv_channels.end(); ++d) {
+      vector<ConvChannel*> ups = (*d)->get_o_conv_inp();
+      for(vector<ConvChannel*>::iterator u = ups.begin(); u != ups.end(); ++u)
+        if(*u == channel) {
+          jack_latency_range_t one;
+          convPlaybackLatency(*d, &one, depth + 1);
+          la_merge(range, &one, &any);
+          break;
+        }
+    }
+
+  la_add(range, channel->get_delay() + channel->get_coeff_delay());
+}
+
+void ioJack::naePlaybackLatency(NAE *n_nae, jack_latency_range_t *range)
+{
+  bool any = false;
+  range->min = range->max = 0;
+
+  for(vector<struct jack_port*>::iterator p = jack_outputs.begin(); p != jack_outputs.end(); ++p)
+    for(vector<struct nae_channel*>::iterator nc = (*p)->nae_channels.begin();
+        nc != (*p)->nae_channels.end(); ++nc)
+      if((*nc)->n_nae == n_nae) {
+        jack_latency_range_t one;
+        jack_port_get_latency_range((*p)->port, JackPlaybackLatency, &one);
+        la_merge(range, &one, &any);
+      }
+
+  for(vector<ConvChannel*>::iterator c = conv_channels.begin(); c != conv_channels.end(); ++c) {
+    vector<struct nae_channel*> naes = (*c)->get_o_nae_inp();
+    for(vector<struct nae_channel*>::iterator nc = naes.begin(); nc != naes.end(); ++nc)
+      if((*nc)->n_nae == n_nae) {
+        jack_latency_range_t one;
+        convPlaybackLatency(*c, &one, 0);
+        la_merge(range, &one, &any);
+        break;
+      }
+  }
+
+  la_add(range, n_nae->latency());
+}
+
 void ioJack::na_latency_callback(jack_latency_callback_mode_t mode)
-{ 
-  // same latency for all ports, regardless of how they are connected
-  if (mode == JackPlaybackLatency) {
-    // do nothing
-  } else if (mode == JackCaptureLatency) {
-    // to do
+{
+  if(mode == JackCaptureLatency) {
+    /* Answered on the OUTPUT ports: how old is what leaves here. */
+    for(vector<struct jack_port*>::iterator q = jack_outputs.begin(); q != jack_outputs.end(); ++q) {
+      jack_latency_range_t range, one;
+      bool any = false;
+      range.min = range.max = 0;
+
+      for(vector<ConvChannel*>::iterator c = (*q)->channels.begin(); c != (*q)->channels.end(); ++c) {
+        convCaptureLatency(*c, &one, 0);
+        la_merge(&range, &one, &any);
+      }
+      for(vector<struct nae_channel*>::iterator nc = (*q)->nae_channels.begin();
+          nc != (*q)->nae_channels.end(); ++nc) {
+        naeCaptureLatency((*nc)->n_nae, &one);
+        la_merge(&range, &one, &any);
+      }
+      /* A port nothing reaches keeps the zero it was given: it adds no delay
+         because no signal goes through it. */
+      jack_port_set_latency_range((*q)->port, JackCaptureLatency, &range);
+    }
+  } else if(mode == JackPlaybackLatency) {
+    /* Answered on the INPUT ports: how long until what arrives here gets out. */
+    for(vector<struct jack_port*>::iterator p = jack_inputs.begin(); p != jack_inputs.end(); ++p) {
+      jack_latency_range_t range, one;
+      bool any = false;
+      range.min = range.max = 0;
+
+      for(vector<ConvChannel*>::iterator c = (*p)->channels.begin(); c != (*p)->channels.end(); ++c) {
+        convPlaybackLatency(*c, &one, 0);
+        la_merge(&range, &one, &any);
+      }
+      for(vector<struct nae_channel*>::iterator nc = (*p)->nae_channels.begin();
+          nc != (*p)->nae_channels.end(); ++nc) {
+        naePlaybackLatency((*nc)->n_nae, &one);
+        la_merge(&range, &one, &any);
+      }
+      jack_port_set_latency_range((*p)->port, JackPlaybackLatency, &range);
+    }
   }
 }
 
@@ -481,6 +686,10 @@ bool ioJack::global_init(void)
   }
   policy = SCHED_RR;
   jack_set_xrun_callback(jackclient, ioJack::xrun_callback, this);
+  /* Without this JACK never asks, and every port of this client reports the
+     driver's latency and nothing of natambio's own -- which is what it did
+     until now, the callback having been written and never handed over. */
+  jack_set_latency_callback(jackclient, ioJack::latency_callback, this);
   jack_set_process_callback(jackclient, ioJack::jack_process_callback, this);
   jack_on_shutdown(jackclient, ioJack::jack_shutdown_callback, this);
   

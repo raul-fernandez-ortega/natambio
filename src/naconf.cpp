@@ -114,6 +114,7 @@ struct coeff* NaConf::parse_coeff(xmlNodePtr xmlnode)
   coeff->length = 0;
   coeff->scale = 1;
   coeff->coeffs = NULL;
+  coeff->bulk_delay = 0;
   coeff->convol_coeffs.clear();
   bool length_defined = false;
 
@@ -1232,6 +1233,7 @@ static struct coeff* make_mem_coeff(string name, const double *data, int len, in
   c->skip     = 0;
   c->length   = len;
   c->scale    = 1;
+  c->bulk_delay = 0;
   c->convol_coeffs.clear();
   memset(&c->snfinfo, 0, sizeof(c->snfinfo));
   c->snfinfo.samplerate = samplerate;
@@ -1341,6 +1343,11 @@ bool NaConf::build_xtc_coeffs(void)
     for (size_t i = 0; i < n; i++) {
       made[i] = make_mem_coeff(names[i], buf[i], r->filter_len, jack_sample_rate);
       if (made[i] == NULL) coeff_failed = true;
+      /* The bulk delay process() was just asked for, recorded so that the
+         latency callback can declare it. It is the same number for the direct
+         and the cross filters, which is exactly why it is latency and not part
+         of the cancellation. */
+      else made[i]->bulk_delay = xtc_model_delay(jack_sample_rate);
     }
     for (size_t i = 0; i < n; i++) free(buf[i]);
     if (coeff_failed) {
@@ -1652,6 +1659,11 @@ bool NaConf::build_convol_coeffs(void)
     for (int i = copy_len; i < target_len; i++)
       dst->coeffs[i] = 0.0f;
     dst->length = target_len;
+    /* Convolving responses adds their delays, so a chain carries the sum. In
+       practice one link at most has any: the XTC pair. */
+    dst->bulk_delay = 0;
+    for (size_t s = 0; s < sources.size(); s++)
+      dst->bulk_delay += sources[s]->bulk_delay;
     dst->snfinfo.samplerate = src_samplerate;  // inherit the sources' sample rate
     free(acc);
 

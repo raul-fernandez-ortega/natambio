@@ -169,6 +169,16 @@ private:
   struct jack_port *findPort(string port_name);
   NAE *findNae(string nae_name);
 
+  /* The latency callback walking natambio's own routing, one node kind at a
+     time. The capture pair answers "how old is what leaves here", following the
+     signal forwards from the input ports; the playback pair answers "how long
+     until what enters here leaves the machine", following it backwards from the
+     output ports. depth only stops a configuration that closed a loop. */
+  void naeCaptureLatency(NAE *n_nae, jack_latency_range_t *range);
+  void convCaptureLatency(ConvChannel *channel, jack_latency_range_t *range, int depth);
+  void naePlaybackLatency(NAE *n_nae, jack_latency_range_t *range);
+  void convPlaybackLatency(ConvChannel *channel, jack_latency_range_t *range, int depth);
+
   /* One period of slew towards a port's gain target: at most ramp_inc per
      sample, the rate the start/stop fade already uses, so a change lands in a
      few tens of milliseconds and no faster than the ear forgives. Returns
