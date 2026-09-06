@@ -168,6 +168,13 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
   }
 
   sf_close(in);
+  /* What the block cost the engine, from its own timer: the wall clock here
+     is the settle delay and says nothing about the DSP. */
+  struct na_time_stats st;
+  engine->timeStats(&st);
+  printf("nae_bench: block %.2f us mean, %.2f max, over %llu blocks\n",
+         st.mean_us, st.max_us, (unsigned long long)st.cycles);
+
   delete engine;
   return true;
 }

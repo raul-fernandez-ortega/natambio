@@ -162,6 +162,28 @@ private:
   double *ring1;                /* covsteps * 3 * n_bands, P1 only */
   double *sum1;                 /* 3 * n_bands, the ring summed */
   int ring_pos;
+  /* The direct path for a mono source, and how many blocks in a row have taken
+     it. A mono source is not approximated here, it is solved: side is zero
+     sample for sample, every band's covariance is [[Smm,0],[0,0]], and the
+     principal projector is exactly [[1,0],[0,0]] -- measured, on this engine,
+     over every band of every block of a mono file. So the band loops and the
+     eigen solve can be replaced by writing that constant into the ring, with
+     no error at all.
+
+     The counter is what makes the transitions free. Once covsteps mono blocks
+     have been written the WHOLE ring holds that projector, the pointwise
+     weights being a partition of unity make G1 = covsteps * [[1,0],[0,0]], and
+     multiplying a spectrum by a constant is not a convolution: C1 is covsteps
+     copies of the history and C2 is zero, exactly, without a single transform.
+     Below covsteps the ring is mixed and the synthesis has to run for real --
+     only the analysis is skipped. Nothing is saved and restored across a jump
+     to stereo and back: the ring IS the state, and it stays exact because what
+     the fast path writes into it is what the slow path would have.
+
+     No configuration for it. It is not a choice between two behaviours -- the
+     output is the same either way, to the bit -- so there would be nothing for
+     a tag to decide. */
+  int mono_run;
 
   bool erb_ready;
 

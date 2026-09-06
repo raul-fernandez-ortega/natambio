@@ -52,6 +52,7 @@ NaeErb::NaeErb(string n_name, int n_mode) : NAE(n_name, n_mode)
   r_mm = r_ss = r_ms = NULL;
   ring1 = sum1 = NULL;
   ring_pos = 0;
+  mono_run = 0;
   erb_ready = false;
   for(int i = 0; i < 2; i++) {
     plan_inv[i] = NULL;
@@ -257,6 +258,7 @@ void NaeErb::load(int abspri, int policy)
   ring1 = (double*) calloc((size_t)covsteps * 3 * n_bands, sizeof(double));
   sum1 = (double*) calloc((size_t)3 * n_bands, sizeof(double));
   ring_pos = 0;
+  mono_run = 0;
 
   /* FFTW_MEASURE would time several algorithms and pick the fastest, which
      costs seconds here and buys a few microseconds a period. FFTW_ESTIMATE
@@ -308,62 +310,124 @@ void NaeErb::decompose(void)
      written with, which is what nae.cpp does and what the off-line reference
      was made to mirror. */
   double pa = pan_a_begin, pb = pan_b_begin;
+  /* Whether this frame's side is zero, tested exactly and not against a
+     threshold. A mono stream arrives with L == R bit for bit, the width mixes
+     it as pa*x + pb*x against pb*x + pa*x -- equal, IEEE addition being
+     commutative -- and the difference is exactly zero. A threshold in dB would
+     be an estimate instead, and would eventually cut real ambience out of
+     correlated material with a step where it decided; this cannot misfire. */
+  bool frame_mono = true;
   for(int i = 0; i < sample_count; i++, pa += pan_a_step, pb += pan_b_step) {
     double l = pa * left_in[i] + pb * right_in[i];
     double r = pb * left_in[i] + pa * right_in[i];
+    double sd = side_weight * (l - r);
     mid_hist[last + i] = l + r;
-    side_hist[last + i] = side_weight * (l - r);
+    side_hist[last + i] = sd;
+    if(sd != 0.0)
+      frame_mono = false;
+  }
+  /* Two depths, and they are not the same number. A ring SLOT is the projector
+     of a whole analysis window, so it is the mono one only once the last
+     n_cov/sample_count frames have all been mono -- a frame arriving mono into
+     a window that still holds the side of what came before is not a mono
+     window, and that was worth 0.038 of full scale when this counted frames
+     instead. The DIRECT path needs every one of the covsteps slots to be that
+     projector, so it needs the oldest of them to be mono too: covsteps - 1
+     frames further back. */
+  const int win_frames = n_cov / sample_count;
+  const int mono_slot = win_frames;
+  const int mono_ring = win_frames + covsteps - 1;
+  if(frame_mono) {
+    if(mono_run < mono_ring)
+      mono_run++;
+  } else {
+    mono_run = 0;
+  }
+
+  double *slot1 = ring1 + (size_t)ring_pos * 3 * n_bands;
+  const double cs_ring = (double)covsteps;
+
+  /* The whole ring is mono, so G1 is covsteps times the identity on mid and
+     nothing else, and there is no transform to do: C1 is the history and C2 is
+     zero. Exact, not an approximation -- and it is the case that used to cost
+     the most, because a mono C2 was the rounding of a subtraction and that is
+     what the convolver could not afford. */
+  if(mono_run >= mono_ring) {
+    for(int b = 0; b < n_bands; b++) {
+      slot1[b] = 1.0;
+      slot1[n_bands + b] = 0.0;
+      slot1[2 * n_bands + b] = 0.0;
+    }
+    for(int i = 0; i < sample_count; i++) {
+      pca.c1_mid[i] = cs_ring * mid_hist[syn_offset + i];
+      pca.c1_side[i] = 0.0;
+      pca.c2_mid[i] = 0.0;
+      pca.c2_side[i] = 0.0;
+    }
+    return;
   }
 
   fftw_execute(plan_fwd_mid);
   fftw_execute(plan_fwd_side);
 
-  /* The three spectral products, folded into the full Parseval sum. */
-  for(int k = 0; k < n_bins; k++) {
-    double mr = spec_mid[k][0], mi = spec_mid[k][1];
-    double sr = spec_side[k][0], si = spec_side[k][1];
-    double w = fold[k];
-    p_mm[k] = w * (mr * mr + mi * mi);
-    p_ss[k] = w * (sr * sr + si * si);
-    p_ms[k] = w * (mr * sr + mi * si);
-  }
-
-  /* One covariance per band, straight from the spectrum. The normalisation is
-     the one np.cov and nae.cpp both use, N and N-1 with the mean already gone
-     with the DC bin. */
-  double cov_norm = 1.0 / ((double)n_cov * (double)(n_cov - 1));
-  memset(r_mm, 0, sizeof(double) * n_bands);
-  memset(r_ss, 0, sizeof(double) * n_bands);
-  memset(r_ms, 0, sizeof(double) * n_bands);
-  for(int k = 0; k < n_bins; k++) {
-    const double *w2 = masks2 + (size_t)k * n_bands;
-    double vmm = p_mm[k], vss = p_ss[k], vms = p_ms[k];
+  /* The window is mono but the ring is not yet: this slot's projector is known
+     without computing it, while the older slots still hold real ones and the
+     synthesis has to run for real. The covariance and the eigen solve are what
+     get skipped here -- the band loops that cost the most. */
+  if(mono_run >= mono_slot) {
     for(int b = 0; b < n_bands; b++) {
-      double w = w2[b];
-      r_mm[b] += w * vmm;
-      r_ss[b] += w * vss;
-      r_ms[b] += w * vms;
+      slot1[b] = 1.0;
+      slot1[n_bands + b] = 0.0;
+      slot1[2 * n_bands + b] = 0.0;
     }
-  }
-  for(int b = 0; b < n_bands; b++) {
-    r_mm[b] *= cov_norm;
-    r_ss[b] *= cov_norm;
-    r_ms[b] *= cov_norm;
-  }
+  } else {
 
-  /* The axes, and this window's projectors into the ring. eigen_2x2_symmetric()
-     is the broadband engine's own solver, ordering the pair by eigenvalue; the
-     sign it returns does not matter, v v^T being invariant under v -> -v. */
-  double *slot1 = ring1 + (size_t)ring_pos * 3 * n_bands;
-  for(int b = 0; b < n_bands; b++) {
-    double eigvalues[2];
-    double v1[2], v2[2];
-    eigen_2x2_symmetric(r_mm[b], r_ms[b], r_ss[b], &eigvalues[0], &eigvalues[1], v1, v2);
-    /* Only the principal projector is kept. v2 is orthogonal to v1 and both are
-       unit, so P2 = I - P1 and the ambience axis needs no storage of its own. */
-    slot1[b] = v1[0] * v1[0];
-    slot1[n_bands + b] = v1[0] * v1[1];
-    slot1[2 * n_bands + b] = v1[1] * v1[1];
+    /* The three spectral products, folded into the full Parseval sum. */
+    for(int k = 0; k < n_bins; k++) {
+      double mr = spec_mid[k][0], mi = spec_mid[k][1];
+      double sr = spec_side[k][0], si = spec_side[k][1];
+      double w = fold[k];
+      p_mm[k] = w * (mr * mr + mi * mi);
+      p_ss[k] = w * (sr * sr + si * si);
+      p_ms[k] = w * (mr * sr + mi * si);
+    }
+
+    /* One covariance per band, straight from the spectrum. The normalisation is
+       the one np.cov and nae.cpp both use, N and N-1 with the mean already gone
+       with the DC bin. */
+    double cov_norm = 1.0 / ((double)n_cov * (double)(n_cov - 1));
+    memset(r_mm, 0, sizeof(double) * n_bands);
+    memset(r_ss, 0, sizeof(double) * n_bands);
+    memset(r_ms, 0, sizeof(double) * n_bands);
+    for(int k = 0; k < n_bins; k++) {
+      const double *w2 = masks2 + (size_t)k * n_bands;
+      double vmm = p_mm[k], vss = p_ss[k], vms = p_ms[k];
+      for(int b = 0; b < n_bands; b++) {
+        double w = w2[b];
+        r_mm[b] += w * vmm;
+        r_ss[b] += w * vss;
+        r_ms[b] += w * vms;
+      }
+    }
+    for(int b = 0; b < n_bands; b++) {
+      r_mm[b] *= cov_norm;
+      r_ss[b] *= cov_norm;
+      r_ms[b] *= cov_norm;
+    }
+
+    /* The axes, and this window's projectors into the ring. eigen_2x2_symmetric()
+       is the broadband engine's own solver, ordering the pair by eigenvalue; the
+       sign it returns does not matter, v v^T being invariant under v -> -v. */
+    for(int b = 0; b < n_bands; b++) {
+      double eigvalues[2];
+      double v1[2], v2[2];
+      eigen_2x2_symmetric(r_mm[b], r_ms[b], r_ss[b], &eigvalues[0], &eigvalues[1], v1, v2);
+      /* Only the principal projector is kept. v2 is orthogonal to v1 and both are
+         unit, so P2 = I - P1 and the ambience axis needs no storage of its own. */
+      slot1[b] = v1[0] * v1[0];
+      slot1[n_bands + b] = v1[0] * v1[1];
+      slot1[2 * n_bands + b] = v1[1] * v1[1];
+    }
   }
 
   /* G1(f) and G2(f) from the SUM of the last covsteps rings. Applying a filter
