@@ -749,38 +749,52 @@ void NAE::emitBlock(void)
 
 void NAE::advanceBlock(void)
 {
-    for(int i = 0, j = sample_count; i < sample_count *(covsteps - 1); i++, j++) {
-      pca.c1_mid[i] = pca.c1_mid[j];
-      pca.c1_side[i] = pca.c1_side[j];
-      pca.c2_mid[i] = pca.c2_mid[j];
-      pca.c2_side[i] = pca.c2_side[j];
-      pca.mid_step[i] = pca.mid_step[j];
-      pca.side_step[i] = pca.side_step[j];
-    }
-    
-    for(int i = sample_count *(covsteps - 1); i < sample_count * covsteps; i++) {
-      pca.c1_mid[i] = 0;
-      pca.c1_side[i] = 0;
-      pca.c2_mid[i] = 0;
-      pca.c2_side[i] = 0;
-    }
-    
-    for(int i = 0; i < covsteps - 1; i++) {
-      covM.sum_xy_array[i] = covM.sum_xy_array[i + 1];
-      covM.sum_x2_array[i] = covM.sum_x2_array[i + 1];
-      covM.sum_y2_array[i] = covM.sum_y2_array[i + 1];
-      covM.sum_x_array[i] = covM.sum_x_array[i + 1];
-      covM.sum_y_array[i] = covM.sum_y_array[i + 1];
-    }
+    /* Everything here is movement: not one arithmetic operation, which is why
+       memmove gives the same result bit for bit as the loops it replaces and
+       why replacing them is safe.
+
+       It is faster for a reason worth stating. The loops walked six arrays at
+       once, one element from each per iteration -- six loads and six stores
+       into six streams the prefetcher has to track together, and six pointers
+       the compiler cannot assume do not alias, so it cannot widen the copy
+       either. One memmove per array is one contiguous tuned pass, and that is
+       what NaeErb::advanceBlock has always done.
+
+       memmove and not memcpy: source and destination overlap by design. */
+    const size_t keep = sizeof(double) * (size_t)(sample_count * (covsteps - 1));
+    const size_t tail = sizeof(double) * (size_t)sample_count;
+    const int    from = sample_count * (covsteps - 1);
+
+    memmove(pca.c1_mid,    pca.c1_mid    + sample_count, keep);
+    memmove(pca.c1_side,   pca.c1_side   + sample_count, keep);
+    memmove(pca.c2_mid,    pca.c2_mid    + sample_count, keep);
+    memmove(pca.c2_side,   pca.c2_side   + sample_count, keep);
+    memmove(pca.mid_step,  pca.mid_step  + sample_count, keep);
+    memmove(pca.side_step, pca.side_step + sample_count, keep);
+
+    /* Only the four components are cleared. mid_step and side_step keep
+       whatever the shift left in their tail, exactly as before: the next
+       decompose() writes the whole of it before anything reads it. */
+    memset(pca.c1_mid  + from, 0, tail);
+    memset(pca.c1_side + from, 0, tail);
+    memset(pca.c2_mid  + from, 0, tail);
+    memset(pca.c2_side + from, 0, tail);
+
+    const size_t cov_keep = sizeof(double) * (size_t)(covsteps - 1);
+    memmove(covM.sum_xy_array, covM.sum_xy_array + 1, cov_keep);
+    memmove(covM.sum_x2_array, covM.sum_x2_array + 1, cov_keep);
+    memmove(covM.sum_y2_array, covM.sum_y2_array + 1, cov_keep);
+    memmove(covM.sum_x_array,  covM.sum_x_array  + 1, cov_keep);
+    memmove(covM.sum_y_array,  covM.sum_y_array  + 1, cov_keep);
+
     if(mode) {
       // ambient mode only
-      for(int i = 0; i < ICORRL - 1; i++) {
-      icorrv.sum_xy_array[i] = icorrv.sum_xy_array[i + 1];
-      icorrv.sum_x2_array[i] = icorrv.sum_x2_array[i + 1];
-      icorrv.sum_y2_array[i] = icorrv.sum_y2_array[i + 1];
-      icorrv.sum_x_array[i] = icorrv.sum_x_array[i + 1];
-      icorrv.sum_y_array[i] = icorrv.sum_y_array[i + 1];
-      }
+      const size_t icorr_keep = sizeof(double) * (size_t)(ICORRL - 1);
+      memmove(icorrv.sum_xy_array, icorrv.sum_xy_array + 1, icorr_keep);
+      memmove(icorrv.sum_x2_array, icorrv.sum_x2_array + 1, icorr_keep);
+      memmove(icorrv.sum_y2_array, icorrv.sum_y2_array + 1, icorr_keep);
+      memmove(icorrv.sum_x_array,  icorrv.sum_x_array  + 1, icorr_keep);
+      memmove(icorrv.sum_y_array,  icorrv.sum_y_array  + 1, icorr_keep);
     }
 }
 
