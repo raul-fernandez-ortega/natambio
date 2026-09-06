@@ -413,6 +413,18 @@ void NaeErb::decompose(void)
      that division belongs to emitBlock(), as it does for the broadband engine. */
   double scale = 1.0 / (double)n_cov;
   double cs = (double)covsteps;
+  /* The level the residue is relative to is the ANALYSIS window's, not the
+     emitted frame's. Both components come out of filtering the whole window,
+     so that is what their rounding scales with -- and a frame of silence
+     between two loud ones has an input peak of zero while still carrying the
+     tail of what came before. Measuring the frame alone would leave the gate
+     shut at exactly the transition it exists for. Two passes over n_cov is
+     nothing beside the pair of transforms that just ran. */
+  double in_peak = 0.0, c1_peak = 0.0, c2_peak = 0.0;
+  for(int i = 0; i < n_cov; i++) {
+    double a = fabs(mid_hist[i]);  if(a > in_peak) in_peak = a;
+    a = fabs(side_hist[i]);        if(a > in_peak) in_peak = a;
+  }
   for(int i = 0; i < sample_count; i++) {
     double c1m = out_time[0][syn_offset + i] * scale;
     double c1s = out_time[1][syn_offset + i] * scale;
@@ -422,9 +434,49 @@ void NaeErb::decompose(void)
        leaves of the input -- covsteps copies of it, the ring having summed that
        many identities. The input at this offset is the history itself, already
        here and needing no transform: an inverse pair saved, and a subtraction
-       that is exact where a second filtering would only have been equal. */
-    pca.c2_mid[i] = cs * mid_hist[syn_offset + i] - c1m;
-    pca.c2_side[i] = cs * side_hist[syn_offset + i] - c1s;
+       that is exact as an identity but not in floating point: where the true
+       answer is zero, what is left is the rounding of the two operands. */
+    double c2m = cs * mid_hist[syn_offset + i] - c1m;
+    double c2s = cs * side_hist[syn_offset + i] - c1s;
+    pca.c2_mid[i] = c2m;
+    pca.c2_side[i] = c2s;
+    double a;
+    a = fabs(c1m); if(a > c1_peak) c1_peak = a;
+    a = fabs(c1s); if(a > c1_peak) c1_peak = a;
+    a = fabs(c2m); if(a > c2_peak) c2_peak = a;
+    a = fabs(c2s); if(a > c2_peak) c2_peak = a;
+  }
+
+  /* Where a component is nothing but the residue of that subtraction, emit
+     nothing. A mono source has no ambience at all -- side is zero sample for
+     sample -- and the broadband engine says so exactly, because it PROJECTS
+     onto the second axis and a projection of zero is zero. This engine
+     subtracts instead, so the same silence comes out at the relative precision
+     of a double, around 1e-15 of the input and some 400 dB below full scale.
+
+     That is not audio by any measure -- 24 bits reach -144 dB -- but it is not
+     zero either, and downstream it is expensive: fed to a partitioned
+     convolver it was measured turning the deepest partition thread, the one
+     that carries the tail of the impulse response, from 1.4% of a core into
+     19.6% with peaks past 65%, which is late enough to take the FireWire
+     driver down with it. Exactly zero costs nothing there; 1e-20 costs
+     everything. So the gate is not tidiness, it is the fix.
+
+     Relative and not absolute, because the residue scales with the input: an
+     absolute floor tuned on a quiet passage would let a loud one through. The
+     ratio is 1e-10, five orders above where the rounding lives and five below
+     any ambience a real recording holds. Per block rather than per sample, so
+     that a component is either emitted or not and never has its own small
+     samples clipped out from under it. */
+  const double residue_ratio = 1.0e-10;
+  double gate = residue_ratio * cs * in_peak;
+  if(c1_peak < gate) {
+    memset(pca.c1_mid, 0, sizeof(double) * sample_count);
+    memset(pca.c1_side, 0, sizeof(double) * sample_count);
+  }
+  if(c2_peak < gate) {
+    memset(pca.c2_mid, 0, sizeof(double) * sample_count);
+    memset(pca.c2_side, 0, sizeof(double) * sample_count);
   }
 }
 
