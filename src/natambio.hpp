@@ -32,13 +32,18 @@ private:
   Remote *naRemote;
   vector<ConvChannel*> convChannels;
   int sampleRate;
+  int frameSize;
 
 public:
 
   NatAmbio(void);
   ~NatAmbio(void);
   void setQuiet(void);
-  int queryJackSampleRate(void);
+  /* Both come from the same probe client, because both are needed before the
+     file is read: the rate by the coefficient generators, and the period by
+     <steps_length_ms>, which is a duration and has to become a whole number of
+     blocks. */
+  int queryJackSampleRate(int *frames);
   bool configXML(string fileName);
   bool jackStart(void);
   bool remoteStart(void);

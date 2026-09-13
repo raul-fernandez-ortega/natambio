@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <pwd.h>
+#include <cmath>       /* floor/ceil, for the _ms tags */
 
 #include "naconf.hpp"
 #include "nae_erb.hpp"
@@ -691,6 +692,7 @@ struct convol* NaConf::parse_convol(xmlNodePtr xmlnode)
   // / <gain> are absent: a garbage delay later mis-sizes the output ring
   // buffer in ConvChannel::set_delay() and crashes the RT callback).
   naconvol->delay = 0;
+  naconvol->delay_ms_used = -1.0;   // < 0: the duration form was not what set it
   naconvol->scale = 1;
 
   do {
@@ -707,8 +709,31 @@ struct convol* NaConf::parse_convol(xmlNodePtr xmlnode)
       naconvol->from_convols.push_back((char*)cnt);
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"from_nae")) {
       naconvol->from_nae.push_back((char*)cnt);
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"delay_ms")) {
+      /* The same delay as a duration, so that a configuration survives a change
+         of sample rate. <delay> wins, whichever comes first in the file: if it
+         has already been read, delay is non-zero and this leaves it alone; if it
+         is read later, it overwrites what this put there.
+
+         An explicit <delay>0</delay> is indistinguishable from no <delay> at
+         all, and that is deliberate -- zero is what "no delay" means, and a tag
+         asking for it is asking for what is already there.
+
+         Truncated and not rounded, and no fractional-sample path: a delay of
+         half a sample is a filter and not a shift, and it would need arithmetic
+         this does not have. What it asks for is rounded DOWN to the sample, and
+         the report says what it got. */
+      double ms = strtod((char*) cnt, NULL);
+      if(naconvol->delay == 0 && jack_frame_size >= 0) {
+        double want = ms * (double)jack_sample_rate / 1000.0;
+        naconvol->delay = (want > 0.0) ? (int)floor(want) : 0;
+        naconvol->delay_ms_used = ms;
+      }
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"delay")) {
       naconvol->delay = (int) strtol((char*)cnt, NULL, 10);
+      /* Whatever <delay_ms> may have put there, this is what stands -- and the
+         report must not go on crediting the tag that lost. */
+      naconvol->delay_ms_used = -1.0;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"gain")) {
       naconvol->scale = FROM_DB(strtof((char*)cnt, NULL));
     }
@@ -736,7 +761,11 @@ struct convol* NaConf::parse_convol(xmlNodePtr xmlnode)
     std::cout << "\tIndex:" << naconvol->index << std::endl;
     std::cout << "\tName: " << naconvol->name << std::endl;
     std::cout << "\tGain (linear): " << naconvol->scale << std::endl;
-    std::cout << "\tDelay: " << naconvol->delay << std::endl;
+    std::cout << "\tDelay: " << naconvol->delay << " samples";
+    if(naconvol->delay_ms_used >= 0.0)
+      std::cout << "  (from <delay_ms> " << naconvol->delay_ms_used << " ms at "
+                << jack_sample_rate << " Hz)";
+    std::cout << std::endl;
     std::cout << "\tCoeff name: " << naconvol->coeff_name << std::endl;
     std::cout << "\tFrom inputs: " << std::endl;
     for (std::vector<string>::iterator it = naconvol->from_inputs.begin() ; it != naconvol->from_inputs.end(); ++it)
@@ -771,13 +800,19 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
   nae->mode = -1;
   nae->erb = erb;
   nae->erb_cov_window_ms = NA_ERB_COV_WINDOW_MS;
+  nae->erb_cov_window_set = false;
   nae->erb_delta_erb = NA_ERB_DELTA_ERB;
   nae->erb_band_min_hz = NA_ERB_BAND_MIN_HZ;
   nae->gain_c1 = 0;
   nae->gain_c2 = 0;
   nae->gain_c2_rear = 0;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
-  nae->steps_length = 5;   // optional; default 5 (PCA / covariance window, in blocks)
+  /* Zero here and not the default, so that <steps_length_ms> can tell "nobody
+     has set this" from "someone set it to the default". The default is applied
+     after the loop, to whatever neither tag claimed. */
+  nae->steps_length = 0;
+  nae->steps_length_ms_used = -1.0;
+  nae->steps_length_default = false;
   nae->left_in = "";
   nae->right_in = "";
   nae->left_out = "";
@@ -799,10 +834,35 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
     xmlChar *cnt = xmlNodeGetContent(xmlnode);
     if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"name")) {
       nae->name = (char*)cnt;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"steps_length_ms")) {
+      /* The reconstruction window as a duration, so that a configuration keeps
+         its latency across a change of sample rate or of period. <steps_length>
+         wins, whichever comes first: if it has been read, this leaves it alone;
+         if it is read later, it overwrites this.
+
+         Rounded UP, always. The window is a whole number of blocks by
+         construction, and rounding down would hand back a latency SHORTER than
+         the file asked for -- which is the direction that silently changes what
+         the engine does. Up, the file gets at least what it asked for. */
+      double ms = strtod((char*) cnt, NULL);
+      if(nae->steps_length == 0) {
+        if(jack_frame_size <= 0) {
+          parse_error("Error: nae steps_length_ms needs JACK's period and the "
+                      "probe did not report one. Use <steps_length> instead.");
+          this->naelist.clear();
+          return NULL;
+        }
+        double blocks = ms * (double)jack_sample_rate
+                      / (1000.0 * (double)jack_frame_size);
+        nae->steps_length = (blocks > 0.0) ? (int)ceil(blocks) : 0;
+        nae->steps_length_ms_used = ms;
+      }
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"steps_length")) {
       nae->steps_length = (int) strtol((char*) cnt, NULL, 10);
+      nae->steps_length_ms_used = -1.0;
     } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"cov_window_ms")) {
       nae->erb_cov_window_ms = strtod((char*) cnt, NULL);
+      nae->erb_cov_window_set = true;
     } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"delta_erb")) {
       nae->erb_delta_erb = strtod((char*) cnt, NULL);
     } else if (erb && !xmlStrcmp(xmlnode->name, (const xmlChar *)"band_min_hz")) {
@@ -876,6 +936,18 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
     this->naelist.clear();
     return NULL;
   }
+  /* Neither tag claimed it: the default. Done here rather than at the top so
+     that the duration form can see an unset value, and computed from the period
+     so that a file without the tag gets the same WINDOW and not merely the same
+     block count wherever it runs. */
+  if(nae->steps_length == 0) {
+    nae->steps_length_default = true;
+    int want = NA_NAE_STEPS_REF_BLOCKS * NA_NAE_STEPS_REF_FRAMES;
+    if(jack_frame_size > 0)
+      nae->steps_length = (want + jack_frame_size - 1) / jack_frame_size;
+    else
+      nae->steps_length = NA_NAE_STEPS_REF_BLOCKS;
+  }
   if(nae->steps_length < 1) {
     parse_error("Error: nae steps_length must be >= 1.");
     this->naelist.clear();
@@ -885,7 +957,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode, bool erb)
     /* Refused rather than clamped, as <pan_scale> is: these are not safety
        margins but the domain of the parameter, and a zero analysis window or a
        zero band width is not a degenerate bank, it is no bank at all. */
-    if(nae->erb_cov_window_ms <= 0.0) {
+    /* Only if the file gave it: absent, it is derived and there is nothing here
+       to be out of domain. */
+    if(nae->erb_cov_window_set && nae->erb_cov_window_ms <= 0.0) {
       parse_error("Error: nae_erb cov_window_ms must be > 0.");
       this->naelist.clear();
       return NULL;
@@ -1675,7 +1749,7 @@ bool NaConf::build_convol_coeffs(void)
   return true;
 }
 
-bool NaConf::conf_init(string filename, int jack_sample_rate)
+bool NaConf::conf_init(string filename, int jack_sample_rate, int jack_frame_size)
 {
   struct coeff* n_coeff;
   struct xtc* n_xtc;
@@ -1690,6 +1764,9 @@ bool NaConf::conf_init(string filename, int jack_sample_rate)
   // low_and_high_filter / loudness coeffs and to validate that every WAV
   // (<filename>) is at this rate.
   this->jack_sample_rate = jack_sample_rate;
+  // JACK's period, from the same probe: what <steps_length_ms> needs to turn a
+  // duration into the whole number of blocks the overlap-add counts in.
+  this->jack_frame_size = jack_frame_size;
 
   // Open document
   xmlconf = xmlReadFile(filename.c_str(), NULL, 0);

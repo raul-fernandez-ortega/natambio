@@ -77,6 +77,13 @@ struct s_nae {
      because <nae_erb> IS an NAE in everything but the decomposition. */
   bool erb;
   double erb_cov_window_ms;  // <cov_window_ms>: the analysis window
+  /* Whether the file gave it. It has a default like everything else, but the
+     default is not a number here: absent, the engine derives the window from
+     <band_min_hz> so that the narrowest band is resolved by a fixed number of
+     bins, and the two can never be set against each other by accident. This
+     flag is what tells "not given" from "given, and it happens to equal the
+     figure the derivation would have produced". */
+  bool erb_cov_window_set;
   double erb_delta_erb;      // <delta_erb>: centre spacing, in ERB units
   double erb_band_min_hz;    // <band_min_hz>: the width floor, in Hz
   double gain_c1;
@@ -84,6 +91,12 @@ struct s_nae {
   double gain_c2_rear;
   double pan_scale;      // width of the input pair, [-1, 1]
   int steps_length;
+  /* What <steps_length_ms> asked for, when it is what set it; negative when
+     <steps_length> did or when neither was given. For the report only. */
+  double steps_length_ms_used;
+  /* Neither tag was given and the window came from the period. For the report
+     only: a reader has to be able to tell a chosen 3 from a derived one. */
+  bool steps_length_default;
   string left_in;
   string right_in;
   string left_out;
@@ -176,6 +189,11 @@ struct convol {
   string name;
   string coeff_name;
   int delay;
+  /* What <delay_ms> asked for, when it is what set the delay; negative when
+     <delay> did or when neither was given. Kept only so the report can say what
+     a duration became in samples, which is the one thing a reader cannot work
+     out from the file alone. */
+  double delay_ms_used;
   float scale;
   vector<string> from_inputs;
   vector<string> to_outputs;

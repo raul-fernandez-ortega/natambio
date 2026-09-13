@@ -44,6 +44,10 @@ private:
   bool quiet;
   int n_convprocs;
   int jack_sample_rate;   // JACK sample rate, probed before parsing (see NatAmbio)
+  /* JACK's period, from the same probe. Only the _ms tags need it, and only to
+     turn a duration into blocks; zero means the probe could not report it, and
+     the tags that depend on it say so rather than guess. */
+  int jack_frame_size;
   /* The document this configuration was parsed from, kept for the lifetime of
      the object rather than freed once it has been read. It is what the remote
      manager's "getxmlconfig" answers with, the live values patched over it:
@@ -93,7 +97,7 @@ public:
   ~NaConf(void);
 
   void setQuiet(void) { quiet = true; };
-  bool conf_init(string filename, int jack_sample_rate);
+  bool conf_init(string filename, int jack_sample_rate, int jack_frame_size);
   /* The document as parsed. NULL before conf_init() succeeds. Owned here. */
   xmlDocPtr getConfDoc(void) { return conf_doc; };
 

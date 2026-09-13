@@ -40,6 +40,7 @@ static double gammatone_mag(double f, double fc, double bw, int order)
 NaeErb::NaeErb(string n_name, int n_mode) : NAE(n_name, n_mode)
 {
   cov_window_ms = NA_ERB_COV_WINDOW_MS;
+  cov_window_set = false;
   delta_erb = NA_ERB_DELTA_ERB;
   band_min_hz = NA_ERB_BAND_MIN_HZ;
 
@@ -106,8 +107,10 @@ void NaeErb::freeEngine(void)
 
 void NaeErb::setCovWindowMs(double ms)
 {
-  if(ms > 0.0)
+  if(ms > 0.0) {
     cov_window_ms = ms;
+    cov_window_set = true;
+  }
 }
 
 void NaeErb::setDeltaErb(double d)
@@ -217,8 +220,16 @@ void NaeErb::load(int abspri, int policy)
 {
   n_pca = covsteps * sample_count;
 
-  /* The analysis window: as many whole periods as <cov_window_ms> asks for, and
-     never shorter than the reconstruction window, which it contains. */
+  /* The analysis window. Where the configuration is silent it comes from the
+     floor: a band B_min wide needs NA_ERB_BINS_PER_FLOOR_BAND / B_min seconds to
+     be resolved by that many bins, whatever the sample rate. One tag decides the
+     resolution of the whole engine and the window that supports it, and the two
+     cannot be set against each other. */
+  if(!cov_window_set)
+    cov_window_ms = 1000.0 * NA_ERB_BINS_PER_FLOOR_BAND / band_min_hz;
+
+  /* As many whole periods as that asks for, and never shorter than the
+     reconstruction window, which it contains. */
   int want = (int)ceil(cov_window_ms * (double)sample_rate / 1000.0);
   int periods = (want + sample_count - 1) / sample_count;
   n_cov = periods * sample_count;
@@ -231,6 +242,12 @@ void NaeErb::load(int abspri, int policy)
      to its left, and that context is what keeps the circular product from
      folding onto it. */
   syn_offset = n_cov - n_pca;
+
+  /* What the window actually bought, in the unit that matters: how many bins
+     land across the narrowest band. It is reported either way and complained
+     about below the floor. Computed after the rounding to whole periods, so it
+     is the figure the engine will really run with and not the one asked for. */
+  double bins_per_floor = band_min_hz * (double)n_cov / (double)sample_rate;
 
   buildBank();
 
@@ -281,10 +298,30 @@ void NaeErb::load(int abspri, int policy)
               << std::endl;
     std::cout << "NAE_ERB: " << name << ": analysis window " << n_cov
               << " samples (" << (1000.0 * n_cov / (double)sample_rate)
-              << " ms, " << (n_cov / sample_count) << " periods), "
-              << "reconstruction " << n_pca << " samples, latency unchanged"
+              << " ms, " << (n_cov / sample_count) << " periods, "
+              << (cov_window_set ? "configured" : "derived from the floor")
+              << "), reconstruction " << n_pca << " samples, latency unchanged"
               << std::endl;
+    std::cout << std::setprecision(2);
+    std::cout << "NAE_ERB: " << name << ": " << bins_per_floor
+              << " bins across the narrowest band (" << band_min_hz << " Hz at "
+              << (double)sample_rate / (double)n_cov << " Hz per bin)"
+              << std::endl;
+    std::cout << std::setprecision(1);
   }
+
+  /* Said whatever the report says, because a window too short for the floor is
+     a covariance estimated on too little and nothing downstream will complain.
+     A warning and not an error: the bank still reconstructs, the engine still
+     runs, and an off-line experiment is entitled to ask for it on purpose. */
+  if(bins_per_floor < NA_ERB_BINS_PER_FLOOR_BAND)
+    std::cerr << "NAE_ERB: " << name << ": WARNING: <cov_window_ms> of "
+              << cov_window_ms << " ms leaves only " << bins_per_floor
+              << " bins across a " << band_min_hz << " Hz band, under the "
+              << NA_ERB_BINS_PER_FLOOR_BAND << " this engine is built on. "
+              << "Drop the tag to derive it ("
+              << (1000.0 * NA_ERB_BINS_PER_FLOOR_BAND / band_min_hz)
+              << " ms) or raise <band_min_hz>." << std::endl;
 
   NAE::load(abspri, policy);
 }

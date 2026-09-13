@@ -38,10 +38,24 @@ extern "C" {
  *   -- one frequency-dependent 2x2 matrix, whatever the number of bands, and
  *   G1 + G2 = I because sum_b W_b = 1 and P1_b + P2_b = I.
  *
- * So the band count never enters the transform count. Per period: two forward
- * transforms, a weighted sum and a 2x2 eigenproblem per band, six vector
- * combinations, four inverse transforms. Around 1% of a 256-frame period at
- * 48 kHz, whether the bank has ten bands or forty.
+ * So the band count never enters the TRANSFORM count. Per period: two forward
+ * transforms, a weighted sum and a 2x2 eigenproblem per band, and two inverse
+ * transforms.
+ *
+ * It does enter the total, though, and by more than the phrasing above used to
+ * admit. Both band loops -- accumulating the covariances and assembling G --
+ * are O(n_bins * n_bands), and with three thousand bins and forty bands they
+ * weigh as much as the transforms do. Measured with nae_bench at 48 kHz, 256
+ * frames, covsteps 3:
+ *
+ *     20 bands, 64 ms window    516 us/block    9.7 % of the period
+ *     36 bands, 64 ms window    711 us          13.3 %
+ *     21 bands, 128 ms window  1082 us          20.3 %
+ *     40 bands, 128 ms window  1634 us          30.6 %
+ *
+ * At a fixed window, doubling the bands costs some 40 to 50 %. What the
+ * formulation buys is that it is not a factor of two per band; what it does not
+ * buy is a bank that is free.
  *
  * THREE WINDOWS, all ending at the sample that has just arrived.
  *
@@ -74,7 +88,26 @@ extern "C" {
 /* What the configuration may say. Everything else about the bank is fixed
    below, deliberately: the shape, the order, the covered range and the centre
    spacing rule were swept off line and none of them earned a knob. */
-#define NA_ERB_COV_WINDOW_MS   64.0    /* <cov_window_ms> */
+/* <cov_window_ms> is DERIVED from <band_min_hz> when the configuration does not
+   give it, and this is the constant that derives it: the time-bandwidth product
+   of the NARROWEST band, B_min * T, which is the number of independent spectral
+   estimates its covariance is built from.
+
+       T = NA_ERB_BINS_PER_FLOOR_BAND / band_min_hz
+
+   Eight of them, and 8/125 Hz is 64 ms -- which is where the window was already
+   set by hand before the relation was noticed, to four decimal places. The
+   figure is not arbitrary either: the axis movement measured AT that point is
+   3.65 degrees median, against the broadband engine's own 3.34. Fewer would be
+   a covariance estimated on too little, and the arithmetic says so before the
+   ear does -- 125 Hz over a 16 ms window is two bins, and two bins is not an
+   estimate.
+
+   It is a FLOOR and not an equality. A configuration is free to ask for a
+   longer window at the same floor, which raises the product above eight and
+   estimates better; what it cannot do silently is ask for a shorter one. */
+#define NA_ERB_BINS_PER_FLOOR_BAND 8.0
+#define NA_ERB_COV_WINDOW_MS   64.0    /* <cov_window_ms>, only if it is given */
 #define NA_ERB_DELTA_ERB        2.0    /* <delta_erb> */
 #define NA_ERB_BAND_MIN_HZ    125.0    /* <band_min_hz> */
 
@@ -100,6 +133,9 @@ private:
 
   /* From the configuration. */
   double cov_window_ms;
+  /* Whether the configuration said so. Without it the window is derived from
+     the floor, so the two can never be set against each other by accident. */
+  bool cov_window_set;
   double delta_erb;
   double band_min_hz;
 

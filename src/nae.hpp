@@ -37,6 +37,26 @@ using namespace std;
 
 #define ICORRL 20
 
+/* The default reconstruction window, when <steps_length> and <steps_length_ms>
+   are both absent: three blocks at a REFERENCE period of 256, rounded up to
+   whole blocks at whatever period JACK is really running.
+
+       steps_length = ceil(NA_NAE_STEPS_REF_BLOCKS * NA_NAE_STEPS_REF_FRAMES
+                           / jack_frame_size)
+
+   Expressed that way and not as a plain number because the old default -- a
+   flat 5 -- gave a DIFFERENT LATENCY at every period: 26.7 ms at 256 frames,
+   13.3 ms at 128, for one and the same file. This keeps the window at 768
+   samples wherever the period divides it, which is 16 ms at 48 kHz.
+
+   It is invariant in SAMPLES, not in time: at 44.1 kHz those 768 samples are
+   17.4 ms and at 96 kHz they are 8. Making it invariant in time instead is one
+   constant away -- see <steps_length_ms>, which is the same arithmetic -- and
+   was not done because the reconstruction window is the overlap-add's, and the
+   overlap-add counts blocks. */
+#define NA_NAE_STEPS_REF_BLOCKS  3
+#define NA_NAE_STEPS_REF_FRAMES  256
+
 /* Bounds on a NAE gain, in dB: the same window the port gains use, and there
    for the same reason -- these come in over the network from anything that can
    reach the socket, and a component driven far up is a driver at risk. The
