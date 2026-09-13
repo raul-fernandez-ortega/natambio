@@ -30,7 +30,7 @@ void NatAmbio::setQuiet(void)
  * xtc / low_and_high_filter / loudness coeffs at the JACK rate (no
  * <sample_rate> tag needed) and validate every WAV against it. Returns the
  * sample rate in Hz, or 0 if JACK is unreachable. */
-int NatAmbio::queryJackSampleRate(void)
+int NatAmbio::queryJackSampleRate(int *frames)
 {
   jack_status_t status;
   jack_client_t *probe = jack_client_open("natambio_sr_probe", JackNoStartServer, &status);
@@ -41,9 +41,12 @@ int NatAmbio::queryJackSampleRate(void)
     return 0;
   }
   int sr = (int) jack_get_sample_rate(probe);
+  if(frames)
+    *frames = (int) jack_get_buffer_size(probe);
   jack_client_close(probe);
   if(!quiet)
-    cout << "NatAmbio: JACK sample rate: " << sr << " Hz" << endl;
+    cout << "NatAmbio: JACK sample rate: " << sr << " Hz, period "
+         << (frames ? *frames : 0) << " frames" << endl;
   return sr;
 }
 
@@ -52,7 +55,8 @@ bool NatAmbio::configXML(string fileName)
   bool result;
   // Probe the JACK sample rate first; coeff generation and WAV validation in
   // NaConf depend on it, so abort here if JACK is not available.
-  sampleRate = queryJackSampleRate();
+  frameSize = 0;
+  sampleRate = queryJackSampleRate(&frameSize);
   if(sampleRate <= 0) {
     if(!quiet)
       cout << "NatAmbio: could not determine JACK sample rate; aborting." << endl;
@@ -62,7 +66,7 @@ bool NatAmbio::configXML(string fileName)
     convproc = NULL;
     return false;
   }
-  if(!(result = naConf->conf_init(fileName, sampleRate))) {
+  if(!(result = naConf->conf_init(fileName, sampleRate, frameSize))) {
     if(!quiet)
       cout << "NatAmbio: Error in configXML " << endl;
     delete naConf;
@@ -420,6 +424,14 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     std::cout << std::fixed << std::setprecision(3);
     std::cout << "NatAmbio: new NAE process creation " << std::endl;
     std::cout << "NatAmbio: NAE name " << n_nae->name << std::endl;
+    std::cout << "NatAmbio: NAE steps_length " << n_nae->steps_length << " blocks";
+    if(n_nae->steps_length_ms_used >= 0.0)
+      std::cout << "  (from <steps_length_ms> " << n_nae->steps_length_ms_used
+                << " ms, rounded up)";
+    else if(n_nae->steps_length_default)
+      std::cout << "  (default, " << NA_NAE_STEPS_REF_BLOCKS << " x "
+                << NA_NAE_STEPS_REF_FRAMES << " frames at this period)";
+    std::cout << std::endl;
     std::cout << "NatAmbio: NAE mode " << n_nae->mode << std::endl;
     if(n_nae->mode) {
       std::cout << "NatAmbio: NAE ambient gain " << n_nae->gain_c2_rear << std::endl;

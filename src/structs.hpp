@@ -77,6 +77,12 @@ struct s_nae {
   double gain_c2_rear;
   double pan_scale;      // width of the input pair, [-1, 1]
   int steps_length;
+  /* What <steps_length_ms> asked for, when it is what set it; negative when
+     <steps_length> did or when neither was given. For the report only. */
+  double steps_length_ms_used;
+  /* Neither tag was given and the window came from the period. For the report
+     only: a reader has to be able to tell a chosen 3 from a derived one. */
+  bool steps_length_default;
   string left_in;
   string right_in;
   string left_out;
@@ -169,6 +175,11 @@ struct convol {
   string name;
   string coeff_name;
   int delay;
+  /* What <delay_ms> asked for, when it is what set the delay; negative when
+     <delay> did or when neither was given. Kept only so the report can say what
+     a duration became in samples, which is the one thing a reader cannot work
+     out from the file alone. */
+  double delay_ms_used;
   float scale;
   vector<string> from_inputs;
   vector<string> to_outputs;
