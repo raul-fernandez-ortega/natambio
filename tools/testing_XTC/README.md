@@ -75,19 +75,26 @@ keeps a gain of 0 (untouched). At `g = 1` (0 dB) the channel is fully
 cancelled; below 0 dB it is partially cancelled; above 0 dB it over-cancels and
 flips polarity.
 
-**Sweep / loop.** The step sequence walks the gain and switches channels:
+**Sweep / loop.** The ladder is set in **attenuation of the named channel**,
+not in `g`, so the rungs are perceptually even and the image keeps moving:
 
-- Ascending levels: **-40 → 0 dB in 5 dB steps**, then **0 → +6 dB in 0.5 dB
-  steps**.
-- The sweep **rises on L** (-40 → +6 dB), **jumps to R** at +6 dB, and **falls
-  on R** (+6 → -40 dB).
-- In loop mode it starts over at -40 dB on L. The **music keeps flowing**
-  across passes; only the **sweep** restarts.
+- **In-phase leg, 9 steps per side**: `0, -3, -6, -9, -12, -15, -18, -21 dB`,
+  then **MUTE** (infinite attenuation) — the widest panning there is, the named
+  channel goes silent and everything arrives from the other one.
+- **Over-cancel leg, 12 more steps per side** (`--phase both` only): past mute
+  the channel comes back **phase-inverted**, from -24.5 dB up to full level
+  (`g` = +0.5 … +6.0 dB in 0.5 dB steps).
+- The ladder runs **down on L**, turns at the far end and comes back **up on
+  R**. In loop mode it starts over at the top of the L ladder. The **music
+  keeps flowing** across passes; only the **sweep** restarts.
 
-**Phase mode.** The inverted region of this algorithm is the **over-cancel**
-one, above 0 dB, where `1 - g` goes negative. `both` (default) sweeps the whole
-range (21 levels per side, 42 steps); `in` stops at 0 dB — full cancellation,
-nothing anti-correlated — leaving 9 levels per side, 18 steps.
+`g` is derived per step: `g = 1 - 10^(-A/20)` for an attenuation `A`, and
+`g = 1` (full cancellation) for mute.
+
+**Phase mode.** `both` (default) is the whole thing, 21 steps per side, 42 in
+all. `in` ends each side at mute: 9 steps per side, 18 in all, and the two mute
+steps meet in the middle — hard pan one way, then hard pan the other, which
+also marks the turnaround by ear.
 
 Between steps there is a sample-by-sample **crossfade** (default 0.1 s) so gain
 changes and the L↔R handover are click-free.
@@ -141,30 +148,17 @@ the sweep advances, the offline scripts as a cue sheet of time offsets printed
 before rendering:
 
 ```
-  0:14.0 | g= -5.0 dB into L | L =  -7.2 dB vs R, in phase | image -> R
-  0:16.0 | g= +0.0 dB into L | L cancelled (-inf dB vs R) | image -> R hard
-  0:18.0 | g= +0.5 dB into L | L = -24.5 dB vs R, INVERTED | image -> R (anti-corr.)
-  0:40.0 | g= +6.0 dB into L | L =  -0.0 dB vs R, INVERTED | image: de-localised
+  0:06.0 | step  4/18 | L =  -9.0 dB vs R, in phase | image -> R
+  0:16.0 | step  9/18 | L MUTED (-inf dB vs R) | image -> R hard
+  0:18.0 | step 10/18 | R MUTED (-inf dB vs L) | image -> L hard
+  0:20.0 | step 11/18 | R = -21.0 dB vs L, in phase | image -> L
 ```
 
-There is one thing worth getting straight before listening, because it reads
-backwards at first: **the named channel is the one being removed**, so the
-image moves to the *other* side.
-
-In algorithm 1 the dB figure is **not** a level difference between L and R, and
-not an attenuation either: it is the gain `g` of the inverted copy summed into
-the named channel, which leaves `1 - g` of it. Hence
-
-| label | what is left of the named channel | image |
-|-------|-----------------------------------|-------|
-| `-40 dB` | `1 - 0.01` → **-0.1 dB**, untouched for all practical purposes | centre |
-| `-10 dB` | `1 - 0.316` → **-3.3 dB** | opening to the other side |
-| `0 dB` | `1 - 1` → **silent** | hard pan to the other side |
-| `+0.5 dB` | `1 - 1.06` → **-24.5 dB, inverted** | other side, anti-correlated |
-| `+6 dB` | `1 - 2` → **-0.0 dB, inverted** | de-localised |
-
-So the widest panning is at **0 dB**, not at -40 dB: that is the point of full
-cancellation, where one channel goes exactly silent. -40 dB is the centre.
+The dB figure is what is **left of the named channel** relative to the
+untouched one — the thing you hear, not the internal gain. And there is one
+thing worth getting straight before listening, because it reads backwards at
+first: **the named channel is the one being removed**, so the image moves to
+the *other* side, and the widest panning is at **MUTE**.
 
 In algorithm 2 the named channel is the one being **delayed and attenuated**,
 so the image again moves to the other side. There the printed `atten` is a

@@ -17,15 +17,15 @@ Same algorithms as the Python versions:
   with the same defaults as the scripts (`2.0 s` / `0.1 s`).
 - **Phase mode** as a third control port, the LADSPA counterpart of the
   scripts' `--phase`: `0` (default) tests in phase **and** phase-inverted, `1`
-  restricts the sweep to **in phase only**. In `natambio_xtc_sweep` that stops
-  the level range at 0 dB (18 steps instead of 42); in
+  restricts the sweep to **in phase only**. In `natambio_xtc_sweep` that ends
+  each side at mute (18 steps instead of 42); in
   `natambio_ild_itd_sweep` it clears the invert flag of the falling legs (same
   76 steps). Changing the port mid-run restarts the sweep at its first step.
 - On every step change the plugin **prints a line to stderr** so you can follow
   the sweep live when hosting it under ecasound — same wording as the scripts:
 
   ```
-  [xtc_sweep] >> g= +0.0 dB into L | L cancelled (-inf dB vs R) | image -> R hard
+  [xtc_sweep] >> step  9/18 | L MUTED (-inf dB vs R) | image -> R hard
   [ild_itd_sweep] >> z= 90 deg on L | L = -16.3 dB vs R, delay 33 smp/694.8 us, in phase | image -> R
   ```
 
