@@ -120,6 +120,35 @@ def step_label(rem, ch, k, n):
     return f"{head} | {ch} = {eff:+5.1f} dB vs {other}, {pol} | {img}"
 
 
+# A crossfade cannot get from a signal to its exact inverse without passing
+# through silence, so the one junction where that happens is switched hard.
+ZC_MAX_S = 0.05        # give up waiting for a zero crossing after this long
+
+
+def is_polarity_flip(a, b):
+    """True when two steps put out exactly opposite signals.
+
+    Both sides at full level inverted — (-mono, +mono) and (+mono, -mono) —
+    are the same sound with the polarity of the whole signal flipped, which
+    is inaudible. Crossfading between them would take both channels through
+    zero, a hole as long as the crossfade, so the sweep switches instantly
+    at a zero crossing instead. It is the only such junction in a pass: the
+    other repeated step, the centre at the loop seam, has both gains at 0
+    and nothing to fade.
+    """
+    return a[0] == -1.0 and b[0] == -1.0 and a[1] != b[1]
+
+
+def zero_crossing(prev, blk, waited, limit):
+    """First sample of blk whose sign differs from the one before it, or the
+    last sample once 'limit' samples have gone by; None while still waiting."""
+    s = np.signbit(np.concatenate(([prev], blk)))
+    idx = np.nonzero(s[:-1] != s[1:])[0]
+    if idx.size:
+        return int(idx[0])
+    return len(blk) - 1 if waited + len(blk) >= limit else None
+
+
 def main():
     ap = argparse.ArgumentParser(description="XTC sweep as a JACK client.")
     ap.add_argument("wav")
@@ -154,6 +183,7 @@ def main():
 
     step_frames = int(round(args.secs * sr))
     ov_frames = max(1, int(round(args.ov * sr)))
+    zc_max = max(1, int(round(ZC_MAX_S * sr)))
     pass_frames = step_frames * len(STEPS)
     if ov_frames >= step_frames:
         raise SystemExit("Overlap must be shorter than the step duration.")
@@ -173,6 +203,9 @@ def main():
         "tL": 0.0, "tR": 0.0,       # crossfade target
         "dL": 0.0, "dR": 0.0,       # per-sample increment during the ramp
         "ramp": 0,         # remaining crossfade samples
+        "flip": 0,         # polarity flip pending a zero crossing
+        "wait": 0,         # samples spent waiting for it
+        "prev_mono": 0.0,  # last input sample, for the sign test
         "xruns": 0,
     }
 
@@ -196,22 +229,51 @@ def main():
         # itself is sample by sample)
         k = pos // step_frames
         if k != st["last_k"] and k < len(STEPS):
-            rem, ch = STEPS[k]
-            factor = 1.0 - rem          # gain of the inverted copy to sum in
-            tL = factor if ch == 'L' else 0.0
-            tR = factor if ch == 'R' else 0.0
+            step = STEPS[k]
+            prev = STEPS[st["last_k"]] if st["last_k"] >= 0 else (1.0, step[1])
+            factor = 1.0 - step[0]      # gain of the inverted copy to sum in
+            tL = factor if step[1] == 'L' else 0.0
+            tR = factor if step[1] == 'R' else 0.0
             st["tL"], st["tR"] = tL, tR
-            st["dL"] = (tL - st["curL"]) / ov_frames
-            st["dR"] = (tR - st["curR"]) / ov_frames
-            st["ramp"] = ov_frames
             st["last_k"] = int(k)
+            if is_polarity_flip(prev, step):
+                st["flip"], st["wait"], st["ramp"] = 1, 0, 0
+            else:
+                st["dL"] = (tL - st["curL"]) / ov_frames
+                st["dR"] = (tR - st["curR"]) / ov_frames
+                st["ramp"] = ov_frames
 
         n = frames
-        # Per-sample gain vectors (linear ramp -> plateau).
+        # Audio chunk: the music advances continuously and, when the WAV
+        # ends, wraps around to the start (loop). Read before the gains, so
+        # a pending polarity flip can look for its zero crossing in it.
+        N = wav.shape[0]
+        mpos = st["mpos"]
+        end_m = mpos + n
+        if end_m <= N:
+            blk = wav[mpos:end_m]
+        else:                                  # block crosses the end -> wrap
+            blk = np.concatenate((wav[mpos:], wav[:end_m - N]))
+        st["mpos"] = end_m % N
+        L = blk[:, 0]
+        R = blk[:, 1]
+
+        # Per-sample gain vectors (linear ramp -> plateau, or a hard switch).
         gL = np.empty(n, dtype=np.float32)
         gR = np.empty(n, dtype=np.float32)
-        rem = st["ramp"]
-        if rem > 0:
+        if st["flip"]:
+            j = zero_crossing(st["prev_mono"], L, st["wait"], zc_max)
+            if j is None:                      # not yet: hold the old step
+                st["wait"] += n
+                gL[:] = st["curL"]
+                gR[:] = st["curR"]
+            else:                              # switch here, no ramp at all
+                gL[:j], gR[:j] = st["curL"], st["curR"]
+                st["curL"], st["curR"] = st["tL"], st["tR"]
+                gL[j:], gR[j:] = st["curL"], st["curR"]
+                st["flip"] = 0
+        elif st["ramp"] > 0:
+            rem = st["ramp"]
             r = min(rem, n)
             idx = np.arange(1, r + 1, dtype=np.float32)
             gL[:r] = st["curL"] + st["dL"] * idx
@@ -228,19 +290,8 @@ def main():
         else:
             gL[:] = st["curL"]
             gR[:] = st["curR"]
+        st["prev_mono"] = float(L[-1])
 
-        # Audio chunk: the music advances continuously and, when the WAV
-        # ends, wraps around to the start (loop).
-        N = wav.shape[0]
-        mpos = st["mpos"]
-        end_m = mpos + n
-        if end_m <= N:
-            blk = wav[mpos:end_m]
-        else:                                  # block crosses the end -> wrap
-            blk = np.concatenate((wav[mpos:], wav[:end_m - N]))
-        st["mpos"] = end_m % N
-        L = blk[:, 0]
-        R = blk[:, 1]
         bL[:] = L - gL * L
         bR[:] = R - gR * R
 

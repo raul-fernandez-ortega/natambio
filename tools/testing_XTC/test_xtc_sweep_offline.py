@@ -107,6 +107,35 @@ def step_label(rem, ch, k, n):
                else "image: de-localised")
     return f"{head} | {ch} = {eff:+5.1f} dB vs {other}, {pol} | {img}"
 
+
+# A crossfade cannot get from a signal to its exact inverse without passing
+# through silence, so the one junction where that happens is switched hard.
+ZC_MAX_S = 0.05        # give up waiting for a zero crossing after this long
+
+
+def is_polarity_flip(a, b):
+    """True when two steps put out exactly opposite signals.
+
+    Both sides at full level inverted — (-mono, +mono) and (+mono, -mono) —
+    are the same sound with the polarity of the whole signal flipped, which
+    is inaudible. Crossfading between them would take both channels through
+    zero, a hole as long as the crossfade, so the sweep switches instantly
+    at a zero crossing instead. It is the only such junction in a pass: the
+    other repeated step, the centre at the loop seam, has both gains at 0
+    and nothing to fade.
+    """
+    return a[0] == -1.0 and b[0] == -1.0 and a[1] != b[1]
+
+
+def zero_crossing(prev, blk, waited, limit):
+    """First sample of blk whose sign differs from the one before it, or the
+    last sample once 'limit' samples have gone by; None while still waiting."""
+    s = np.signbit(np.concatenate(([prev], blk)))
+    idx = np.nonzero(s[:-1] != s[1:])[0]
+    if idx.size:
+        return int(idx[0])
+    return len(blk) - 1 if waited + len(blk) >= limit else None
+
 BLOCK = 1024        # processing block (offline; only affects speed, not output)
 
 
@@ -141,6 +170,7 @@ def main():
 
     step_frames = int(round(args.secs * sr))
     ov_frames = max(1, int(round(args.ov * sr)))
+    zc_max = max(1, int(round(ZC_MAX_S * sr)))
     if ov_frames >= step_frames:
         raise SystemExit("Overlap must be shorter than the step duration.")
     pass_frames = step_frames * len(STEPS)
@@ -161,6 +191,8 @@ def main():
     tL = tR = 0.0
     dL = dR = 0.0
     ramp = 0
+    flip = wait = 0        # polarity flip pending a zero crossing
+    prev_mono = 0.0
     last_k = -1
     mpos = 0
     pos = 0
@@ -171,19 +203,40 @@ def main():
         n = min(BLOCK, pass_frames - pos, boundary - pos)
 
         if k != last_k and k < len(STEPS):
-            rem, ch = STEPS[k]
-            factor = 1.0 - rem          # gain of the inverted copy to sum in
-            tL = factor if ch == 'L' else 0.0
-            tR = factor if ch == 'R' else 0.0
-            dL = (tL - curL) / ov_frames
-            dR = (tR - curR) / ov_frames
-            ramp = ov_frames
+            step = STEPS[k]
+            prev = STEPS[last_k] if last_k >= 0 else (1.0, step[1])
+            factor = 1.0 - step[0]      # gain of the inverted copy to sum in
+            tL = factor if step[1] == 'L' else 0.0
+            tR = factor if step[1] == 'R' else 0.0
             last_k = int(k)
+            if is_polarity_flip(prev, step):
+                flip, wait, ramp = 1, 0, 0
+            else:
+                dL = (tL - curL) / ov_frames
+                dR = (tR - curR) / ov_frames
+                ramp = ov_frames
 
-        # Per-sample gain vectors (linear ramp -> plateau).
+        # Music block (continuous, wraps at the WAV end). Read before the
+        # gains, so a pending polarity flip can find its zero crossing in it.
+        m = (mpos + np.arange(n)) % N
+        L = wav[m, 0]
+        R = wav[m, 1]
+
+        # Per-sample gain vectors (linear ramp -> plateau, or a hard switch).
         gL = np.empty(n, dtype=np.float32)
         gR = np.empty(n, dtype=np.float32)
-        if ramp > 0:
+        if flip:
+            j = zero_crossing(prev_mono, L, wait, zc_max)
+            if j is None:                      # not yet: hold the old step
+                wait += n
+                gL[:] = curL
+                gR[:] = curR
+            else:                              # switch here, no ramp at all
+                gL[:j], gR[:j] = curL, curR
+                curL, curR = tL, tR
+                gL[j:], gR[j:] = curL, curR
+                flip = 0
+        elif ramp > 0:
             r = min(ramp, n)
             idx = np.arange(1, r + 1, dtype=np.float32)
             gL[:r] = curL + dL * idx
@@ -199,11 +252,8 @@ def main():
         else:
             gL[:] = curL
             gR[:] = curR
+        prev_mono = float(L[-1])
 
-        # Music block (continuous, wraps at the WAV end).
-        m = (mpos + np.arange(n)) % N
-        L = wav[m, 0]
-        R = wav[m, 1]
         out[pos:pos + n, 0] = L - gL * L
         out[pos:pos + n, 1] = R - gR * R
 

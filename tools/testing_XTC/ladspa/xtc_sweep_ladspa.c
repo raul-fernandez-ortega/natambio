@@ -100,6 +100,11 @@ typedef struct {
     float tL, tR;         /* crossfade target        */
     float dL, dR;         /* per-sample increment    */
     long  ramp;           /* remaining crossfade samples */
+
+    /* Polarity-flip junction: switched hard, at a zero crossing. */
+    int   flip_pending;   /* next step is the exact inverse of this one */
+    long  flip_wait;      /* samples spent waiting for the crossing     */
+    float prev_mono;      /* previous input sample, for the sign test   */
 } XtcSweep;
 
 /* ---- Build the level / step tables --------------------------------------*/
@@ -146,7 +151,8 @@ static void set_phase_mode(XtcSweep *p, int inphase_only)
 }
 
 /* ---- Apply a new step: set crossfade targets and announce it -------------*/
-static void trigger_step(XtcSweep *p, long ov_frames)
+/* hard = 1 switches instantly instead of crossfading (see flip_pending). */
+static void trigger_step(XtcSweep *p, long ov_frames, int hard)
 {
     int   k      = p->cur_k;
     float rem    = p->rem[k];       /* signed factor left on the named channel */
@@ -156,9 +162,15 @@ static void trigger_step(XtcSweep *p, long ov_frames)
 
     p->tL = (ch == 'L') ? factor : 0.0f;
     p->tR = (ch == 'R') ? factor : 0.0f;
-    p->dL = (p->tL - p->curL) / (float) ov_frames;
-    p->dR = (p->tR - p->curR) / (float) ov_frames;
-    p->ramp = ov_frames;
+    if (hard) {                     /* no ramp at all: straight to the target */
+        p->curL = p->tL;
+        p->curR = p->tR;
+        p->ramp = 0;
+    } else {
+        p->dL = (p->tL - p->curL) / (float) ov_frames;
+        p->dR = (p->tR - p->curR) / (float) ov_frames;
+        p->ramp = ov_frames;
+    }
 
     /* The NAMED CHANNEL IS THE ONE BEING CANCELLED, so the image moves to the
      * other side: centre at the top of the ladder, hard pan at mute, and past
@@ -182,9 +194,10 @@ static void trigger_step(XtcSweep *p, long ov_frames)
         }
         fprintf(stderr,
                 "[xtc_sweep] >> step %2d/%d | %c = %+5.1f dB vs %c, %s "
-                "| %s   (loop %ld)\n",
+                "| %s%s   (loop %ld)\n",
                 k + 1, p->n_steps, ch, eff, other,
-                (rem > 0.0f) ? "in phase" : "INVERTED", img, p->loop + 1);
+                (rem > 0.0f) ? "in phase" : "INVERTED", img,
+                hard ? " [hard switch]" : "", p->loop + 1);
     }
 }
 
@@ -225,6 +238,9 @@ static void activate(LADSPA_Handle h)
     p->tL = p->tR = 0.0f;
     p->dL = p->dR = 0.0f;
     p->ramp = 0;
+    p->flip_pending = 0;
+    p->flip_wait = 0;
+    p->prev_mono = 0.0f;
     p->inphase = -1;       /* force a table (re)build on the first run() */
     fprintf(stderr,
             "[xtc_sweep] active @ %lu Hz | infinite loop "
@@ -249,18 +265,31 @@ static void run(LADSPA_Handle h, unsigned long n)
 
     long step_frames = (long) (secs * (float) p->sr + 0.5f);
     long ov_frames   = (long) (trans * (float) p->sr + 0.5f);
+    long zc_max      = (long) p->sr / 20;   /* give up after 50 ms */
     if (step_frames < 1) step_frames = 1;
     if (ov_frames   < 1) ov_frames   = 1;
     if (ov_frames >= step_frames) ov_frames = step_frames - 1;
     if (ov_frames   < 1) ov_frames   = 1;
 
     for (i = 0; i < n; i++) {
-        float mono;
+        float mono = 0.5f * ((float) inL[i] + (float) inR[i]);
 
         if (p->need_trigger) {
-            trigger_step(p, ov_frames);
-            p->need_trigger = 0;
+            if (!p->flip_pending) {
+                trigger_step(p, ov_frames, 0);
+                p->need_trigger = 0;
+            } else if (((p->prev_mono < 0.0f) != (mono < 0.0f))
+                       || p->flip_wait >= zc_max) {
+                /* Zero crossing reached (or waited long enough): flip here,
+                 * where the jump is no bigger than the signal's own slope. */
+                trigger_step(p, ov_frames, 1);
+                p->need_trigger  = 0;
+                p->flip_pending  = 0;
+            } else {
+                p->flip_wait++;         /* hold the previous step meanwhile */
+            }
         }
+        p->prev_mono = mono;
 
         /* Advance the gain crossfade (linear ramp -> plateau). */
         if (p->ramp > 0) {
@@ -272,17 +301,26 @@ static void run(LADSPA_Handle h, unsigned long n)
             }
         }
 
-        mono = 0.5f * ((float) inL[i] + (float) inR[i]);
         outL[i] = mono - p->curL * mono;
         outR[i] = mono - p->curR * mono;
 
         /* End of step? move on; wrap the sweep forever. */
         if (++p->step_sample >= step_frames) {
+            int prev_k = p->cur_k;
             p->step_sample = 0;
             if (++p->cur_k >= p->n_steps) {
                 p->cur_k = 0;
                 p->loop++;
             }
+            /* Both sides at full level inverted put out exactly opposite
+             * signals - the same sound with the polarity of the whole thing
+             * flipped, which is inaudible. A crossfade between them would
+             * take both channels through zero, a hole as long as the
+             * crossfade, so that one junction is switched hard instead. */
+            p->flip_pending = (p->rem[prev_k] == -1.0f
+                               && p->rem[p->cur_k] == -1.0f
+                               && p->chan[prev_k] != p->chan[p->cur_k]);
+            p->flip_wait = 0;
             p->need_trigger = 1;
         }
     }
