@@ -22,8 +22,13 @@ delay change and the level change are click-free (and so is the L<->R handover).
 The music advances continuously and wraps at the WAV end; with --repeat only the
 SWEEP (the step sequence) restarts, the MUSIC keeps flowing.
 
+With --phase you choose whether the falling legs are phase-inverted: 'both'
+(default) tests in phase and with polarity flipped, 'in' keeps the same sweep
+motion entirely in phase.
+
 Usage:
-    python3 test_xtc_ild_itd_sweep.py track.wav [--secs 2] [--ov 0.1] [--repeat 1|inf]
+    python3 test_xtc_ild_itd_sweep.py track.wav [--secs 2] [--ov 0.1]
+                                                [--repeat 1|inf] [--phase both|in]
 """
 
 import argparse
@@ -47,18 +52,30 @@ DEST_RIGHT = "natambio:front_input_right"
 # ----------------------------------------------------------------------------
 
 # ---- SEQUENCE: (angle z in degrees, channel, invert) -----------------------
-# Four phases, in +5 deg steps ('invert' flips the modified channel polarity):
-#   1) L, z 0..90  (normal)
-#   2) L, z 90..0  (inverted)
-#   3) R, z 0..90  (normal)
-#   4) R, z 90..0  (inverted)
-# In loop mode it starts over at phase 1.
-_UP = list(range(0, 91, 5))                        # 0, 5, 10, ... 90
-_DOWN = list(reversed(_UP))                        # 90, 85, ... 0
-STEPS = ([(z, 'L', False) for z in _UP]
-         + [(z, 'L', True) for z in _DOWN]
-         + [(z, 'R', False) for z in _UP]
-         + [(z, 'R', True) for z in _DOWN])
+PHASE_MODES = ("both", "in")
+
+
+def build_steps(phase="both"):
+    """Step sequence (z in degrees, channel, invert) for the phase mode.
+
+    Four phases, in +5 deg steps ('invert' flips the modified channel
+    polarity on the falling legs):
+        1) L, z 0..90  (normal)
+        2) L, z 90..0  (inverted with phase 'both', normal with 'in')
+        3) R, z 0..90  (normal)
+        4) R, z 90..0  (inverted with phase 'both', normal with 'in')
+
+    'both' tests in phase AND phase-inverted; 'in' clears the invert flag,
+    so the sweep keeps the same four-phase motion (out and back on each
+    side) but never flips polarity.
+    """
+    up = list(range(0, 91, 5))                     # 0, 5, 10, ... 90
+    down = list(reversed(up))                      # 90, 85, ... 0
+    inv = (phase == "both")
+    return ([(z, 'L', False) for z in up]
+            + [(z, 'L', inv) for z in down]
+            + [(z, 'R', False) for z in up]
+            + [(z, 'R', inv) for z in down])
 # ----------------------------------------------------------------------------
 
 
@@ -78,9 +95,14 @@ def main():
     ap.add_argument("--secs", type=float, default=2.0, help="seconds per step")
     ap.add_argument("--ov", type=float, default=0.1, help="overlap/crossfade (s)")
     ap.add_argument("--repeat", default="1", help="number of passes or 'inf'")
+    ap.add_argument("--phase", choices=PHASE_MODES, default="both",
+                    help="'both' (default): test in phase AND with the "
+                         "modified channel phase-inverted on the falling "
+                         "legs; 'in': in-phase only, never invert")
     args = ap.parse_args()
 
     repeat = float("inf") if args.repeat == "inf" else int(args.repeat)
+    STEPS = build_steps(args.phase)
 
     # Whole WAV loaded into RAM (no disk access inside the callback).
     wav, sr = sf.read(args.wav, dtype="float32", always_2d=True)
@@ -211,7 +233,7 @@ def main():
             client.connect(outR, DEST_RIGHT)
             print(f"JACK {client.samplerate} Hz, block {client.blocksize} | "
                   f"{len(STEPS)} steps x {args.secs}s, overlap {args.ov}s, "
-                  f"repeat={args.repeat}")
+                  f"repeat={args.repeat}, phase={args.phase}")
             last_print = -1
             while not done.wait(timeout=0.05):
                 k = st["last_k"]

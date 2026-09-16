@@ -27,6 +27,11 @@
  * Control ports:
  *     Step time (s)        - seconds per step  (variable; default 2.0)
  *     Transition time (s)  - crossfade duration (default 0.1)
+ *     In-phase only        - 0 (default) = test in phase AND phase-inverted
+ *                            (the falling legs flip the active channel's
+ *                            polarity); 1 = in-phase only, same four-phase
+ *                            motion but the invert flag is never set.
+ *                            Changing it restarts the sweep at the first step.
  *
  * On every step change the plugin prints a line to stderr (angle, channel,
  * polarity, delay in samples/us and attenuation in dB) so you can follow the
@@ -54,7 +59,8 @@
 #define P_OUT_R  3
 #define P_STEP   4   /* control: seconds per step   */
 #define P_TRANS  5   /* control: crossfade seconds  */
-#define N_PORTS  6
+#define P_PHASE  6   /* control: 0 = both phases, 1 = in phase only */
+#define N_PORTS  7
 
 /* ---- Step sequence -------------------------------------------------------*/
 /* z: 0..90 deg in +5 deg steps -> 19 values, over four phases. */
@@ -65,7 +71,7 @@ typedef struct {
     unsigned long sr;
 
     /* Port pointers (connected by the host). */
-    LADSPA_Data *in_l, *in_r, *out_l, *out_r, *p_step, *p_trans;
+    LADSPA_Data *in_l, *in_r, *out_l, *out_r, *p_step, *p_trans, *p_phase;
 
     /* Precomputed step table. */
     int   z_deg[N_STEPS];     /* angle (for the message)        */
@@ -73,6 +79,7 @@ typedef struct {
     int   delay[N_STEPS];     /* delay in samples                */
     float atten[N_STEPS];     /* signed linear factor (- if inv) */
     char  chan[N_STEPS];      /* 'L' or 'R' (active side)        */
+    int   inphase;            /* 1 = in-phase only, 0 = both, -1 = not built */
 
     /* Mono delay line (ring buffer). */
     float *ring;
@@ -105,7 +112,9 @@ static double atten_db(int z)
 }
 
 /* ---- Build the step table (delay depends on the sample rate) -------------*/
-static void build_steps(IldItd *p)
+/* inphase_only = 1 clears the invert flag of the falling legs: the sweep keeps
+ * the same motion (out and back on each side) but never flips polarity. */
+static void build_steps(IldItd *p, int inphase_only)
 {
     /* Phases: (channel, direction, invert). */
     struct { char ch; int down; int inv; } phase[4] = {
@@ -115,6 +124,10 @@ static void build_steps(IldItd *p)
         {'R', 1, 1},   /* z 90..0, inverted */
     };
     int ph, j, k = 0, max_delay = 0;
+
+    if (inphase_only)
+        for (ph = 0; ph < 4; ph++)
+            phase[ph].inv = 0;
 
     for (ph = 0; ph < 4; ph++) {
         for (j = 0; j < N_UP; j++) {
@@ -138,6 +151,22 @@ static void build_steps(IldItd *p)
         p->ring_size <<= 1;
     if (p->ring_size < 64) p->ring_size = 64;
     p->ring_mask = p->ring_size - 1;
+
+    p->inphase = inphase_only;
+}
+
+/* ---- Switch phase mode: rebuild the table and restart the sweep ----------*/
+static void set_phase_mode(IldItd *p, int inphase_only)
+{
+    build_steps(p, inphase_only);      /* delays (and the ring) do not change */
+    p->cur_k        = 0;
+    p->step_sample  = 0;
+    p->need_trigger = 1;
+    fprintf(stderr,
+            "[ild_itd_sweep] phase mode: %s | %d steps\n",
+            inphase_only ? "IN PHASE ONLY (invert flag cleared)"
+                         : "both (in phase + inverted falling legs)",
+            N_STEPS);
 }
 
 /* ---- Apply a new step: shift cur->old, set target, announce it -----------*/
@@ -167,7 +196,7 @@ static LADSPA_Handle instantiate(const LADSPA_Descriptor *d, unsigned long sr)
     (void) d;
     if (!p) return NULL;
     p->sr = sr;
-    build_steps(p);
+    build_steps(p, 0);          /* both phases until run() reads the port */
     p->ring = (float *) calloc((size_t) p->ring_size, sizeof(float));
     if (!p->ring) { free(p); return NULL; }
     return (LADSPA_Handle) p;
@@ -183,6 +212,7 @@ static void connect_port(LADSPA_Handle h, unsigned long port, LADSPA_Data *data)
         case P_OUT_R:  p->out_r   = data; break;
         case P_STEP:   p->p_step  = data; break;
         case P_TRANS:  p->p_trans = data; break;
+        case P_PHASE:  p->p_phase = data; break;
         default: break;
     }
 }
@@ -199,6 +229,7 @@ static void activate(LADSPA_Handle h)
     p->curCh = p->oldCh = p->chan[0];
     p->ramp = 0;
     p->write_idx = 0;
+    p->inphase = -1;       /* force a table (re)build on the first run() */
     if (p->ring)
         memset(p->ring, 0, (size_t) p->ring_size * sizeof(float));
     fprintf(stderr,
@@ -216,6 +247,11 @@ static void run(LADSPA_Handle h, unsigned long n)
     /* Read control ports; fall back to defaults if unset / non-positive. */
     float secs  = (p->p_step  && *p->p_step  > 0.0f) ? *p->p_step  : 2.0f;
     float trans = (p->p_trans && *p->p_trans > 0.0f) ? *p->p_trans : 0.1f;
+    int   inphase = (p->p_phase && *p->p_phase > 0.0f) ? 1 : 0;
+
+    /* Phase mode changed (or first block): rebuild the table, restart sweep. */
+    if (inphase != p->inphase)
+        set_phase_mode(p, inphase);
 
     long step_frames = (long) (secs * (float) p->sr + 0.5f);
     long ov_frames   = (long) (trans * (float) p->sr + 0.5f);
@@ -295,6 +331,7 @@ static void __attribute__((constructor)) init_descriptor(void)
     s_port_desc[P_OUT_R] = LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO;
     s_port_desc[P_STEP]  = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
     s_port_desc[P_TRANS] = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
+    s_port_desc[P_PHASE] = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
 
     s_port_name[P_IN_L]  = "Input L";
     s_port_name[P_IN_R]  = "Input R";
@@ -302,6 +339,7 @@ static void __attribute__((constructor)) init_descriptor(void)
     s_port_name[P_OUT_R] = "Output R";
     s_port_name[P_STEP]  = "Step time (s)";
     s_port_name[P_TRANS] = "Transition time (s)";
+    s_port_name[P_PHASE] = "In-phase only (0/1)";
 
     /* Step time: [0, 8] s, default 2.0 (= 0*0.75 + 8*0.25). */
     s_port_hint[P_STEP].HintDescriptor =
@@ -316,6 +354,12 @@ static void __attribute__((constructor)) init_descriptor(void)
         LADSPA_HINT_DEFAULT_LOW;
     s_port_hint[P_TRANS].LowerBound = 0.0f;
     s_port_hint[P_TRANS].UpperBound = 0.4f;
+
+    /* Phase mode: toggle, default 0 = both phases (in phase + inverted). */
+    s_port_hint[P_PHASE].HintDescriptor =
+        LADSPA_HINT_TOGGLED | LADSPA_HINT_DEFAULT_0;
+    s_port_hint[P_PHASE].LowerBound = 0.0f;
+    s_port_hint[P_PHASE].UpperBound = 1.0f;
 
     s_port_hint[P_IN_L].HintDescriptor  = 0;
     s_port_hint[P_IN_R].HintDescriptor  = 0;
