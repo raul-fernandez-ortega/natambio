@@ -12,11 +12,12 @@
  * gL/gR are LINEAR factors 10**(dB/20); the inactive channel keeps gain 0.
  *
  * The sweep walks the STEP sequence forever (infinite loop): on L it steps
- * the named channel down 0, -3, -6 ... -21 dB and then MUTES it (the widest
- * panning there is), carries on through the over-cancel region where that
- * channel comes back inverted, turns at the far end, and mirrors the whole
- * thing on R. Between steps there is a sample-by-sample crossfade so gain
- * changes and the L<->R handover are click-free.
+ * the named channel down 0, -3, -6 ... -21 dB, MUTES it (the widest panning
+ * there is), then brings it back INVERTED from -14 dB up to full level, turns
+ * there and mirrors the whole thing on R. That walks the four phases in
+ * order: in phase L, inverted L, inverted R, in phase R. Between steps there
+ * is a sample-by-sample crossfade so gain changes and the L<->R handover are
+ * click-free.
  *
  * Control ports:
  *     Step time (s)        - seconds per step  (variable; default 2.0)
@@ -35,7 +36,7 @@
  *
  *   >> step  4/18 | L =  -9.0 dB vs R, in phase | image -> R
  *   >> step  9/18 | L MUTED (-inf dB vs R) | image -> R hard
- *   >> step 21/42 | L =  -0.0 dB vs R, INVERTED | image: de-localised
+ *   >> step 17/34 | L =  +0.0 dB vs R, INVERTED | image: de-localised
  *
  * Build:  see Makefile   ->  xtc_sweep_ladspa.so
  * Label:  natambio_xtc_sweep
@@ -65,13 +66,16 @@
  * DSP sums in is g = 1 - rem.
  *
  * In-phase leg: attenuation 0 -> 21 dB in 3 dB steps (8), then mute (1).
- * Even rungs in ATTENUATION keep the image moving; a ladder even in g
- * crowds most of its steps within a dB of the centre.
- * Over-cancel leg: g = +0.5 ... +6.0 dB in 0.5 dB steps (12). */
-#define N_IN_ATT    8             /* 0, 3, 6 ... 21 dB of attenuation */
-#define N_LEVELS_IN (N_IN_ATT + 1)          /* ... plus mute = 9      */
-#define N_LEVELS    (N_LEVELS_IN + 12)      /* ... plus over-cancel   */
-#define N_STEPS  (2 * N_LEVELS)   /* 21 on L (down) + 21 on R (up) = 42 */
+ * Inverted leg: past mute the channel comes back with its polarity flipped,
+ * -14 dB up to full level in 2 dB steps (8). Even rungs in ATTENUATION keep
+ * the image moving; a ladder even in g crowds most of its steps within a dB
+ * of the centre. The inverted leg is still the over-cancel region (g > 0 dB),
+ * just spaced by what is left of the channel instead of by g. */
+#define N_IN_ATT    8             /* 0, 3, 6 ... 21 dB, in phase      */
+#define N_INV_ATT   8             /* 14, 12 ... 0 dB, inverted        */
+#define N_LEVELS_IN (N_IN_ATT + 1)                /* ... plus mute = 9   */
+#define N_LEVELS    (N_LEVELS_IN + N_INV_ATT)     /* ... plus inverted   */
+#define N_STEPS  (2 * N_LEVELS)   /* 17 on L (down) + 17 on R (up) = 34 */
 
 typedef struct {
     unsigned long sr;
@@ -110,8 +114,8 @@ static void build_steps(XtcSweep *p, int inphase_only)
     for (i = 0; i < N_IN_ATT; i++)         /* 0, -3, -6 ... -21 dB (8 values) */
         levels[n++] = powf(10.0f, -(3.0f * (float) i) / 20.0f);
     levels[n++] = 0.0f;                    /* mute: infinite attenuation */
-    for (i = 1; i <= 12; i++)              /* over-cancel: g = +0.5 ... +6 dB */
-        levels[n++] = 1.0f - powf(10.0f, (0.5f * (float) i) / 20.0f);
+    for (i = 0; i < N_INV_ATT; i++)        /* inverted: -14 ... 0 dB (8) */
+        levels[n++] = -powf(10.0f, -(14.0f - 2.0f * (float) i) / 20.0f);
 
     /* Ladder down on L, then back up on R. */
     for (i = 0; i < n_levels; i++) {
@@ -137,7 +141,7 @@ static void set_phase_mode(XtcSweep *p, int inphase_only)
     fprintf(stderr,
             "[xtc_sweep] phase mode: %s | %d steps\n",
             inphase_only ? "IN PHASE ONLY (0 ... -21 dB, then mute)"
-                         : "both (in phase to mute, then inverted)",
+                         : "both (in phase to mute, then inverted to 0 dB)",
             p->n_steps);
 }
 
@@ -172,7 +176,7 @@ static void trigger_step(XtcSweep *p, long ov_frames)
             if (eff > -1.0f) snprintf(img, sizeof img, "image: centre");
             else             snprintf(img, sizeof img, "image -> %c", other);
         } else {
-            if (eff < -12.0f) snprintf(img, sizeof img, "image -> %c (anti-corr.)",
+            if (eff <= -12.0f) snprintf(img, sizeof img, "image -> %c (anti-corr.)",
                                        other);
             else              snprintf(img, sizeof img, "image: de-localised");
         }
