@@ -15,6 +15,12 @@ Same algorithms as the Python versions:
   wraps).
 - **Variable step time** and **transition (crossfade) time** as control ports,
   with the same defaults as the scripts (`2.0 s` / `0.1 s`).
+- **Phase mode** as a third control port, the LADSPA counterpart of the
+  scripts' `--phase`: `0` (default) tests in phase **and** phase-inverted, `1`
+  restricts the sweep to **in phase only**. In `natambio_xtc_sweep` that stops
+  the level range at 0 dB (18 steps instead of 42); in
+  `natambio_ild_itd_sweep` it clears the invert flag of the falling legs (same
+  76 steps). Changing the port mid-run restarts the sweep at its first step.
 - On every step change the plugin **prints a line to stderr** so you can follow
   the sweep live when hosting it under ecasound.
 
@@ -34,8 +40,9 @@ identical.
 | 3 | Output R | audio out | — |
 | 4 | Step time (s) | control in | 2.0 |
 | 5 | Transition time (s) | control in | 0.1 |
+| 6 | In-phase only (0/1) | control in | 0 (both phases) |
 
-`-el:LABEL,STEP,TRANSITION` — omit the two numbers to take the defaults.
+`-el:LABEL,STEP,TRANSITION,INPHASE` — omit the numbers to take the defaults.
 
 ## Build & install
 
@@ -101,6 +108,15 @@ ecasound -f:f32,2,44100 -i track.wav \
 ```sh
 ecasound -i track.wav \
          -el:natambio_ild_itd_sweep,1.5,0.08 \
+         -o:jack,natambio
+```
+
+**In-phase only** (defaults for the timings, phase port set to 1 — no
+anti-correlated content at any step):
+
+```sh
+ecasound -i track.wav \
+         -el:natambio_xtc_sweep,2,0.1,1 \
          -o:jack,natambio
 ```
 

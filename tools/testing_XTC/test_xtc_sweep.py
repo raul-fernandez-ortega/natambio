@@ -15,8 +15,14 @@ continuously according to the frame counter and, when the WAV ends, wraps
 around to the start (loop). With --repeat the MUSIC keeps advancing across
 passes; only the SWEEP (the step sequence) restarts.
 
+With --phase you choose whether the sweep visits the phase-inverted region:
+'both' (default) runs the whole level range, including the over-cancel region
+above 0 dB where (1 - g) goes negative and the channel flips polarity; 'in'
+keeps everything in phase by stopping at 0 dB (full cancellation).
+
 Usage:
     python3 test_xtc_sweep.py track.wav [--secs 10] [--ov 0.1] [--repeat 1|inf]
+                                        [--phase both|in]
 """
 
 import argparse
@@ -39,12 +45,25 @@ DEST_RIGHT = "natambio:front_input_right"
 # ----------------------------------------------------------------------------
 
 # ---- SEQUENCE: (gain_dB, channel) ------------------------------------------
-# Ascending levels: -40..0 dB in steps of 5, and 0..+6 dB in steps of 0.5.
-# The sweep rises on L (-40 -> +6), jumps to R at +6 and falls (+6 -> -40);
-# in loop mode, after -40 R it starts over at -40 L.
-_LEVELS = [float(g) for g in range(-40, 1, 5)] \
-        + [round(0.5 * i, 1) for i in range(1, 13)]         # ... -5, 0, 0.5 ... 6.0
-STEPS = [(g, 'L') for g in _LEVELS] + [(g, 'R') for g in reversed(_LEVELS)]
+PHASE_MODES = ("both", "in")
+
+
+def build_steps(phase="both"):
+    """Step sequence (gain_dB, channel) for the requested phase mode.
+
+    Ascending levels: -40..0 dB in steps of 5, and (phase 'both' only)
+    0..+6 dB in steps of 0.5. The sweep rises on L, jumps to R at the top
+    and falls on R; in loop mode it starts over at -40 dB on L.
+
+    'both' includes the over-cancel region above 0 dB, where (1 - g) goes
+    negative and the active channel comes out phase-INVERTED.
+    'in' stops at 0 dB (full cancellation), so the output never becomes
+    anti-correlated: everything stays in phase.
+    """
+    levels = [float(g) for g in range(-40, 1, 5)]            # -40, -35 ... 0
+    if phase == "both":
+        levels += [round(0.5 * i, 1) for i in range(1, 13)]  # 0.5, 1.0 ... 6.0
+    return [(g, 'L') for g in levels] + [(g, 'R') for g in reversed(levels)]
 # ----------------------------------------------------------------------------
 
 
@@ -54,9 +73,14 @@ def main():
     ap.add_argument("--secs", type=float, default=2.0, help="seconds per step")
     ap.add_argument("--ov", type=float, default=0.1, help="overlap/crossfade (s)")
     ap.add_argument("--repeat", default="1", help="number of passes or 'inf'")
+    ap.add_argument("--phase", choices=PHASE_MODES, default="both",
+                    help="'both' (default): sweep in phase AND through the "
+                         "phase-inverted (over-cancel) region above 0 dB; "
+                         "'in': in-phase only, stop at 0 dB")
     args = ap.parse_args()
 
     repeat = float("inf") if args.repeat == "inf" else int(args.repeat)
+    STEPS = build_steps(args.phase)
 
     # Whole WAV loaded into RAM (no disk access inside the callback).
     wav, sr = sf.read(args.wav, dtype="float32", always_2d=True)
@@ -184,7 +208,7 @@ def main():
             client.connect(outR, DEST_RIGHT)
             print(f"JACK {client.samplerate} Hz, block {client.blocksize} | "
                   f"{len(STEPS)} steps x {args.secs}s, overlap {args.ov}s, "
-                  f"repeat={args.repeat}")
+                  f"repeat={args.repeat}, phase={args.phase}")
             last_print = -1
             while not done.wait(timeout=0.05):
                 k = st["last_k"]

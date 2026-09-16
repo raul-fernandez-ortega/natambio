@@ -19,6 +19,13 @@
  * Control ports:
  *     Step time (s)        - seconds per step  (variable; default 2.0)
  *     Transition time (s)  - crossfade duration (default 0.1)
+ *     In-phase only        - 0 (default) = test in phase AND phase-inverted,
+ *                            sweeping the whole level range including the
+ *                            over-cancel region above 0 dB where (1 - g) goes
+ *                            negative and the channel flips polarity;
+ *                            1 = in-phase only, the sweep stops at 0 dB (full
+ *                            cancellation) and never goes anti-correlated.
+ *                            Changing it restarts the sweep at the first step.
  *
  * On every step change the plugin prints a line to stderr (gain, channel and
  * whether the channel is being phase-inverted by over-cancellation) so you can
@@ -42,22 +49,27 @@
 #define P_OUT_R  3
 #define P_STEP   4   /* control: seconds per step   */
 #define P_TRANS  5   /* control: crossfade seconds  */
-#define N_PORTS  6
+#define P_PHASE  6   /* control: 0 = both phases, 1 = in phase only */
+#define N_PORTS  7
 
 /* ---- Step sequence -------------------------------------------------------*/
-/* Levels: -40..0 dB in 5 dB steps (9), then 0.5..6.0 dB in 0.5 dB steps (12). */
-#define N_LEVELS 21
+/* Levels: -40..0 dB in 5 dB steps (9), then 0.5..6.0 dB in 0.5 dB steps (12).
+ * In-phase-only mode keeps just the first 9 (it stops at 0 dB). */
+#define N_LEVELS_IN 9             /* -40 ... 0 dB                    */
+#define N_LEVELS    21            /* ... plus 0.5 ... 6.0 dB         */
 #define N_STEPS  (2 * N_LEVELS)   /* 21 on L (rising) + 21 on R (falling) = 42 */
 
 typedef struct {
     unsigned long sr;
 
     /* Port pointers (connected by the host). */
-    LADSPA_Data *in_l, *in_r, *out_l, *out_r, *p_step, *p_trans;
+    LADSPA_Data *in_l, *in_r, *out_l, *out_r, *p_step, *p_trans, *p_phase;
 
-    /* Precomputed step table. */
+    /* Precomputed step table (only the first n_steps entries are in use). */
     float gain_db[N_STEPS];   /* level in dB              */
     char  chan[N_STEPS];      /* 'L' or 'R' (active side) */
+    int   n_steps;            /* steps in force for the current phase mode */
+    int   inphase;            /* 1 = in-phase only, 0 = both, -1 = not built */
 
     /* Running state. */
     int   cur_k;          /* current step index                 */
@@ -73,10 +85,13 @@ typedef struct {
 } XtcSweep;
 
 /* ---- Build the level / step tables --------------------------------------*/
-static void build_steps(XtcSweep *p)
+/* inphase_only = 1 stops the level range at 0 dB, so (1 - g) never goes
+ * negative and the output never becomes anti-correlated. */
+static void build_steps(XtcSweep *p, int inphase_only)
 {
     float levels[N_LEVELS];
     int i, n = 0;
+    int n_levels = inphase_only ? N_LEVELS_IN : N_LEVELS;
 
     for (i = -40; i <= 0; i += 5)          /* -40, -35, ... 0  (9 values) */
         levels[n++] = (float) i;
@@ -84,14 +99,31 @@ static void build_steps(XtcSweep *p)
         levels[n++] = 0.5f * (float) i;
 
     /* Rising on L, then falling on R. */
-    for (i = 0; i < N_LEVELS; i++) {
+    for (i = 0; i < n_levels; i++) {
         p->gain_db[i] = levels[i];
         p->chan[i]    = 'L';
     }
-    for (i = 0; i < N_LEVELS; i++) {
-        p->gain_db[N_LEVELS + i] = levels[N_LEVELS - 1 - i];
-        p->chan[N_LEVELS + i]    = 'R';
+    for (i = 0; i < n_levels; i++) {
+        p->gain_db[n_levels + i] = levels[n_levels - 1 - i];
+        p->chan[n_levels + i]    = 'R';
     }
+
+    p->n_steps = 2 * n_levels;
+    p->inphase = inphase_only;
+}
+
+/* ---- Switch phase mode: rebuild the table and restart the sweep ----------*/
+static void set_phase_mode(XtcSweep *p, int inphase_only)
+{
+    build_steps(p, inphase_only);
+    p->cur_k        = 0;
+    p->step_sample  = 0;
+    p->need_trigger = 1;
+    fprintf(stderr,
+            "[xtc_sweep] phase mode: %s | %d steps\n",
+            inphase_only ? "IN PHASE ONLY (-40 ... 0 dB)"
+                         : "both (in phase + inverted, -40 ... +6 dB)",
+            p->n_steps);
 }
 
 /* ---- Apply a new step: set crossfade targets and announce it -------------*/
@@ -123,7 +155,7 @@ static LADSPA_Handle instantiate(const LADSPA_Descriptor *d, unsigned long sr)
     (void) d;
     if (!p) return NULL;
     p->sr = sr;
-    build_steps(p);
+    build_steps(p, 0);          /* both phases until run() reads the port */
     return (LADSPA_Handle) p;
 }
 
@@ -137,6 +169,7 @@ static void connect_port(LADSPA_Handle h, unsigned long port, LADSPA_Data *data)
         case P_OUT_R:  p->out_r   = data; break;
         case P_STEP:   p->p_step  = data; break;
         case P_TRANS:  p->p_trans = data; break;
+        case P_PHASE:  p->p_phase = data; break;
         default: break;
     }
 }
@@ -152,9 +185,10 @@ static void activate(LADSPA_Handle h)
     p->tL = p->tR = 0.0f;
     p->dL = p->dR = 0.0f;
     p->ramp = 0;
+    p->inphase = -1;       /* force a table (re)build on the first run() */
     fprintf(stderr,
-            "[xtc_sweep] active @ %lu Hz | %d steps, infinite loop "
-            "(inversion & sum)\n", p->sr, N_STEPS);
+            "[xtc_sweep] active @ %lu Hz | infinite loop "
+            "(inversion & sum)\n", p->sr);
 }
 
 static void run(LADSPA_Handle h, unsigned long n)
@@ -167,6 +201,11 @@ static void run(LADSPA_Handle h, unsigned long n)
     /* Read control ports; fall back to defaults if unset / non-positive. */
     float secs  = (p->p_step  && *p->p_step  > 0.0f) ? *p->p_step  : 2.0f;
     float trans = (p->p_trans && *p->p_trans > 0.0f) ? *p->p_trans : 0.1f;
+    int   inphase = (p->p_phase && *p->p_phase > 0.0f) ? 1 : 0;
+
+    /* Phase mode changed (or first block): rebuild the table, restart sweep. */
+    if (inphase != p->inphase)
+        set_phase_mode(p, inphase);
 
     long step_frames = (long) (secs * (float) p->sr + 0.5f);
     long ov_frames   = (long) (trans * (float) p->sr + 0.5f);
@@ -200,7 +239,7 @@ static void run(LADSPA_Handle h, unsigned long n)
         /* End of step? move on; wrap the sweep forever. */
         if (++p->step_sample >= step_frames) {
             p->step_sample = 0;
-            if (++p->cur_k >= N_STEPS) {
+            if (++p->cur_k >= p->n_steps) {
                 p->cur_k = 0;
                 p->loop++;
             }
@@ -228,6 +267,7 @@ static void __attribute__((constructor)) init_descriptor(void)
     s_port_desc[P_OUT_R] = LADSPA_PORT_OUTPUT | LADSPA_PORT_AUDIO;
     s_port_desc[P_STEP]  = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
     s_port_desc[P_TRANS] = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
+    s_port_desc[P_PHASE] = LADSPA_PORT_INPUT  | LADSPA_PORT_CONTROL;
 
     s_port_name[P_IN_L]  = "Input L";
     s_port_name[P_IN_R]  = "Input R";
@@ -235,6 +275,7 @@ static void __attribute__((constructor)) init_descriptor(void)
     s_port_name[P_OUT_R] = "Output R";
     s_port_name[P_STEP]  = "Step time (s)";
     s_port_name[P_TRANS] = "Transition time (s)";
+    s_port_name[P_PHASE] = "In-phase only (0/1)";
 
     /* Step time: [0, 8] s, default 2.0 (= 0*0.75 + 8*0.25). */
     s_port_hint[P_STEP].HintDescriptor =
@@ -249,6 +290,12 @@ static void __attribute__((constructor)) init_descriptor(void)
         LADSPA_HINT_DEFAULT_LOW;
     s_port_hint[P_TRANS].LowerBound = 0.0f;
     s_port_hint[P_TRANS].UpperBound = 0.4f;
+
+    /* Phase mode: toggle, default 0 = both phases (in phase + inverted). */
+    s_port_hint[P_PHASE].HintDescriptor =
+        LADSPA_HINT_TOGGLED | LADSPA_HINT_DEFAULT_0;
+    s_port_hint[P_PHASE].LowerBound = 0.0f;
+    s_port_hint[P_PHASE].UpperBound = 1.0f;
 
     s_port_hint[P_IN_L].HintDescriptor  = 0;
     s_port_hint[P_IN_R].HintDescriptor  = 0;

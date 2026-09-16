@@ -28,8 +28,13 @@ Four phases, +5 deg steps ('invert' flips the modified channel polarity):
 Between steps there is a sample-by-sample crossfade (delay change, level change
 and L<->R handover are click-free). The music wraps at the WAV end.
 
+With --phase you choose whether the falling legs are phase-inverted: 'both'
+(default) tests in phase and with polarity flipped, 'in' keeps the same sweep
+motion entirely in phase and is written as <input>_ildsweep_inphase.wav.
+
 Usage:
     python3 test_xtc_ild_itd_sweep_offline.py track.wav [--secs 2] [--ov 0.1]
+                                                        [--phase both|in]
 """
 
 import argparse
@@ -40,12 +45,30 @@ import numpy as np
 import soundfile as sf
 
 # ---- SEQUENCE: (angle z in degrees, channel, invert) -----------------------
-_UP = list(range(0, 91, 5))                        # 0, 5, 10, ... 90
-_DOWN = list(reversed(_UP))                        # 90, 85, ... 0
-STEPS = ([(z, 'L', False) for z in _UP]
-         + [(z, 'L', True) for z in _DOWN]
-         + [(z, 'R', False) for z in _UP]
-         + [(z, 'R', True) for z in _DOWN])
+PHASE_MODES = ("both", "in")
+
+
+def build_steps(phase="both"):
+    """Step sequence (z in degrees, channel, invert) for the phase mode.
+
+    Four phases, in +5 deg steps ('invert' flips the modified channel
+    polarity on the falling legs):
+        1) L, z 0..90  (normal)
+        2) L, z 90..0  (inverted with phase 'both', normal with 'in')
+        3) R, z 0..90  (normal)
+        4) R, z 90..0  (inverted with phase 'both', normal with 'in')
+
+    'both' tests in phase AND phase-inverted; 'in' clears the invert flag,
+    so the sweep keeps the same four-phase motion (out and back on each
+    side) but never flips polarity.
+    """
+    up = list(range(0, 91, 5))                     # 0, 5, 10, ... 90
+    down = list(reversed(up))                      # 90, 85, ... 0
+    inv = (phase == "both")
+    return ([(z, 'L', False) for z in up]
+            + [(z, 'L', inv) for z in down]
+            + [(z, 'R', False) for z in up]
+            + [(z, 'R', inv) for z in down])
 # ----------------------------------------------------------------------------
 
 BLOCK = 1024        # processing block (offline; only affects speed, not output)
@@ -61,9 +84,10 @@ def atten_db(z):
     return -0.10 + 0.407 * z - 0.0025 * z * z
 
 
-def out_name(path):
+def out_name(path, phase="both"):
     root, ext = os.path.splitext(path)
-    return root + "_ildsweep" + (ext or ".wav")
+    tag = "_ildsweep" if phase == "both" else "_ildsweep_inphase"
+    return root + tag + (ext or ".wav")
 
 
 def main():
@@ -71,7 +95,13 @@ def main():
     ap.add_argument("wav")
     ap.add_argument("--secs", type=float, default=2.0, help="seconds per step")
     ap.add_argument("--ov", type=float, default=0.1, help="overlap/crossfade (s)")
+    ap.add_argument("--phase", choices=PHASE_MODES, default="both",
+                    help="'both' (default): test in phase AND with the "
+                         "modified channel phase-inverted on the falling "
+                         "legs; 'in': in-phase only, never invert")
     args = ap.parse_args()
+
+    STEPS = build_steps(args.phase)
 
     wav, sr = sf.read(args.wav, dtype="float32", always_2d=True)
     if wav.shape[1] == 1:               # mono -> duplicate to stereo
@@ -148,10 +178,11 @@ def main():
         mpos = (mpos + n) % N
         pos += n
 
-    dst = out_name(args.wav)
+    dst = out_name(args.wav, args.phase)
     sf.write(dst, out, sr, subtype="FLOAT")
     dur = pass_frames / sr
-    print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, {sr} Hz)")
+    print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, "
+          f"{sr} Hz, phase={args.phase})")
 
 
 if __name__ == "__main__":

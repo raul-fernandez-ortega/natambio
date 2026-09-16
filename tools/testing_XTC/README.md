@@ -44,6 +44,13 @@ speakers. This is a useful probe of how the room and the listening position
 handle out-of-phase content, and of how robust (or fragile) the phantom image
 is once inter-channel correlation breaks down.
 
+Testing the anti-correlated region is **optional**: every tool takes a
+**phase mode** (`--phase` in the scripts, the *In-phase only* control port in
+the LADSPA plugins). The default, `both`, tests **in phase and with phase
+inversion**; `in` restricts the sweep to **in-phase only**, so the two channels
+never become anti-correlated. That lets you gauge the plain sound-stage width
+first and only then bring in the de-localisation effect.
+
 In both algorithms the swept parameter produces a **moving virtual source**: as
 the sweep advances, the perceived localisation glides across the sound stage —
 travelling from one side to the other and, in the anti-correlated regions,
@@ -76,6 +83,11 @@ flips polarity.
   on R** (+6 → -40 dB).
 - In loop mode it starts over at -40 dB on L. The **music keeps flowing**
   across passes; only the **sweep** restarts.
+
+**Phase mode.** The inverted region of this algorithm is the **over-cancel**
+one, above 0 dB, where `1 - g` goes negative. `both` (default) sweeps the whole
+range (21 levels per side, 42 steps); `in` stops at 0 dB — full cancellation,
+nothing anti-correlated — leaving 9 levels per side, 18 steps.
 
 Between steps there is a sample-by-sample **crossfade** (default 0.1 s) so gain
 changes and the L↔R handover are click-free.
@@ -115,6 +127,11 @@ In loop mode it starts over at phase 1. As with algorithm 1, between steps a
 sample-by-sample crossfade keeps the delay change, the level change and the
 L↔R handover click-free.
 
+**Phase mode.** `both` (default) is the sequence above. `in` simply clears the
+*invert* flag of phases 2 and 4: the sweep keeps the same motion — out to 90°
+and back on each side — but never flips polarity. The step count is the same
+(76) in both modes.
+
 ---
 
 ## Input signal (mono downmix)
@@ -144,6 +161,7 @@ constraint.
 
 ```
 python3 <script>.py track.wav [--secs 2.0] [--ov 0.1] [--repeat 1|inf]
+                              [--phase both|in]
 ```
 
 | Argument | Default | Meaning |
@@ -152,6 +170,7 @@ python3 <script>.py track.wav [--secs 2.0] [--ov 0.1] [--repeat 1|inf]
 | `--secs` | `2.0` | seconds per step |
 | `--ov` | `0.1` | overlap / crossfade duration (s); must be shorter than `--secs` |
 | `--repeat` | `1` | number of sweep passes, or `inf` for endless |
+| `--phase` | `both` | `both`: test in phase **and** phase-inverted; `in`: in-phase only |
 
 JACK client name and the output/destination port names are defined as
 variables at the top of each realtime script (`CLIENT_NAME`, `OUT_LEFT`,
@@ -161,14 +180,19 @@ default they connect to `natambio:front_input_left` / `..._right`.
 ### Offline scripts (`test_xtc_sweep_offline.py`, `test_xtc_ild_itd_sweep_offline.py`)
 
 ```
-python3 <script>_offline.py track.wav [--secs 2.0] [--ov 0.1]
+python3 <script>_offline.py track.wav [--secs 2.0] [--ov 0.1] [--phase both|in]
 ```
 
-Same `--secs` / `--ov` as above. They render **exactly one** sweep pass and
-write it next to the input WAV:
+Same `--secs` / `--ov` / `--phase` as above. They render **exactly one** sweep
+pass and write it next to the input WAV:
 
-- `test_xtc_sweep_offline.py`        → `<input>_sweep.wav`
-- `test_xtc_ild_itd_sweep_offline.py` → `<input>_ildsweep.wav`
+| Script | `--phase both` (default) | `--phase in` |
+|--------|--------------------------|--------------|
+| `test_xtc_sweep_offline.py` | `<input>_sweep.wav` | `<input>_sweep_inphase.wav` |
+| `test_xtc_ild_itd_sweep_offline.py` | `<input>_ildsweep.wav` | `<input>_ildsweep_inphase.wav` |
+
+The two phase modes write to **different names**, so an in-phase render never
+overwrites a full one.
 
 Output is 32-bit float WAV (avoids clipping). There is no `--repeat`: offline
 always produces a single pass.

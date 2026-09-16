@@ -16,8 +16,15 @@ gL/gR are LINEAR factors (10**(dB/20)); the unused channel keeps its 0 gain.
 Between steps there is an 'overlap'-second sample-by-sample crossfade. The
 music advances continuously and wraps at the WAV end (loops within the pass).
 
+With --phase you choose whether the sweep visits the phase-inverted region:
+'both' (default) runs the whole level range, including the over-cancel region
+above 0 dB where (1 - g) goes negative and the channel flips polarity; 'in'
+keeps everything in phase by stopping at 0 dB (full cancellation). The
+in-phase-only render is written as <input>_sweep_inphase.wav.
+
 Usage:
     python3 test_xtc_sweep_offline.py track.wav [--secs 2] [--ov 0.1]
+                                                [--phase both|in]
 """
 
 import argparse
@@ -27,19 +34,33 @@ import numpy as np
 import soundfile as sf
 
 # ---- SEQUENCE: (gain_dB, channel) ------------------------------------------
-# Ascending levels: -40..0 dB in steps of 5, and 0..+6 dB in steps of 0.5.
-# The sweep rises on L (-40 -> +6), jumps to R at +6 and falls (+6 -> -40).
-_LEVELS = [float(g) for g in range(-40, 1, 5)] \
-        + [round(0.5 * i, 1) for i in range(1, 13)]         # ... -5, 0, 0.5 ... 6.0
-STEPS = [(g, 'L') for g in _LEVELS] + [(g, 'R') for g in reversed(_LEVELS)]
+PHASE_MODES = ("both", "in")
+
+
+def build_steps(phase="both"):
+    """Step sequence (gain_dB, channel) for the requested phase mode.
+
+    Ascending levels: -40..0 dB in steps of 5, and (phase 'both' only)
+    0..+6 dB in steps of 0.5. The sweep rises on L and falls on R.
+
+    'both' includes the over-cancel region above 0 dB, where (1 - g) goes
+    negative and the active channel comes out phase-INVERTED.
+    'in' stops at 0 dB (full cancellation), so the output never becomes
+    anti-correlated: everything stays in phase.
+    """
+    levels = [float(g) for g in range(-40, 1, 5)]            # -40, -35 ... 0
+    if phase == "both":
+        levels += [round(0.5 * i, 1) for i in range(1, 13)]  # 0.5, 1.0 ... 6.0
+    return [(g, 'L') for g in levels] + [(g, 'R') for g in reversed(levels)]
 # ----------------------------------------------------------------------------
 
 BLOCK = 1024        # processing block (offline; only affects speed, not output)
 
 
-def out_name(path):
+def out_name(path, phase="both"):
     root, ext = os.path.splitext(path)
-    return root + "_sweep" + (ext or ".wav")
+    tag = "_sweep" if phase == "both" else "_sweep_inphase"
+    return root + tag + (ext or ".wav")
 
 
 def main():
@@ -47,7 +68,13 @@ def main():
     ap.add_argument("wav")
     ap.add_argument("--secs", type=float, default=2.0, help="seconds per step")
     ap.add_argument("--ov", type=float, default=0.1, help="overlap/crossfade (s)")
+    ap.add_argument("--phase", choices=PHASE_MODES, default="both",
+                    help="'both' (default): sweep in phase AND through the "
+                         "phase-inverted (over-cancel) region above 0 dB; "
+                         "'in': in-phase only, stop at 0 dB")
     args = ap.parse_args()
+
+    STEPS = build_steps(args.phase)
 
     wav, sr = sf.read(args.wav, dtype="float32", always_2d=True)
     if wav.shape[1] == 1:               # mono -> duplicate to stereo
@@ -121,10 +148,11 @@ def main():
         mpos = (mpos + n) % N
         pos += n
 
-    dst = out_name(args.wav)
+    dst = out_name(args.wav, args.phase)
     sf.write(dst, out, sr, subtype="FLOAT")
     dur = pass_frames / sr
-    print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, {sr} Hz)")
+    print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, "
+          f"{sr} Hz, phase={args.phase})")
 
 
 if __name__ == "__main__":
