@@ -16,9 +16,9 @@ around to the start (loop). With --repeat the MUSIC keeps advancing across
 passes; only the SWEEP (the step sequence) restarts.
 
 With --phase you choose whether the sweep visits the phase-inverted region:
-'both' (default) runs the whole level range, including the over-cancel region
-above 0 dB where (1 - g) goes negative and the channel flips polarity; 'in'
-keeps everything in phase by stopping at 0 dB (full cancellation).
+'both' (default) runs the whole ladder, including the over-cancel region where
+(1 - g) goes negative and the channel comes back inverted; 'in' keeps
+everything in phase, ending each side at mute.
 
 Usage:
     python3 test_xtc_sweep.py track.wav [--secs 10] [--ov 0.1] [--repeat 1|inf]
@@ -45,12 +45,32 @@ DEST_LEFT = "natambio:front_input_left"
 DEST_RIGHT = "natambio:front_input_right"
 # ----------------------------------------------------------------------------
 
-# ---- SEQUENCE: (gain_dB, channel) ------------------------------------------
+# ---- SEQUENCE: (remaining factor, channel) ---------------------------------
+# A step is stored as the SIGNED FACTOR LEFT on the named channel, which is
+# what you actually hear: 1.0 = untouched, 0.5 = -6 dB, 0.0 = muted, negative
+# = the channel comes back phase-inverted. The gain of the inverted copy that
+# gets summed in is g = 1 - rem.
 PHASE_MODES = ("both", "in")
+
+# In-phase leg: attenuation of the named channel, 0 -> 21 dB in 3 dB steps,
+# then mute. Even rungs in ATTENUATION keep the image moving; the old ladder
+# was even in g, which crowded five of its nine steps within 1 dB of centre.
+IN_ATT_DB = [3.0 * i for i in range(8)]                  # 0, 3, 6 ... 21
+# Over-cancel leg ('both' only), unchanged for now: g = +0.5 ... +6.0 dB.
+OVER_G_DB = [round(0.5 * i, 1) for i in range(1, 13)]
 
 
 def build_steps(phase="both"):
-    """Step sequence (gain_dB, channel) for the requested phase mode.
+    """Step sequence (remaining factor, channel) for the requested phase mode.
+
+    Per side: the in-phase ladder 0, -3, -6 ... -21 dB, then MUTE — the
+    widest panning there is, the named channel goes silent and everything
+    comes from the other one. With phase 'both' the over-cancel region
+    follows, where the named channel comes back phase-inverted, from
+    -24.5 dB up to full level at g = +6 dB.
+
+    The ladder runs down on L and back up on R, so in 'in' mode the two mute
+    steps meet in the middle: hard pan one way, then hard pan the other.
 
     Ascending levels: -40..0 dB in steps of 5, and (phase 'both' only)
     0..+6 dB in steps of 0.5. The sweep rises on L, jumps to R at the top
@@ -61,28 +81,27 @@ def build_steps(phase="both"):
     'in' stops at 0 dB (full cancellation), so the output never becomes
     anti-correlated: everything stays in phase.
     """
-    levels = [float(g) for g in range(-40, 1, 5)]            # -40, -35 ... 0
+    rem = [10.0 ** (-a / 20.0) for a in IN_ATT_DB]     # 1.0, 0.708 ... 0.089
+    rem.append(0.0)                                    # mute (-inf dB)
     if phase == "both":
-        levels += [round(0.5 * i, 1) for i in range(1, 13)]  # 0.5, 1.0 ... 6.0
-    return [(g, 'L') for g in levels] + [(g, 'R') for g in reversed(levels)]
+        rem += [1.0 - 10.0 ** (g / 20.0)               # negative -> inverted
+                for g in OVER_G_DB]
+    return [(r, 'L') for r in rem] + [(r, 'R') for r in reversed(rem)]
 # ----------------------------------------------------------------------------
 
 
-def step_label(g_db, ch):
-    """One step in plain words: what the gain does, and where the image goes.
+def step_label(rem, ch, k, n):
+    """One step in plain words: what is left of the named channel, and where
+    the image goes.
 
-    The dB figure is NOT a level difference between L and R: it is the gain
-    of the inverted copy summed into the named channel, which leaves
-    (1 - g) of it. So the NAMED CHANNEL IS THE ONE BEING CANCELLED and the
-    image moves to the OTHER side: minimum effect at -40 dB (centre), hard
-    pan at 0 dB (named channel silent), and above 0 dB what comes back is
-    phase-inverted.
+    The named channel is the one being CANCELLED (an inverted copy of it is
+    summed into it), so the image moves to the OTHER side, and the widest
+    panning is at MUTE rather than at either end of the dB ladder.
     """
     other = 'R' if ch == 'L' else 'L'
-    rem = 1.0 - 10.0 ** (g_db / 20.0)      # signed factor left on the named ch
+    head = f"step {k + 1:2d}/{n}"
     if rem == 0.0:
-        return (f"g={g_db:+5.1f} dB into {ch} | {ch} cancelled (-inf dB vs "
-                f"{other}) | image -> {other} hard")
+        return f"{head} | {ch} MUTED (-inf dB vs {other}) | image -> {other} hard"
     eff = 20.0 * math.log10(abs(rem))      # named ch level vs the untouched one
     if rem > 0.0:
         pol = "in phase"
@@ -91,8 +110,7 @@ def step_label(g_db, ch):
         pol = "INVERTED"
         img = (f"image -> {other} (anti-corr.)" if eff < -12.0
                else "image: de-localised")
-    return (f"g={g_db:+5.1f} dB into {ch} | {ch} = {eff:+5.1f} dB vs {other}, "
-            f"{pol} | {img}")
+    return f"{head} | {ch} = {eff:+5.1f} dB vs {other}, {pol} | {img}"
 
 
 def main():
@@ -171,8 +189,8 @@ def main():
         # itself is sample by sample)
         k = pos // step_frames
         if k != st["last_k"] and k < len(STEPS):
-            g, ch = STEPS[k]
-            factor = 10.0 ** (g / 20.0)
+            rem, ch = STEPS[k]
+            factor = 1.0 - rem          # gain of the inverted copy to sum in
             tL = factor if ch == 'L' else 0.0
             tR = factor if ch == 'R' else 0.0
             st["tL"], st["tR"] = tL, tR
@@ -241,8 +259,9 @@ def main():
             while not done.wait(timeout=0.05):
                 k = st["last_k"]
                 if k != last_print and 0 <= k < len(STEPS):
-                    g, ch = STEPS[k]
-                    print(f">> {step_label(g, ch)}   (pass {st['passno'] + 1})")
+                    rem, ch = STEPS[k]
+                    print(f">> {step_label(rem, ch, k, len(STEPS))}   "
+                          f"(pass {st['passno'] + 1})")
                     last_print = k
     except KeyboardInterrupt:
         print("\nInterrupted.")

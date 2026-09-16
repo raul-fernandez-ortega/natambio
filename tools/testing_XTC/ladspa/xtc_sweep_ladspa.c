@@ -11,9 +11,11 @@
  *
  * gL/gR are LINEAR factors 10**(dB/20); the inactive channel keeps gain 0.
  *
- * The sweep walks the STEP sequence forever (infinite loop): it rises on L
- * (-40 -> +6 dB), jumps to R at +6 dB and falls on R (+6 -> -40 dB), then
- * starts over. Between steps there is a sample-by-sample crossfade so gain
+ * The sweep walks the STEP sequence forever (infinite loop): on L it steps
+ * the named channel down 0, -3, -6 ... -21 dB and then MUTES it (the widest
+ * panning there is), carries on through the over-cancel region where that
+ * channel comes back inverted, turns at the far end, and mirrors the whole
+ * thing on R. Between steps there is a sample-by-sample crossfade so gain
  * changes and the L<->R handover are click-free.
  *
  * Control ports:
@@ -28,13 +30,12 @@
  *                            Changing it restarts the sweep at the first step.
  *
  * On every step change the plugin prints a line to stderr so you can follow
- * the sweep when hosting it under ecasound. The dB figure is the gain of the
- * inverted copy, NOT a level difference between L and R, so the message also
- * spells out what is left of the named channel and where the image should go:
+ * the sweep when hosting it under ecasound. It gives what is LEFT of the named
+ * channel relative to the untouched one, and where the image should go:
  *
- *   >> g= -5.0 dB into L | L =  -7.2 dB vs R, in phase | image -> R
- *   >> g= +0.0 dB into L | L cancelled (-inf dB vs R) | image -> R hard
- *   >> g= +6.0 dB into L | L =  -0.0 dB vs R, INVERTED | image: de-localised
+ *   >> step  4/18 | L =  -9.0 dB vs R, in phase | image -> R
+ *   >> step  9/18 | L MUTED (-inf dB vs R) | image -> R hard
+ *   >> step 21/42 | L =  -0.0 dB vs R, INVERTED | image: de-localised
  *
  * Build:  see Makefile   ->  xtc_sweep_ladspa.so
  * Label:  natambio_xtc_sweep
@@ -58,11 +59,19 @@
 #define N_PORTS  7
 
 /* ---- Step sequence -------------------------------------------------------*/
-/* Levels: -40..0 dB in 5 dB steps (9), then 0.5..6.0 dB in 0.5 dB steps (12).
- * In-phase-only mode keeps just the first 9 (it stops at 0 dB). */
-#define N_LEVELS_IN 9             /* -40 ... 0 dB                    */
-#define N_LEVELS    21            /* ... plus 0.5 ... 6.0 dB         */
-#define N_STEPS  (2 * N_LEVELS)   /* 21 on L (rising) + 21 on R (falling) = 42 */
+/* A step is stored as the SIGNED FACTOR LEFT on the named channel, which is
+ * what you hear: 1.0 = untouched, 0.5 = -6 dB, 0.0 = muted, negative = the
+ * channel comes back phase-inverted. The gain of the inverted copy that the
+ * DSP sums in is g = 1 - rem.
+ *
+ * In-phase leg: attenuation 0 -> 21 dB in 3 dB steps (8), then mute (1).
+ * Even rungs in ATTENUATION keep the image moving; a ladder even in g
+ * crowds most of its steps within a dB of the centre.
+ * Over-cancel leg: g = +0.5 ... +6.0 dB in 0.5 dB steps (12). */
+#define N_IN_ATT    8             /* 0, 3, 6 ... 21 dB of attenuation */
+#define N_LEVELS_IN (N_IN_ATT + 1)          /* ... plus mute = 9      */
+#define N_LEVELS    (N_LEVELS_IN + 12)      /* ... plus over-cancel   */
+#define N_STEPS  (2 * N_LEVELS)   /* 21 on L (down) + 21 on R (up) = 42 */
 
 typedef struct {
     unsigned long sr;
@@ -71,8 +80,8 @@ typedef struct {
     LADSPA_Data *in_l, *in_r, *out_l, *out_r, *p_step, *p_trans, *p_phase;
 
     /* Precomputed step table (only the first n_steps entries are in use). */
-    float gain_db[N_STEPS];   /* level in dB              */
-    char  chan[N_STEPS];      /* 'L' or 'R' (active side) */
+    float rem[N_STEPS];       /* signed factor left on the named channel */
+    char  chan[N_STEPS];      /* 'L' or 'R' (named / cancelled side)     */
     int   n_steps;            /* steps in force for the current phase mode */
     int   inphase;            /* 1 = in-phase only, 0 = both, -1 = not built */
 
@@ -90,27 +99,28 @@ typedef struct {
 } XtcSweep;
 
 /* ---- Build the level / step tables --------------------------------------*/
-/* inphase_only = 1 stops the level range at 0 dB, so (1 - g) never goes
- * negative and the output never becomes anti-correlated. */
+/* inphase_only = 1 ends each side at mute, so nothing left on the named
+ * channel is ever negative and the output never becomes anti-correlated. */
 static void build_steps(XtcSweep *p, int inphase_only)
 {
     float levels[N_LEVELS];
     int i, n = 0;
     int n_levels = inphase_only ? N_LEVELS_IN : N_LEVELS;
 
-    for (i = -40; i <= 0; i += 5)          /* -40, -35, ... 0  (9 values) */
-        levels[n++] = (float) i;
-    for (i = 1; i <= 12; i++)              /* 0.5, 1.0, ... 6.0 (12 values) */
-        levels[n++] = 0.5f * (float) i;
+    for (i = 0; i < N_IN_ATT; i++)         /* 0, -3, -6 ... -21 dB (8 values) */
+        levels[n++] = powf(10.0f, -(3.0f * (float) i) / 20.0f);
+    levels[n++] = 0.0f;                    /* mute: infinite attenuation */
+    for (i = 1; i <= 12; i++)              /* over-cancel: g = +0.5 ... +6 dB */
+        levels[n++] = 1.0f - powf(10.0f, (0.5f * (float) i) / 20.0f);
 
-    /* Rising on L, then falling on R. */
+    /* Ladder down on L, then back up on R. */
     for (i = 0; i < n_levels; i++) {
-        p->gain_db[i] = levels[i];
-        p->chan[i]    = 'L';
+        p->rem[i]  = levels[i];
+        p->chan[i] = 'L';
     }
     for (i = 0; i < n_levels; i++) {
-        p->gain_db[n_levels + i] = levels[n_levels - 1 - i];
-        p->chan[n_levels + i]    = 'R';
+        p->rem[n_levels + i]  = levels[n_levels - 1 - i];
+        p->chan[n_levels + i] = 'R';
     }
 
     p->n_steps = 2 * n_levels;
@@ -126,8 +136,8 @@ static void set_phase_mode(XtcSweep *p, int inphase_only)
     p->need_trigger = 1;
     fprintf(stderr,
             "[xtc_sweep] phase mode: %s | %d steps\n",
-            inphase_only ? "IN PHASE ONLY (-40 ... 0 dB)"
-                         : "both (in phase + inverted, -40 ... +6 dB)",
+            inphase_only ? "IN PHASE ONLY (0 ... -21 dB, then mute)"
+                         : "both (in phase to mute, then inverted)",
             p->n_steps);
 }
 
@@ -135,11 +145,10 @@ static void set_phase_mode(XtcSweep *p, int inphase_only)
 static void trigger_step(XtcSweep *p, long ov_frames)
 {
     int   k      = p->cur_k;
-    float g      = p->gain_db[k];
+    float rem    = p->rem[k];       /* signed factor left on the named channel */
     char  ch     = p->chan[k];
     char  other  = (ch == 'L') ? 'R' : 'L';
-    float factor = powf(10.0f, g / 20.0f);
-    float rem    = 1.0f - factor;   /* signed factor left on the named channel */
+    float factor = 1.0f - rem;      /* gain of the inverted copy to sum in */
 
     p->tL = (ch == 'L') ? factor : 0.0f;
     p->tR = (ch == 'R') ? factor : 0.0f;
@@ -148,14 +157,14 @@ static void trigger_step(XtcSweep *p, long ov_frames)
     p->ramp = ov_frames;
 
     /* The NAMED CHANNEL IS THE ONE BEING CANCELLED, so the image moves to the
-     * other side: least effect at -40 dB (centre), hard pan at 0 dB (named
-     * channel silent), and above 0 dB (1 - g) goes negative, so what comes
-     * back is phase-inverted and the image de-localises instead. */
+     * other side: centre at the top of the ladder, hard pan at mute, and past
+     * mute what is left of it comes back inverted and the image de-localises
+     * instead of panning further. */
     if (rem == 0.0f) {
         fprintf(stderr,
-                "[xtc_sweep] >> g=%+5.1f dB into %c | %c cancelled (-inf dB vs %c)"
+                "[xtc_sweep] >> step %2d/%d | %c MUTED (-inf dB vs %c)"
                 " | image -> %c hard   (loop %ld)\n",
-                g, ch, ch, other, other, p->loop + 1);
+                k + 1, p->n_steps, ch, other, other, p->loop + 1);
     } else {
         float eff = 20.0f * log10f(fabsf(rem));   /* named ch level vs the other */
         char  img[40];
@@ -168,10 +177,10 @@ static void trigger_step(XtcSweep *p, long ov_frames)
             else              snprintf(img, sizeof img, "image: de-localised");
         }
         fprintf(stderr,
-                "[xtc_sweep] >> g=%+5.1f dB into %c | %c = %+5.1f dB vs %c, %s "
+                "[xtc_sweep] >> step %2d/%d | %c = %+5.1f dB vs %c, %s "
                 "| %s   (loop %ld)\n",
-                g, ch, ch, eff, other, (rem > 0.0f) ? "in phase" : "INVERTED",
-                img, p->loop + 1);
+                k + 1, p->n_steps, ch, eff, other,
+                (rem > 0.0f) ? "in phase" : "INVERTED", img, p->loop + 1);
     }
 }
 
