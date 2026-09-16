@@ -81,20 +81,31 @@ not in `g`, so the rungs are perceptually even and the image keeps moving:
 - **In-phase leg, 9 steps per side**: `0, -3, -6, -9, -12, -15, -18, -21 dB`,
   then **MUTE** (infinite attenuation) — the widest panning there is, the named
   channel goes silent and everything arrives from the other one.
-- **Over-cancel leg, 12 more steps per side** (`--phase both` only): past mute
-  the channel comes back **phase-inverted**, from -24.5 dB up to full level
-  (`g` = +0.5 … +6.0 dB in 0.5 dB steps).
+- **Inverted leg, 8 more steps per side** (`--phase both` only): past mute the
+  same channel comes back **with its polarity flipped**, `-14, -12, -10 … 0 dB`
+  in 2 dB steps, ending at full level inverted. This is still the over-cancel
+  region (`g` > 0 dB), only spaced by what is left of the channel.
 - The ladder runs **down on L**, turns at the far end and comes back **up on
-  R**. In loop mode it starts over at the top of the L ladder. The **music
-  keeps flowing** across passes; only the **sweep** restarts.
+  R**, which walks the four phases in order: **in phase L → inverted L →
+  inverted R → in phase R**. In loop mode it starts over at the top of the L
+  ladder. The **music keeps flowing** across passes; only the **sweep**
+  restarts.
 
-`g` is derived per step: `g = 1 - 10^(-A/20)` for an attenuation `A`, and
-`g = 1` (full cancellation) for mute.
+`g` is derived per step: `g = 1 ∓ 10^(-A/20)` for an attenuation `A` in phase
+or inverted, and `g = 1` (full cancellation) for mute.
 
-**Phase mode.** `both` (default) is the whole thing, 21 steps per side, 42 in
+**Phase mode.** `both` (default) is the whole thing, 17 steps per side, 34 in
 all. `in` ends each side at mute: 9 steps per side, 18 in all, and the two mute
 steps meet in the middle — hard pan one way, then hard pan the other, which
 also marks the turnaround by ear.
+
+> **The turn dips.** At full inversion the two sides are the same signal up to
+> an overall polarity flip, so the sweep visits it twice (last inverted L, first
+> inverted R) and the crossfade between them runs both channels through zero:
+> a `--ov`-long hole, about -19 dB at its deepest with the default 0.1 s. It is
+> inherent to a sweep that processes only one channel at a time — nothing can
+> interpolate between a signal and its exact inverse without passing through
+> silence. Shorten `--ov` to narrow it.
 
 Between steps there is a sample-by-sample **crossfade** (default 0.1 s) so gain
 changes and the L↔R handover are click-free.

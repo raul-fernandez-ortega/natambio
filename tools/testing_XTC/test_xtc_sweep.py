@@ -16,9 +16,9 @@ around to the start (loop). With --repeat the MUSIC keeps advancing across
 passes; only the SWEEP (the step sequence) restarts.
 
 With --phase you choose whether the sweep visits the phase-inverted region:
-'both' (default) runs the whole ladder, including the over-cancel region where
-(1 - g) goes negative and the channel comes back inverted; 'in' keeps
-everything in phase, ending each side at mute.
+'both' (default) runs the whole ladder, in phase down to mute and then back
+up with the named channel inverted; 'in' keeps everything in phase, ending
+each side at mute.
 
 Usage:
     python3 test_xtc_sweep.py track.wav [--secs 10] [--ov 0.1] [--repeat 1|inf]
@@ -53,11 +53,14 @@ DEST_RIGHT = "natambio:front_input_right"
 PHASE_MODES = ("both", "in")
 
 # In-phase leg: attenuation of the named channel, 0 -> 21 dB in 3 dB steps,
-# then mute. Even rungs in ATTENUATION keep the image moving; the old ladder
-# was even in g, which crowded five of its nine steps within 1 dB of centre.
+# then mute. Even rungs in ATTENUATION keep the image moving; a ladder even
+# in g crowds most of its steps within a dB of the centre.
 IN_ATT_DB = [3.0 * i for i in range(8)]                  # 0, 3, 6 ... 21
-# Over-cancel leg ('both' only), unchanged for now: g = +0.5 ... +6.0 dB.
-OVER_G_DB = [round(0.5 * i, 1) for i in range(1, 13)]
+# Inverted leg ('both' only): past mute the named channel comes back with its
+# polarity flipped, -14 dB up to full level in 2 dB steps. Still the
+# over-cancel region (g > 0 dB), but spaced by what is left of the channel
+# instead of by g.
+INV_ATT_DB = [14.0 - 2.0 * i for i in range(8)]          # 14, 12 ... 0
 
 
 def build_steps(phase="both"):
@@ -65,12 +68,16 @@ def build_steps(phase="both"):
 
     Per side: the in-phase ladder 0, -3, -6 ... -21 dB, then MUTE — the
     widest panning there is, the named channel goes silent and everything
-    comes from the other one. With phase 'both' the over-cancel region
-    follows, where the named channel comes back phase-inverted, from
-    -24.5 dB up to full level at g = +6 dB.
+    comes from the other one. With phase 'both' the inverted ladder follows,
+    the same channel coming back with its polarity flipped, -14 dB up to
+    full level in 2 dB steps.
 
-    The ladder runs down on L and back up on R, so in 'in' mode the two mute
-    steps meet in the middle: hard pan one way, then hard pan the other.
+    The ladder runs down on L and back up on R, which walks the four phases
+    in order: in phase L, inverted L, inverted R, in phase R. The turn sits
+    at full level inverted, where the two sides are the same signal up to an
+    overall polarity flip, so the handover is seamless. In 'in' mode there is
+    no inverted leg and the two mute steps meet instead: hard pan one way,
+    then hard pan the other.
 
     Ascending levels: -40..0 dB in steps of 5, and (phase 'both' only)
     0..+6 dB in steps of 0.5. The sweep rises on L, jumps to R at the top
@@ -84,8 +91,8 @@ def build_steps(phase="both"):
     rem = [10.0 ** (-a / 20.0) for a in IN_ATT_DB]     # 1.0, 0.708 ... 0.089
     rem.append(0.0)                                    # mute (-inf dB)
     if phase == "both":
-        rem += [1.0 - 10.0 ** (g / 20.0)               # negative -> inverted
-                for g in OVER_G_DB]
+        rem += [-(10.0 ** (-a / 20.0))                 # negative -> inverted
+                for a in INV_ATT_DB]
     return [(r, 'L') for r in rem] + [(r, 'R') for r in reversed(rem)]
 # ----------------------------------------------------------------------------
 
@@ -108,7 +115,7 @@ def step_label(rem, ch, k, n):
         img = "image: centre" if eff > -1.0 else f"image -> {other}"
     else:
         pol = "INVERTED"
-        img = (f"image -> {other} (anti-corr.)" if eff < -12.0
+        img = (f"image -> {other} (anti-corr.)" if eff <= -12.0
                else "image: de-localised")
     return f"{head} | {ch} = {eff:+5.1f} dB vs {other}, {pol} | {img}"
 
