@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import math
 import os
 
 import numpy as np
@@ -53,6 +54,33 @@ def build_steps(phase="both"):
         levels += [round(0.5 * i, 1) for i in range(1, 13)]  # 0.5, 1.0 ... 6.0
     return [(g, 'L') for g in levels] + [(g, 'R') for g in reversed(levels)]
 # ----------------------------------------------------------------------------
+
+
+def step_label(g_db, ch):
+    """One step in plain words: what the gain does, and where the image goes.
+
+    The dB figure is NOT a level difference between L and R: it is the gain
+    of the inverted copy summed into the named channel, which leaves
+    (1 - g) of it. So the NAMED CHANNEL IS THE ONE BEING CANCELLED and the
+    image moves to the OTHER side: minimum effect at -40 dB (centre), hard
+    pan at 0 dB (named channel silent), and above 0 dB what comes back is
+    phase-inverted.
+    """
+    other = 'R' if ch == 'L' else 'L'
+    rem = 1.0 - 10.0 ** (g_db / 20.0)      # signed factor left on the named ch
+    if rem == 0.0:
+        return (f"g={g_db:+5.1f} dB into {ch} | {ch} cancelled (-inf dB vs "
+                f"{other}) | image -> {other} hard")
+    eff = 20.0 * math.log10(abs(rem))      # named ch level vs the untouched one
+    if rem > 0.0:
+        pol = "in phase"
+        img = "image: centre" if eff > -1.0 else f"image -> {other}"
+    else:
+        pol = "INVERTED"
+        img = (f"image -> {other} (anti-corr.)" if eff < -12.0
+               else "image: de-localised")
+    return (f"g={g_db:+5.1f} dB into {ch} | {ch} = {eff:+5.1f} dB vs {other}, "
+            f"{pol} | {img}")
 
 BLOCK = 1024        # processing block (offline; only affects speed, not output)
 
@@ -93,6 +121,14 @@ def main():
     pass_frames = step_frames * len(STEPS)
 
     out = np.zeros((pass_frames, 2), dtype=np.float32)
+
+    # Cue sheet: where each step starts in the rendered file, and what it does.
+    dst = out_name(args.wav, args.phase)
+    print(f"{len(STEPS)} steps x {args.secs}s, overlap {args.ov}s, "
+          f"phase={args.phase} -> {dst}")
+    for k, step in enumerate(STEPS):
+        t0 = k * step_frames / sr
+        print(f"  {int(t0) // 60:d}:{t0 % 60:04.1f} | {step_label(*step)}")
 
     # State (mirrors the realtime callback of test_xtc_sweep.py).
     curL = curR = 0.0
@@ -148,7 +184,6 @@ def main():
         mpos = (mpos + n) % N
         pos += n
 
-    dst = out_name(args.wav, args.phase)
     sf.write(dst, out, sr, subtype="FLOAT")
     dur = pass_frames / sr
     print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, "

@@ -134,6 +134,45 @@ and back on each side — but never flips polarity. The step count is the same
 
 ---
 
+## Reading the step messages
+
+Every tool announces each step — the realtime scripts and the LADSPA plugins as
+the sweep advances, the offline scripts as a cue sheet of time offsets printed
+before rendering:
+
+```
+  0:14.0 | g= -5.0 dB into L | L =  -7.2 dB vs R, in phase | image -> R
+  0:16.0 | g= +0.0 dB into L | L cancelled (-inf dB vs R) | image -> R hard
+  0:18.0 | g= +0.5 dB into L | L = -24.5 dB vs R, INVERTED | image -> R (anti-corr.)
+  0:40.0 | g= +6.0 dB into L | L =  -0.0 dB vs R, INVERTED | image: de-localised
+```
+
+There is one thing worth getting straight before listening, because it reads
+backwards at first: **the named channel is the one being removed**, so the
+image moves to the *other* side.
+
+In algorithm 1 the dB figure is **not** a level difference between L and R, and
+not an attenuation either: it is the gain `g` of the inverted copy summed into
+the named channel, which leaves `1 - g` of it. Hence
+
+| label | what is left of the named channel | image |
+|-------|-----------------------------------|-------|
+| `-40 dB` | `1 - 0.01` → **-0.1 dB**, untouched for all practical purposes | centre |
+| `-10 dB` | `1 - 0.316` → **-3.3 dB** | opening to the other side |
+| `0 dB` | `1 - 1` → **silent** | hard pan to the other side |
+| `+0.5 dB` | `1 - 1.06` → **-24.5 dB, inverted** | other side, anti-correlated |
+| `+6 dB` | `1 - 2` → **-0.0 dB, inverted** | de-localised |
+
+So the widest panning is at **0 dB**, not at -40 dB: that is the point of full
+cancellation, where one channel goes exactly silent. -40 dB is the centre.
+
+In algorithm 2 the named channel is the one being **delayed and attenuated**,
+so the image again moves to the other side. There the printed `atten` is a
+genuine attenuation of that channel, and the message states its resulting level
+relative to the untouched one (minus that figure).
+
+---
+
 ## Input signal (mono downmix)
 
 Before any processing, **all four scripts collapse the input to mono** and feed
@@ -193,6 +232,10 @@ pass and write it next to the input WAV:
 
 The two phase modes write to **different names**, so an in-phase render never
 overwrites a full one.
+
+Before rendering, both print a **cue sheet**: one line per step with its time
+offset in the output file, so you can jump straight to the step you want to
+hear.
 
 Output is 32-bit float WAV (avoids clipping). There is no `--repeat`: offline
 always produces a single pass.

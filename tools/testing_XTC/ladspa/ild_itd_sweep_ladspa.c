@@ -33,9 +33,14 @@
  *                            motion but the invert flag is never set.
  *                            Changing it restarts the sweep at the first step.
  *
- * On every step change the plugin prints a line to stderr (angle, channel,
- * polarity, delay in samples/us and attenuation in dB) so you can follow the
- * sweep when hosting it under ecasound.
+ * On every step change the plugin prints a line to stderr so you can follow
+ * the sweep when hosting it under ecasound. The named channel is the one being
+ * delayed and attenuated, so the image moves to the OTHER side; the message
+ * gives its level relative to the untouched channel rather than the raw
+ * attenuation figure:
+ *
+ *   >> z= 90 deg on L | L = -16.3 dB vs R, delay 33 smp/694.8 us, in phase
+ *      | image -> R
  *
  * Build:  see Makefile   ->  ild_itd_sweep_ladspa.so
  * Label:  natambio_ild_itd_sweep
@@ -181,12 +186,30 @@ static void trigger_step(IldItd *p, long ov_frames)
     p->ramp  = ov_frames;
     p->ov_frames = ov_frames;
 
-    fprintf(stderr,
-            "[ild_itd_sweep] >> z=%3d deg  %c %s  delay=%4d smp (%7.1f us)  "
-            "atten=%+5.2f dB   (loop %ld)\n",
-            p->z_deg[k], p->chan[k], p->inv[k] ? "INV" : "---",
-            p->delay[k], delay_us(p->z_deg[k]), atten_db(p->z_deg[k]),
-            p->loop + 1);
+    {
+        int   z     = p->z_deg[k];
+        char  ch    = p->chan[k];
+        char  other = (ch == 'L') ? 'R' : 'L';
+        /* 'atten' is an attenuation of the named channel, so its level
+         * relative to the untouched one is minus that figure. */
+        double lvl  = -atten_db(z);
+        char   img[40];
+        if (p->inv[k]) {
+            if (lvl < -12.0) snprintf(img, sizeof img, "image -> %c (anti-corr.)",
+                                      other);
+            else             snprintf(img, sizeof img, "image: de-localised");
+        } else {
+            if (lvl > -1.0 && p->delay[k] == 0)
+                snprintf(img, sizeof img, "image: centre");
+            else
+                snprintf(img, sizeof img, "image -> %c", other);
+        }
+        fprintf(stderr,
+                "[ild_itd_sweep] >> z=%3d deg on %c | %c = %+5.1f dB vs %c, "
+                "delay %d smp/%.1f us, %s | %s   (loop %ld)\n",
+                z, ch, ch, lvl, other, p->delay[k], delay_us(z),
+                p->inv[k] ? "INVERTED" : "in phase", img, p->loop + 1);
+    }
 }
 
 /* ---- LADSPA hooks --------------------------------------------------------*/
