@@ -99,13 +99,22 @@ all. `in` ends each side at mute: 9 steps per side, 18 in all, and the two mute
 steps meet in the middle — hard pan one way, then hard pan the other, which
 also marks the turnaround by ear.
 
-> **The turn dips.** At full inversion the two sides are the same signal up to
-> an overall polarity flip, so the sweep visits it twice (last inverted L, first
-> inverted R) and the crossfade between them runs both channels through zero:
-> a `--ov`-long hole, about -19 dB at its deepest with the default 0.1 s. It is
-> inherent to a sweep that processes only one channel at a time — nothing can
-> interpolate between a signal and its exact inverse without passing through
-> silence. Shorten `--ov` to narrow it.
+**The two repeated steps.** A pass visits each end of the ladder twice, and
+the two cases behave differently:
+
+- **Full inversion** (last inverted L, first inverted R): `(-mono, +mono)` and
+  `(+mono, -mono)` are the same sound with the polarity of the whole signal
+  flipped, which is inaudible. Nothing can interpolate between a signal and its
+  exact inverse without passing through silence, so crossfading there would
+  leave a hole as long as `--ov` (measured at -19 dB with the default 0.1 s).
+  That one junction is therefore **switched hard**, deferred to the next zero
+  crossing of the input, where the jump is no larger than the signal's own
+  slope between consecutive samples — measured identical to it, so nothing is
+  added. The step message marks it `[hard switch]`. Every other step keeps its
+  crossfade.
+- **Centre, at the loop seam** (last in-phase R, first in-phase L): both gains
+  are 0, the signal is untouched in both, so there is nothing to fade and the
+  seam is already seamless. It simply spends two steps in the centre.
 
 Between steps there is a sample-by-sample **crossfade** (default 0.1 s) so gain
 changes and the L↔R handover are click-free.
