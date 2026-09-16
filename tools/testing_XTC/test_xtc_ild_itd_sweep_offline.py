@@ -84,6 +84,27 @@ def atten_db(z):
     return -0.10 + 0.407 * z - 0.0025 * z * z
 
 
+def step_label(z, ch, inv, d_smp):
+    """One step in plain words: what it does, and where the image goes.
+
+    The named channel is the one being DELAYED and ATTENUATED, so the image
+    moves to the OTHER side; 'atten' is a real attenuation of the named
+    channel (its level vs the untouched one is minus that figure).
+    """
+    other = 'R' if ch == 'L' else 'L'
+    lvl = -atten_db(z)                     # named ch level vs the untouched one
+    if inv:
+        pol = "INVERTED"
+        img = (f"image -> {other} (anti-corr.)" if lvl < -12.0
+               else "image: de-localised")
+    else:
+        pol = "in phase"
+        img = ("image: centre" if (lvl > -1.0 and d_smp == 0)
+               else f"image -> {other}")
+    return (f"z={z:>3} deg on {ch} | {ch} = {lvl:+5.1f} dB vs {other}, "
+            f"delay {d_smp} smp/{delay_us(z):.1f} us, {pol} | {img}")
+
+
 def out_name(path, phase="both"):
     root, ext = os.path.splitext(path)
     tag = "_ildsweep" if phase == "both" else "_ildsweep_inphase"
@@ -132,6 +153,14 @@ def main():
 
     out = np.zeros((pass_frames, 2), dtype=np.float32)
 
+    # Cue sheet: where each step starts in the rendered file, and what it does.
+    dst = out_name(args.wav, args.phase)
+    print(f"{len(STEPS)} steps x {args.secs}s, overlap {args.ov}s, "
+          f"phase={args.phase} -> {dst}")
+    for k, step in enumerate(STEPS):
+        t0 = k * step_frames / sr
+        print(f"  {int(t0) // 60:d}:{t0 % 60:04.1f} | {step_label(step[0], step[1], step[2], PARAMS[k][0])}")
+
     def chan_signal(m, letter, ci, mod_ch, D, A):
         """Delayed+attenuated if this is the modified channel, else pass-through."""
         if letter == mod_ch:
@@ -178,7 +207,6 @@ def main():
         mpos = (mpos + n) % N
         pos += n
 
-    dst = out_name(args.wav, args.phase)
     sf.write(dst, out, sr, subtype="FLOAT")
     dur = pass_frames / sr
     print(f"Wrote {dst}  ({len(STEPS)} steps x {args.secs}s = {dur:.1f}s, "

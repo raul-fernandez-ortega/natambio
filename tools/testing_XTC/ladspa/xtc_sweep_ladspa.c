@@ -27,9 +27,14 @@
  *                            cancellation) and never goes anti-correlated.
  *                            Changing it restarts the sweep at the first step.
  *
- * On every step change the plugin prints a line to stderr (gain, channel and
- * whether the channel is being phase-inverted by over-cancellation) so you can
- * follow the sweep when hosting it under ecasound.
+ * On every step change the plugin prints a line to stderr so you can follow
+ * the sweep when hosting it under ecasound. The dB figure is the gain of the
+ * inverted copy, NOT a level difference between L and R, so the message also
+ * spells out what is left of the named channel and where the image should go:
+ *
+ *   >> g= -5.0 dB into L | L =  -7.2 dB vs R, in phase | image -> R
+ *   >> g= +0.0 dB into L | L cancelled (-inf dB vs R) | image -> R hard
+ *   >> g= +6.0 dB into L | L =  -0.0 dB vs R, INVERTED | image: de-localised
  *
  * Build:  see Makefile   ->  xtc_sweep_ladspa.so
  * Label:  natambio_xtc_sweep
@@ -132,7 +137,9 @@ static void trigger_step(XtcSweep *p, long ov_frames)
     int   k      = p->cur_k;
     float g      = p->gain_db[k];
     char  ch     = p->chan[k];
+    char  other  = (ch == 'L') ? 'R' : 'L';
     float factor = powf(10.0f, g / 20.0f);
+    float rem    = 1.0f - factor;   /* signed factor left on the named channel */
 
     p->tL = (ch == 'L') ? factor : 0.0f;
     p->tR = (ch == 'R') ? factor : 0.0f;
@@ -140,12 +147,32 @@ static void trigger_step(XtcSweep *p, long ov_frames)
     p->dR = (p->tR - p->curR) / (float) ov_frames;
     p->ramp = ov_frames;
 
-    /* g > 0 dB  =>  (1 - g) < 0  =>  the channel over-cancels and flips phase. */
-    fprintf(stderr,
-            "[xtc_sweep] >> %+5.1f dB  %c%s   (loop %ld)\n",
-            g, ch,
-            (g > 0.0f) ? "  [over-cancel / phase INVERTED]" : "",
-            p->loop + 1);
+    /* The NAMED CHANNEL IS THE ONE BEING CANCELLED, so the image moves to the
+     * other side: least effect at -40 dB (centre), hard pan at 0 dB (named
+     * channel silent), and above 0 dB (1 - g) goes negative, so what comes
+     * back is phase-inverted and the image de-localises instead. */
+    if (rem == 0.0f) {
+        fprintf(stderr,
+                "[xtc_sweep] >> g=%+5.1f dB into %c | %c cancelled (-inf dB vs %c)"
+                " | image -> %c hard   (loop %ld)\n",
+                g, ch, ch, other, other, p->loop + 1);
+    } else {
+        float eff = 20.0f * log10f(fabsf(rem));   /* named ch level vs the other */
+        char  img[40];
+        if (rem > 0.0f) {
+            if (eff > -1.0f) snprintf(img, sizeof img, "image: centre");
+            else             snprintf(img, sizeof img, "image -> %c", other);
+        } else {
+            if (eff < -12.0f) snprintf(img, sizeof img, "image -> %c (anti-corr.)",
+                                       other);
+            else              snprintf(img, sizeof img, "image: de-localised");
+        }
+        fprintf(stderr,
+                "[xtc_sweep] >> g=%+5.1f dB into %c | %c = %+5.1f dB vs %c, %s "
+                "| %s   (loop %ld)\n",
+                g, ch, ch, eff, other, (rem > 0.0f) ? "in phase" : "INVERTED",
+                img, p->loop + 1);
+    }
 }
 
 /* ---- LADSPA hooks --------------------------------------------------------*/

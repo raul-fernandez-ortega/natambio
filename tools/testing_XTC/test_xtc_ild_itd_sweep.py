@@ -89,6 +89,27 @@ def atten_db(z):
     return -0.10 + 0.407 * z - 0.0025 * z * z
 
 
+def step_label(z, ch, inv, d_smp):
+    """One step in plain words: what it does, and where the image goes.
+
+    The named channel is the one being DELAYED and ATTENUATED, so the image
+    moves to the OTHER side; 'atten' is a real attenuation of the named
+    channel (its level vs the untouched one is minus that figure).
+    """
+    other = 'R' if ch == 'L' else 'L'
+    lvl = -atten_db(z)                     # named ch level vs the untouched one
+    if inv:
+        pol = "INVERTED"
+        img = (f"image -> {other} (anti-corr.)" if lvl < -12.0
+               else "image: de-localised")
+    else:
+        pol = "in phase"
+        img = ("image: centre" if (lvl > -1.0 and d_smp == 0)
+               else f"image -> {other}")
+    return (f"z={z:>3} deg on {ch} | {ch} = {lvl:+5.1f} dB vs {other}, "
+            f"delay {d_smp} smp/{delay_us(z):.1f} us, {pol} | {img}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="ILD/ITD sweep as a JACK client.")
     ap.add_argument("wav")
@@ -239,11 +260,9 @@ def main():
                 k = st["last_k"]
                 if k != last_print and 0 <= k < len(STEPS):
                     z, ch, inv = STEPS[k]
-                    D, A, _ = PARAMS[k]
-                    pol = "inv" if inv else "   "
-                    print(f">> z={z:>3} deg  {ch} {pol}   "
-                          f"delay={D} smp ({delay_us(z):.1f} us)  "
-                          f"atten={atten_db(z):+.2f} dB   (pass {st['passno'] + 1})")
+                    D, _, _ = PARAMS[k]
+                    print(f">> {step_label(z, ch, inv, D)}   "
+                          f"(pass {st['passno'] + 1})")
                     last_print = k
     except KeyboardInterrupt:
         print("\nInterrupted.")
