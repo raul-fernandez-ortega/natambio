@@ -57,6 +57,13 @@ static void usage(const char *me)
           "          [mode 0|1] [frame_size] [covsteps] [pan_scale] [settle_us]\n"
           "       %s --check <in.wav> [mode] [frame_size] [covsteps] [pan] [us]\n"
           "\n"
+          "  --lat <file.wav>      also write the LATERAL pair -- the part of\n"
+          "                        C2 beyond the level difference the ambience\n"
+          "                        is allowed to carry. Without it that pair is\n"
+          "                        still computed, and still checked, just not\n"
+          "                        written. out_c2.wav is the AMBIENCE half\n"
+          "                        alone; the two sum back to the whole of C2.\n"
+          "\n"
           "  mode       0 = alpha (front), 1 = beta (rear).   Default 0\n"
           "  frame_size JACK period in samples.               Default 256\n"
           "  covsteps   <steps_length>.                       Default 3\n"
@@ -74,7 +81,7 @@ static void usage(const char *me)
 static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
                      double pan_scale, int settle_us,
                      std::vector<double>& c1, std::vector<double>& c2,
-                     int *samplerate)
+                     std::vector<double>& lat, int *samplerate)
 {
   SF_INFO info;
   memset(&info, 0, sizeof(info));
@@ -97,6 +104,14 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
   nae.setC1Gain(1.0);
   nae.setC2Gain(1.0);
   nae.setC2RearGain(1.0);
+  /* Unity like the rest, and not left where the constructor puts it. The
+     lateral half of the ambience goes out at its own gain, and at the
+     constructor's zero the C2 of this bench would be missing whatever the cut
+     took out of it -- silently, since the ambience half is a perfectly
+     plausible signal on its own. A configuration never reaches that state
+     (naconf gives <lateral_gain> the mode's ambience gain when the file does
+     not name it); a caller that builds an NAE by hand can. */
+  nae.setLatGain(1.0);
   nae.setPanScale(pan_scale);
   nae.setSampleCount(frame);
   nae.setSampleRate(info.samplerate);
@@ -108,9 +123,11 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
   std::vector<float> inter(frame * 2, 0.0f);
   std::vector<float> in_l(frame, 0.0f), in_r(frame, 0.0f);
   std::vector<float> o_c1l(frame), o_c1r(frame), o_c2l(frame), o_c2r(frame);
+  std::vector<float> o_latl(frame), o_latr(frame);
 
   c1.clear();
   c2.clear();
+  lat.clear();
 
   sf_count_t got;
   bool more = true;
@@ -133,15 +150,21 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
     memset(&o_c1r[0], 0, frame * sizeof(float));
     memset(&o_c2l[0], 0, frame * sizeof(float));
     memset(&o_c2r[0], 0, frame * sizeof(float));
+    memset(&o_latl[0], 0, frame * sizeof(float));
+    memset(&o_latr[0], 0, frame * sizeof(float));
     nae.fillOutputBuffer(C1_LEFT, &o_c1l[0]);
     nae.fillOutputBuffer(C1_RIGHT, &o_c1r[0]);
     nae.fillOutputBuffer(C2_LEFT, &o_c2l[0]);
     nae.fillOutputBuffer(C2_RIGHT, &o_c2r[0]);
+    nae.fillOutputBuffer(LAT_LEFT, &o_latl[0]);
+    nae.fillOutputBuffer(LAT_RIGHT, &o_latr[0]);
     for(int i = 0; i < frame; i++) {
       c1.push_back((double)o_c1l[i]);
       c1.push_back((double)o_c1r[i]);
       c2.push_back((double)o_c2l[i]);
       c2.push_back((double)o_c2r[i]);
+      lat.push_back((double)o_latl[i]);
+      lat.push_back((double)o_latr[i]);
     }
 
     nae.signal();
@@ -177,6 +200,21 @@ static bool write_wav(const char *path, const std::vector<double>& data, int rat
 
 int main(int argc, char **argv)
 {
+  /* --lat writes the lateral pair. Named rather than positional, and removed
+     from argv before the positional parsing below. */
+  const char *lat_path = NULL;
+  std::vector<char*> args;
+  args.push_back(argv[0]);
+  for(int i = 1; i < argc; i++) {
+    if(strcmp(argv[i], "--lat") == 0 && i + 1 < argc) {
+      lat_path = argv[++i];
+    } else {
+      args.push_back(argv[i]);
+    }
+  }
+  argv = &args[0];
+  argc = (int)args.size();
+
   bool check = (argc > 1 && strcmp(argv[1], "--check") == 0);
   /* Where the optional arguments start. --check takes the input at argv[2] and
      no output paths, so its options begin one earlier than the normal form's. */
@@ -205,32 +243,34 @@ int main(int argc, char **argv)
   printf("nae_bench: %s  mode %d  frame %d  covsteps %d  pan %.3f  settle %d us\n",
          in_path, mode, frame, covsteps, pan, settle_us);
 
-  std::vector<double> c1, c2;
+  std::vector<double> c1, c2, lat;
   int rate = 0;
-  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, c1, c2, &rate))
+  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, c1, c2, lat, &rate))
     return 1;
 
   if(check) {
-    std::vector<double> d1, d2;
+    std::vector<double> d1, d2, dlat;
     int rate2 = 0;
-    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, d1, d2, &rate2))
+    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, d1, d2, dlat, &rate2))
       return 1;
-    if(c1.size() != d1.size() || c2.size() != d2.size()) {
+    if(c1.size() != d1.size() || c2.size() != d2.size() ||
+       lat.size() != dlat.size()) {
       printf("nae_bench: FAIL, the two passes produced different lengths\n");
       return 2;
     }
-    size_t bad1 = 0, bad2 = 0;
+    size_t bad1 = 0, bad2 = 0, badl = 0;
     for(size_t i = 0; i < c1.size(); i++) {
       if(c1[i] != d1[i]) bad1++;
       if(c2[i] != d2[i]) bad2++;
+      if(lat[i] != dlat[i]) badl++;
     }
     printf("nae_bench: %zu samples per component\n", c1.size() / 2);
-    if(bad1 == 0 && bad2 == 0) {
+    if(bad1 == 0 && bad2 == 0 && badl == 0) {
       printf("nae_bench: PASS, the two passes are bit for bit identical\n");
       return 0;
     }
-    printf("nae_bench: FAIL, C1 differs in %zu samples, C2 in %zu. "
-           "Raise settle_us and try again.\n", bad1, bad2);
+    printf("nae_bench: FAIL, C1 differs in %zu samples, C2 in %zu, lateral in "
+           "%zu. Raise settle_us and try again.\n", bad1, bad2, badl);
     return 2;
   }
 
@@ -238,5 +278,9 @@ int main(int argc, char **argv)
   if(!write_wav(argv[3], c2, rate)) return 1;
   printf("nae_bench: wrote %s and %s (%zu samples each)\n",
          argv[2], argv[3], c1.size() / 2);
+  if(lat_path != NULL) {
+    if(!write_wav(lat_path, lat, rate)) return 1;
+    printf("nae_bench: wrote %s, the lateral pair\n", lat_path);
+  }
   return 0;
 }

@@ -216,7 +216,7 @@ downin  <dB>                     lower every input port by <dB>
 upout   <dB>                     raise every output port by <dB>
 downout <dB>                     lower every output port by <dB>
 get  [port ...]                  report the gains as they are now
-naegain [<nae> [front|amb|rear <dB> ...]]   set or report an NAE's gains
+naegain [<nae> [front|amb|rear|lat <dB> ...]]   set or report an NAE's gains
 naepan  [<nae> [<scale>]]        the width of an NAE's input pair
 naeget  [<nae>]                  an NAE's configuration, as the XML block
 getxmlconfig                     the whole live configuration, as XML
@@ -260,15 +260,16 @@ balance bodily and leave it as it was: `downout 3` on a system whose rear ports
 sit at +6 dB leaves them at +3, still 6 dB above the front.
 
 `naegain` is the one command that does not address a JACK port.  It names an NAE
-engine by its `<name>` and sets the three gains the engine mixes its components
-with — `<front_gain>`, `<ambience_gain>` and `<rear_gain>` in the configuration,
-written `front`, `amb` and `rear` here.  Several in one line, applied together:
+engine by its `<name>` and sets the four gains the engine mixes its components
+with — `<front_gain>`, `<ambience_gain>`, `<rear_gain>` and `<lateral_gain>` in
+the configuration, written `front`, `amb`, `rear` and `lat` here.  Several in one
+line, applied together:
 
 ```sh
-echo 'naegain "front stereo" front -1.5 amb -4.0' | nc -q0 localhost 7000
+echo 'naegain "front stereo" front -1.5 amb -4.0 lat -8.0' | nc -q0 localhost 7000
 ```
 
-Its numbers are **absolute** dB, unlike everything else here: these three are a
+Its numbers are **absolute** dB, unlike everything else here: these are a
 balance between the components the pair is decomposed into, not a volume, and a
 balance is set to a value rather than nudged from wherever it happens to be.
 Sending the same line twice leaves the engine where it was after the first.  The
@@ -282,8 +283,11 @@ port name it may hold spaces: quote it, and inside the quotes a backslash
 escapes the character after it.  A reply quotes a name the same way, so a report
 can be edited and sent straight back as a command.
 
-Only some of the three gains do anything in a given mode — alpha reads `front`
-and `amb`, beta reads `rear`.  One the mode does not read is still set and still
+Only some of the gains do anything in a given mode — alpha reads `front` and
+`amb`, beta reads `rear`, and `lat` is read by both: it is the gain of the part
+of the ambience that sits beyond the level difference the ambience is allowed to
+carry, and both modes have an ambience to cut.  One the mode does not read is
+still set and still
 reported, since the mode does not change while natambio runs and refusing the
 value would only lose it; it is answered `inactive` instead of `ok`, which is
 the difference between a command that did nothing and one that did nothing
@@ -295,7 +299,7 @@ inactive surround front -1.500
 ```
 
 With no gains after the name, the engine is reported and not touched: its mode
-on a `nae <name> alpha|beta` line and then all three gains, four lines, a count
+on a `nae <name> alpha|beta` line and then all four gains, five lines, a count
 the caller knows before sending.  With no name at all, every engine — the one
 form here whose length cannot be known in advance, like a bare `get`, and for
 the same reason: it is asked by a caller who has no copy of the configuration.
@@ -342,6 +346,7 @@ exec 3<&- 3>&-
   <pan_scale>-0.300</pan_scale>
   <front_gain>-0.500</front_gain>
   <ambience_gain>1.500</ambience_gain>
+  <lateral_gain>-4.000</lateral_gain>
   <input_left>front_input_left</input_left>
   <input_right>front_input_right</input_right>
   <output_left>front_nae_left</output_left>
@@ -354,7 +359,10 @@ is wanted here is the text of a configuration, not a value to act on, and
 bending it into the protocol's shape would only mean the caller had to bend it
 back.  Only the gains the mode reads are written — naconf does not ask `beta`
 for a `<front_gain>`, and a block carrying one it never uses would read as a
-setting that does something.  `naegain` is where the others stay visible.  The
+setting that does something.  `naegain` is where the others stay visible.
+`<lateral_gain>` is written in both modes, being read in both, and written even
+when it is the value it defaulted to: the point of the block is to reproduce the
+engine, and a default left out is a default that can change under the file.  The
 outputs an engine does not have are left out rather than written empty, and the
 width is reported as the `<pan_scale>` the file holds rather than as the two
 weights derived from it.
@@ -425,7 +433,8 @@ and all — rather than something reconstructed from what was parsed out of it.
 What keeps it current is that every command that changes anything writes the new
 value back into the configuration as well as into the running audio: `up`/`down`
 and the grouped forms into that port's `<gain>`, `naegain` into `<front_gain>` /
-`<ambience_gain>` / `<rear_gain>`, `naepan` into `<pan_scale>`.  There is one
+`<ambience_gain>` / `<rear_gain>` / `<lateral_gain>`, `naepan` into
+`<pan_scale>`.  There is one
 place holding what the system is set to, and nothing to reconcile when someone
 asks for it.  A tag the file left out because it was at its default — `<gain>`
 is 0 dB when absent — is added the moment it stops being the default.
@@ -838,12 +847,15 @@ blocks for several engines. Appears inside `<natambio>`. See
   <steps_length>5</steps_length>                  <!-- optional; PCA / covariance window in buffer periods; default 5 -->
   <front_gain>0.00</front_gain>                   <!-- alpha mode only -->
   <ambience_gain>4.00</ambience_gain>             <!-- alpha mode only -->
+  <lateral_gain>0.00</lateral_gain>               <!-- optional; both modes; default: the ambience gain of this mode -->
   <input_left>front_input_left</input_left>       <!-- references a <jack_input> port name -->
   <input_right>front_input_right</input_right>
   <front_output_left>front_main_output_left</front_output_left>
   <front_output_right>front_main_output_right</front_output_right>
   <amb_output_left>front_amb_output_left</amb_output_left>
   <amb_output_right>front_amb_output_right</amb_output_right>
+  <lat_output_left>front_lat_output_left</lat_output_left>
+  <lat_output_right>front_lat_output_right</lat_output_right>
 </nae>
 
 <nae>
@@ -866,10 +878,12 @@ blocks for several engines. Appears inside `<natambio>`. See
 | `<front_gain>` | Main-component gain in dB (alpha mode; required) |
 | `<ambience_gain>` | Ambience-component gain in dB (alpha mode; required) |
 | `<rear_gain>` | Surround-component gain in dB (beta mode; required) |
+| `<lateral_gain>` | Gain in dB of the **lateral** half of the ambience — the part beyond the 5 dB of inter-channel level difference the ambience is allowed to carry. Read in both modes. Optional: absent, it takes the ambience gain of this mode, which makes the two halves one signal again and the engine what it was before the split existed |
 | `<input_left>` / `<input_right>` | Source `<jack_input>/<port>/<name>` for each channel (required) |
 | `<output_left>` / `<output_right>` | Combined output (alpha: main + ambience; beta: surround): a `<jack_output>` port name (direct output) or a virtual name consumed by `<convol>/<from_nae>`. Written in **both** modes |
 | `<front_output_left>` / `<front_output_right>` | Optional separate outputs for the main (front) component on its own (alpha mode) |
-| `<amb_output_left>` / `<amb_output_right>` | Optional separate outputs for the ambience component on its own (in beta mode these carry the surround signal) |
+| `<amb_output_left>` / `<amb_output_right>` | Optional separate outputs for the ambience component on its own (in beta mode these carry the surround signal), after the lateral half has been taken out of it |
+| `<lat_output_left>` / `<lat_output_right>` | Optional separate outputs for that lateral half on its own, at `<lateral_gain>`. One of its two channels is zero at any moment, being what the louder channel of the ambience had beyond the threshold |
 
 At least one output per side is required — either `output_left`/`output_right`
 or the `front_*`/`amb_*` equivalents. In the example, the front engine is routed
@@ -881,6 +895,19 @@ left/right outputs; each output name is resolved exactly like `<convol>` outputs
 output channels and mixes the ambience in via `<ambience_gain>`; `beta` (rear
 dipole) writes a surround signal, using inter-channel correlation to separate
 centred from decorrelated content.
+
+**The lateral split.** In both modes the ambience is cut in two by how far apart
+its own two channels sit. While they are within 5 dB of each other the whole of
+it stays in the ambience; what the louder channel has beyond that goes to the
+lateral pair, whose other channel is zero. The level is measured over the
+reconstruction window, `<steps_length>` blocks of it — the same span the PCA
+estimates its axis over — and never sample by sample, which would be a
+multiplication by a waveform rather than by a level. The cut is complementary in
+amplitude, so the two halves add back to the undivided ambience sample for
+sample: with `<lateral_gain>` equal to the mode's ambience gain, which is what
+leaving it out does, the engine is bit for bit what it was before the split.
+The threshold and the soft knee around it are fixed in `nae.hpp`, not
+configuration.
 
 **Gain convention.** All dB gains in the config share one convention: the
 NAE `*_gain` fields, the `<coeff>`/`<convol>` `<gain>` fields and the

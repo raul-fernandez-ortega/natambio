@@ -101,9 +101,18 @@ NAE::NAE(string n_name, int n_mode)
      value 48 kHz would give, so a gain set before that still fades. */
   sample_rate = 48000;
   ramp_inc = 1.0f / 1536.0f;
-  gain_c1 = gain_c2 = gain_c2_rear = 0.0;
+  gain_c1 = gain_c2 = gain_c2_rear = gain_lat = 0.0;
   gain_c1_target = gain_c2_target = gain_c2_rear_target = 0.0f;
+  gain_lat_target = 0.0f;
   gain_c1_db = gain_c2_db = gain_c2_rear_db = NA_NAE_GAIN_MIN_DB;
+  gain_lat_db = NA_NAE_GAIN_MIN_DB;
+  /* Nothing cut until a block has measured something. One, and not zero: this
+     is the factor the ambience KEEPS, so one is the whole of C2 staying where
+     it was and a silent lateral pair. */
+  lat_a_left = 1.0;
+  lat_a_right = 1.0;
+  lat_pow_l = NULL;
+  lat_pow_r = NULL;
 }
 
 NAE::~NAE(void)
@@ -120,7 +129,11 @@ NAE::~NAE(void)
     free(c1_right_out[k]);
     free(c2_left_out[k]);
     free(c2_right_out[k]);
+    free(lat_left_out[k]);
+    free(lat_right_out[k]);
   }
+  free(lat_pow_l);
+  free(lat_pow_r);
   free(pca.mid_step);
   free(pca.side_step);
   free(pca.c1_mid);
@@ -184,12 +197,27 @@ bool NAE::setC2RearGain(double gain)
   return true;
 }
 
+/* The lateral half of the ambience. Where the other three come out of the
+   configuration at a number of their own, this one may come out of the gain
+   the mode already carries the ambience with -- see naconf.cpp -- so that a
+   file written before the pair existed puts the two halves back out at one
+   gain and sums them to the C2 they were cut from. */
+bool NAE::setLatGain(double gain)
+{
+  gain_lat_db = gain_to_db(gain);
+  gain_lat_target = (float)gain;
+  gain_lat = gain;
+  return true;
+}
+
 double *NAE::gainDbSlot(enum nae_gain which)
 {
   if(which == NAE_GAIN_FRONT)
     return &gain_c1_db;
   if(which == NAE_GAIN_AMB)
     return &gain_c2_db;
+  if(which == NAE_GAIN_LAT)
+    return &gain_lat_db;
   return &gain_c2_rear_db;
 }
 
@@ -199,6 +227,8 @@ volatile float *NAE::gainTargetSlot(enum nae_gain which)
     return &gain_c1_target;
   if(which == NAE_GAIN_AMB)
     return &gain_c2_target;
+  if(which == NAE_GAIN_LAT)
+    return &gain_lat_target;
   return &gain_c2_rear_target;
 }
 
@@ -211,6 +241,12 @@ volatile float *NAE::gainTargetSlot(enum nae_gain which)
    configuration rather than about the moment. */
 bool NAE::gainActive(enum nae_gain which)
 {
+  /* The one gain that means something in both. The lateral pair is cut out of
+     whichever signal carries the ambience, and both modes have one: alpha
+     mixes it back beside the principal component, beta sends it to the rears.
+     So there is no mode in which this multiplies nothing. */
+  if(which == NAE_GAIN_LAT)
+    return true;
   if(mode)
     return which == NAE_GAIN_REAR;
   return which == NAE_GAIN_FRONT || which == NAE_GAIN_AMB;
@@ -300,6 +336,8 @@ void NAE::setSampleCount(int n_sample_count)
     c1_right_out[k] = (float*) calloc(sample_count, sizeof(float));
     c2_left_out[k] = (float*) calloc(sample_count, sizeof(float));
     c2_right_out[k] = (float*) calloc(sample_count, sizeof(float));
+    lat_left_out[k] = (float*) calloc(sample_count, sizeof(float));
+    lat_right_out[k] = (float*) calloc(sample_count, sizeof(float));
   }
   out_pub.store(0, std::memory_order_relaxed);
 }
@@ -341,8 +379,12 @@ void NAE::setChannelOut(enum side n_side, string n_channel_out)
     c1_right_name_out = n_channel_out;
   else if (n_side == C2_LEFT)
     c2_left_name_out = n_channel_out;
-  else
+  else if (n_side == C2_RIGHT)
     c2_right_name_out = n_channel_out;
+  else if (n_side == LAT_LEFT)
+    lat_left_name_out = n_channel_out;
+  else
+    lat_right_name_out = n_channel_out;
 }
 
 string NAE::getChannelIn(enum side n_side)
@@ -365,8 +407,12 @@ string NAE::getChannelOut(enum side n_side)
     return c1_right_name_out;
   else if(n_side == C2_LEFT) 
     return c2_left_name_out;
-  else 
+  else if(n_side == C2_RIGHT) 
     return c2_right_name_out;
+  else if(n_side == LAT_LEFT) 
+    return lat_left_name_out;
+  else 
+    return lat_right_name_out;
 }
 
 void NAE::fillInputBuffer(enum side n_side, const float *n_input)
@@ -408,6 +454,8 @@ void NAE::fillOutputBuffer(enum side n_side, float* n_output)
     case C1_RIGHT: src = c1_right_out[r]; break;
     case C2_LEFT:  src = c2_left_out[r];  break;
     case C2_RIGHT: src = c2_right_out[r]; break;
+    case LAT_LEFT:  src = lat_left_out[r];  break;
+    case LAT_RIGHT: src = lat_right_out[r]; break;
     default:       return;
   }
   for(int i = 0; i < sample_count; i++)
@@ -439,6 +487,11 @@ void NAE::load(int abspri, int policy)
   covM.sum_y2_array =  (double*) calloc(covsteps, sizeof(double));
   covM.sum_x_array = (double*) calloc(covsteps, sizeof(double));
   covM.sum_y_array =  (double*) calloc(covsteps, sizeof(double));
+
+  /* One energy per frame per channel over the reconstruction window: the span
+     the axis was estimated over, and the span the cut is decided over. */
+  lat_pow_l = (double*) calloc(covsteps, sizeof(double));
+  lat_pow_r = (double*) calloc(covsteps, sizeof(double));
 
   memset(covM.sum_xy_array, 0, (covsteps)*sizeof(double));
   memset(covM.sum_x2_array, 0, (covsteps)*sizeof(double));
@@ -662,6 +715,32 @@ void NAE::decompose(void)
   }
 }
 
+/* The soft-knee curve of NA_NAE_LAT_THRESHOLD_DB / NA_NAE_LAT_KNEE_DB, worked
+   out once per block per channel. <diff_db> is how far THIS channel sits above
+   the other one; a channel that is not the louder of the two is handed a
+   negative number, falls into the first branch and is not touched at all,
+   which is what makes the caller free of any test for which channel is which.
+
+   W = 0 is the bare corner and is handled by the same lines: the knee branch
+   is entered only when there is a knee to enter. */
+double NAE::latFactor(double diff_db)
+{
+  const double T = NA_NAE_LAT_THRESHOLD_DB;
+  const double W = NA_NAE_LAT_KNEE_DB;
+  const double lo = T - 0.5*W;
+
+  if(diff_db <= lo)
+    return 1.0;
+  double red;                           /* the reduction, in dB, never above 0 */
+  if(W > 0.0 && diff_db < T + 0.5*W) {
+    const double x = diff_db - lo;
+    red = -(x*x)/(2.0*W);
+  } else {
+    red = -(diff_db - T);
+  }
+  return FROM_DB(red);
+}
+
 void NAE::emitBlock(void)
 {
   int norm_covsteps = covsteps + 1;
@@ -675,73 +754,144 @@ void NAE::emitBlock(void)
   float *l_out = left_out[w], *r_out = right_out[w];
   float *c1l = c1_left_out[w], *c1r = c1_right_out[w];
   float *c2l = c2_left_out[w], *c2r = c2_right_out[w];
+  float *latl = lat_left_out[w], *latr = lat_right_out[w];
 
-  if(mode) {
-      /* The rear gain across this block: where the last one left it, to where
-         the slew takes it, interpolated sample by sample. A gain arriving from
-         the remote manager is heard as a short fade this way; applied whole at
-         the block boundary it would be a step, which is a click, and through
-         the rears a thump. Costs one add per sample and nothing at all once
-         the gain has arrived, when both ends are the same number. */
-      double gr0 = gain_c2_rear;
-      double gr1 = slewGain(gr0, (double)gain_c2_rear_target);
-      double gr_step = (gr1 - gr0)/(double)sample_count;
-      double gr = gr0;
-      /* The C1 tap, for an engine that has a principal component in this mode.
-         The main pair carries the ambience alone -- that is what beta is -- so
-         C1 goes to <front_output_left>/<front_output_right> and nowhere else,
-         on its own gain and its own slew, exactly as alpha does it. Hoisted
-         out of the loop because it is a virtual call and the answer cannot
-         change between two samples. */
-      const bool emit_c1 = c1InBeta();
-      double g1_0 = gain_c1;
-      double g1_1 = emit_c1 ? slewGain(g1_0, (double)gain_c1_target) : g1_0;
-      double g1_step = (g1_1 - g1_0)/(double)sample_count;
-      double g1 = g1_0;
-      for(int  i = 0; i < sample_count; i++, gr += gr_step, g1 += g1_step) {
-        c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
-        c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        l_out[i]  = gr*c2_left;
-        r_out[i] = gr*c2_right;
-        c2l[i] = l_out[i];
-        c2r[i] = r_out[i];
-        if(emit_c1) {
-          c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
-          c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
-          c1l[i] = g1*c1_left;
-          c1r[i] = g1*c1_right;
-        }
-      }
-      gain_c2_rear = gr1;
-      if(emit_c1)
-        gain_c1 = g1_1;
-  } else {
-      /* Both gains slewed across the block, each towards its own target and
-         each on its own line: the two components are mixed back together here,
-         and a step in either is a step in the sum. See the beta branch. */
-      double g1_0 = gain_c1;
-      double g1_1 = slewGain(g1_0, (double)gain_c1_target);
-      double g1_step = (g1_1 - g1_0)/(double)sample_count;
-      double g2_0 = gain_c2;
-      double g2_1 = slewGain(g2_0, (double)gain_c2_target);
-      double g2_step = (g2_1 - g2_0)/(double)sample_count;
-      double g1 = g1_0;
-      double g2 = g2_0;
-      for(int  i = 0; i < sample_count; i++, g1 += g1_step, g2 += g2_step) {
-        c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
-        c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
-        c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
-        c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
-        l_out[i]  = g1*c1_left + g2*c2_left;
-        r_out[i] = g1*c1_right + g2*c2_right;
-        c1l[i] = g1*c1_left;
-        c1r[i] = g1*c1_right;
-        c2l[i] = g2*c2_left;
-        c2r[i] = g2*c2_right;
-      }
-      gain_c1 = g1_1;
-      gain_c2 = g2_1;
+  /* THE LEVEL THE CUT IS DECIDED ON. One pass over the frame about to go out,
+     for the energy of each channel of it; the ring on by a frame and this one
+     in at the end; the window summed. What comes out is the mean square of
+     each channel of C2 over covsteps frames -- the reconstruction window,
+     which is the window the axis was estimated over.
+
+     It is a level and not a sample, and that is the entire point. The cut is a
+     multiplication by a slowly moving number; decided sample by sample, from
+     |left| against |right|, it would be a multiplication by a waveform, which
+     is not a decision about level at all but a modulator, and what comes out
+     of a modulator is sidebands. Over a window there is nothing in the factor
+     faster than the window. */
+  double sl = 0.0, sr = 0.0;
+  for(int i = 0; i < sample_count; i++) {
+    const double l = pca.c2_mid[i] + pca.c2_side[i];
+    const double r = pca.c2_mid[i] - pca.c2_side[i];
+    sl += l*l;
+    sr += r*r;
   }
+  /* Normalised here and not in the loop. The overlap-add's divisor is a
+     constant across the frame, so it comes out of the sum: two multiplications
+     a block instead of two divisions a sample, and a divide is the one
+     arithmetic operation on this path worth counting. The emit loop below
+     keeps its division, where the value is the audio and not an estimate. */
+  const double norm2 = 1.0/((double)norm_covsteps*(double)norm_covsteps
+                            *(double)sample_count);
+  const size_t lat_keep = sizeof(double) * (size_t)(covsteps - 1);
+  memmove(lat_pow_l, lat_pow_l + 1, lat_keep);
+  memmove(lat_pow_r, lat_pow_r + 1, lat_keep);
+  lat_pow_l[covsteps - 1] = sl*norm2;
+  lat_pow_r[covsteps - 1] = sr*norm2;
+  double m_l = 0.0, m_r = 0.0;
+  for(int i = 0; i < covsteps; i++) {
+    m_l += lat_pow_l[i];
+    m_r += lat_pow_r[i];
+  }
+  m_l /= (double)covsteps;
+  m_r /= (double)covsteps;
+  /* The difference in dB, with the floor of NA_NAE_LAT_EPS under both terms so
+     that silence reads as no difference rather than as whatever the ratio of
+     two zeroes happens to be. */
+  const double diff_db = 10.0*log10((m_l + NA_NAE_LAT_EPS)/(m_r + NA_NAE_LAT_EPS));
+  /* Slewed, and then interpolated across the block below: the window already
+     keeps the factor from moving faster than 16 ms or so, and this keeps it
+     from stepping at a block boundary when it does move. The same ramp the
+     gains use, on the same clock. */
+  double al0 = lat_a_left;
+  double al1 = slewGain(al0, latFactor(diff_db));
+  double ar0 = lat_a_right;
+  double ar1 = slewGain(ar0, latFactor(-diff_db));
+  const double al_step = (al1 - al0)/(double)sample_count;
+  const double ar_step = (ar1 - ar0)/(double)sample_count;
+  lat_a_left = al1;
+  lat_a_right = ar1;
+
+  /* The ambience gain of this mode, and the lateral one beside it. Beta sends
+     the ambience to the rears on <rear_gain> and alpha mixes it in on
+     <ambience_gain>; either way it is the gain the ambience half of the cut
+     goes out at, and <lateral_gain> is the gain the other half goes out at.
+     Both slewed across the block, each towards its own target, because the two
+     halves are summed back together in the main pair and a step in either is a
+     step in the sum. */
+  const bool beta = (mode != 0);
+  double ga0 = beta ? gain_c2_rear : gain_c2;
+  double ga1 = slewGain(ga0, beta ? (double)gain_c2_rear_target
+                                  : (double)gain_c2_target);
+  const double ga_step = (ga1 - ga0)/(double)sample_count;
+  double gl0 = gain_lat;
+  double gl1 = slewGain(gl0, (double)gain_lat_target);
+  const double gl_step = (gl1 - gl0)/(double)sample_count;
+
+  /* C1: mixed into the main pair in alpha, and in beta only tapped -- the main
+     pair there carries the ambience, which is what beta is -- and only by an
+     engine that has a principal component in that mode. Hoisted out of the
+     loop because c1InBeta() is a virtual call and the answer cannot change
+     between two samples. */
+  const bool mix_c1 = !beta;
+  const bool emit_c1 = mix_c1 || c1InBeta();
+  double g1_0 = gain_c1;
+  double g1_1 = emit_c1 ? slewGain(g1_0, (double)gain_c1_target) : g1_0;
+  const double g1_step = (g1_1 - g1_0)/(double)sample_count;
+
+  double al = al0, ar = ar0, ga = ga0, gl = gl0, g1 = g1_0;
+  for(int i = 0; i < sample_count; i++, al += al_step, ar += ar_step,
+                                        ga += ga_step, gl += gl_step,
+                                        g1 += g1_step) {
+    c2_left = (pca.c2_mid[i] + pca.c2_side[i])/(norm_covsteps);
+    c2_right = (pca.c2_mid[i] - pca.c2_side[i])/(norm_covsteps);
+    /* THE CUT, and it is a subtraction and not a second curve: what the
+       ambience does not keep is what the lateral pair gets, so the two halves
+       add back to C2 exactly, whatever the factors are and however wrong the
+       level estimate was. With neither channel cut the whole of this is
+       c2_left - c2_left = 0 and the main pair comes out bit for bit what it
+       came out before any of this was here.
+
+       Of the two TARGETS at most one is ever below 1 -- a channel cannot be
+       the louder of a pair and the quieter of it -- so the lateral pair is
+       normally one channel and a column of exact zeroes. The two SLEWED
+       factors can overlap, though, and it is not a fault: on a swing that
+       crosses over, one is still on its way back to 1 while the other has
+       started down, and for the length of a ramp the lateral pair has
+       something in both. Measured on "So What", 1021 samples of 1.44 M in
+       three runs of a few hundred, carrying 3.7e-6 of the lateral's energy.
+       Snapping the other factor to 1 to keep the invariant would put a step in
+       a channel that was carrying signal, which is the one thing the slew is
+       here to prevent -- so the invariant is the thing that gives way. */
+    const double amb_left = al*c2_left;
+    const double amb_right = ar*c2_right;
+    const double lat_left = c2_left - amb_left;
+    const double lat_right = c2_right - amb_right;
+    c2l[i] = ga*amb_left;
+    c2r[i] = ga*amb_right;
+    latl[i] = gl*lat_left;
+    latr[i] = gl*lat_right;
+    double l = c2l[i] + latl[i];
+    double r = c2r[i] + latr[i];
+    if(emit_c1) {
+      c1_left = (pca.c1_mid[i] + pca.c1_side[i])/(norm_covsteps);
+      c1_right = (pca.c1_mid[i] - pca.c1_side[i])/(norm_covsteps);
+      c1l[i] = g1*c1_left;
+      c1r[i] = g1*c1_right;
+      if(mix_c1) {
+        l += c1l[i];
+        r += c1r[i];
+      }
+    }
+    l_out[i] = l;
+    r_out[i] = r;
+  }
+  if(beta)
+    gain_c2_rear = ga1;
+  else
+    gain_c2 = ga1;
+  gain_lat = gl1;
+  if(emit_c1)
+    gain_c1 = g1_1;
   /* Release: everything written above is visible to whoever loads the index
      with acquire, which is the callback and nobody else. */
   out_pub.store(w, std::memory_order_release);

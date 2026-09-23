@@ -41,6 +41,10 @@ NatAmbio Ambient Extraction (NAE) es un algoritmo desarrollado sobre y para un e
 | $\mu$ | Coeficiente de la premezcla, $\mu \in [0,\ 0.5]$ |
 | $\beta$ | Peso de la componente side, $\beta = 1 - 2\mu \in [0,\ 1]$; en modo $\beta$, $\beta = 0.55 + 0.45\,\lvert\rho_{lr}\rvert$ |
 | modos $\alpha,\ \beta$ | Las dos implementaciones de NAE: $\alpha$ (sin premezcla, $\mu = 0$, $\beta = 1$) y $\beta$ (peso side adaptativo). Los nombres de modo no deben confundirse con los parámetros $\mu$ y $\beta$ de las ecuaciones. |
+| $\Delta_{c2}$ | Diferencia de nivel entre los canales de $C_2$, en dB, medida sobre la ventana de reconstrucción |
+| $T,\ W$ | Umbral y anchura del codo de la separación lateral ($T = 5$ dB, $W = 5$ dB) |
+| $a_l,\ a_r$ | Factores de recorte de cada canal de $C_2$, $a \in (0,\ 1]$ |
+| $C_{2a},\ C_{2l}$ | Las dos mitades de $C_2$: ambiente (dentro de $T$) y lateral (más allá de $T$) |
 | M/S, L/R | Representaciones mid/side e izquierda/derecha |
 | PCA | Análisis de Componentes Principales (*Principal Component Analysis*) |
 
@@ -446,6 +450,47 @@ Esquema funcional de NAE, ambos modos, $\alpha$ y $\beta$:
   <img src="images/nae_implementation_flow_01.svg" alt="NAE scheme first stage">
   </p>
 <div align="center"> <strong>Figura 32.</strong> Esquema de la implementación del algoritmo NAE, en sus modos alfa y beta</div><br>
+
+## Separación lateral de la componente ambiental
+
+La componente $C_2$ es un par estéreo como cualquier otro, y nada en la descomposición garantiza que sus dos canales salgan a niveles parecidos. Cuando no lo hacen —cuando $l_{c2}$ y $r_{c2}$ están separados por varios decibelios— lo que hay en $C_2$ ya no responde a la definición de señal ambiental de la que parte este documento: no es un campo difuso, es una fuente que ha ido a parar a la segunda componente. Ocurre cuando el eje ambiental se escora hacia el mid, que es justo el caso en que la separación entre componentes es menos nítida.
+
+La propuesta es cortar $C_2$ en dos pares. El primero, que sigue llamándose ambiente, conserva la diferencia de nivel que se considere admisible para un campo difuso; lo que el canal fuerte tenga por encima de esa diferencia pasa al segundo par, el lateral, cuyo otro canal es cero. Aparecen así tres ganancias donde antes había dos: la de $C_1$, la del ambiente dentro del umbral y la del lateral.
+
+**La medida de nivel.** El corte se decide sobre $\Delta_{c2}$, la diferencia de nivel entre los canales de $C_2$ en dB, y esa diferencia se mide sobre la misma ventana sobre la que PCA ha estimado el eje, es decir sobre los `steps_length` bloques de la ventana de reconstrucción:
+
+$$\Delta_{c2} = 10\,\log_{10}\frac{\overline{l_{c2}^{\,2}}}{\overline{r_{c2}^{\,2}}}$$
+
+con las medias tomadas sobre esa ventana. No es un detalle de implementación sino parte de la definición. Un corte decidido muestra a muestra, comparando $|l_{c2}|$ contra $|r_{c2}|$, no sería una multiplicación por un nivel sino por una forma de onda, y el resultado de multiplicar una señal por otra no es una descomposición: son bandas laterales. Sobre una ventana no hay en el factor nada más rápido que la propia ventana.
+
+**La curva.** Con umbral $T$ y anchura de codo $W$, la reducción aplicada al canal fuerte, en dB, es
+
+$$G(\Delta) = \begin{cases} 0 & \Delta \le T - W/2 \\[2pt] -\dfrac{(\Delta - T + W/2)^2}{2W} & T - W/2 < \Delta < T + W/2 \\[6pt] -(\Delta - T) & \Delta \ge T + W/2 \end{cases}$$
+
+continua y con derivada continua, que tiende a dejar el ambiente en exactamente $T$ dB de diferencia y degenera en la esquina dura cuando $W = 0$. El codo es lo que evita que una señal que merodea el umbral vaya montada sobre un vértice de la curva. La implementación usa $T = 5$ dB y $W = 5$ dB. La condición $W < 2T$ no es estética: con $W = 2T$ el borde inferior del codo llega a 0 dB y los dos canales pasarían a recortarse a la vez, con lo que el par lateral dejaría de tener un canal a cero y sería una segunda copia del ambiente.
+
+**El reparto.** Con $a_l = 10^{\,G(\Delta_{c2})/20}$ y $a_r = 10^{\,G(-\Delta_{c2})/20}$, de los cuales a lo sumo uno es menor que la unidad,
+
+$$C_{2a} = (a_l\,l_{c2},\ a_r\,r_{c2}), \qquad C_{2l} = C_2 - C_{2a} = \big((1-a_l)\,l_{c2},\ (1-a_r)\,r_{c2}\big)$$
+
+El reparto es **complementario en amplitud**, y esa es la propiedad que lo sostiene todo: las dos mitades son las mismas muestras escaladas, de modo que $C_{2a} + C_{2l} = C_2$ exactamente, sea cual sea el factor y por errónea que haya sido la estimación de nivel. No se inventa energía ni se pierde; un detector equivocado desvía señal de un par al otro y no puede hacer nada peor. Un reparto complementario en potencia, con $a$ y $\sqrt{1-a^2}$, sería aquí la aritmética equivocada: las dos mitades están perfectamente correlacionadas por construcción, se suman coherentemente, y ese par llegaría a sumar $+3$ dB.
+
+De ahí se sigue también la continuidad con lo anterior: igualando la ganancia del lateral a la del ambiente, las dos mitades salen con el mismo peso y el motor es exactamente el de antes de que el corte existiera. Es lo que hace la configuración cuando no se nombra la ganancia lateral.
+
+**Cuánto hay realmente, y sobre qué material.** Midiendo $\lvert\Delta_{c2}\rvert$ sobre ventanas de 768 muestras a 48 kHz, con $T = 5$ dB y $W = 5$ dB, y llamando *fracción lateral* a la parte de la energía de $C_2$ que el corte desvía al par lateral:
+
+| Grabación | $\lvert\Delta_{c2}\rvert$ mediana | p95 | Ventanas > 5 dB | Fracción lateral |
+|---|---:|---:|---:|---:|
+| Beatles, *Please Please Me* | 16,2 dB | 30,8 | 85,8 % | 27,0 % |
+| Beethoven, *9ª* (Karajan) | 7,2 dB | 22,8 | 66,7 % | 19,4 % |
+| Davis, *So What* | 3,1 dB | 10,5 | 27,4 % | 2,8 % |
+| Manne, *I Am In Love* | 13,9 dB | 29,4 | 83,0 % | 33,3 % |
+| Ravel, *Rapsodie espagnole* | 2,2 dB | 7,5 | 15,0 % | 0,6 % |
+| Lisa, *Moonlit Floor* | 0,8 dB | 5,7 | 5,8 % | 0,5 % |
+
+El reparto entre grabaciones no es ruido de medida, es el efecto buscado. Donde más señal desvía el corte es en las grabaciones de estéreo primitivo, con instrumentos panoramizados a un extremo —*Please Please Me*, *I Am In Love*—, que es justamente el caso en que $C_2$ recoge una fuente lateralizada en lugar de un campo difuso. Donde la grabación tiene una imagen estéreo bien construida, Ravel o material de producción moderna, el corte apenas toma nada y el ambiente sale como salía. Es decir, la separación lateral se activa sobre el material para el que fue pensada y se mantiene al margen sobre el resto, sin que haya que decírselo.
+
+Por qué la diferencia entre canales llega a ser tan grande: $C_2$ es de rango uno dentro de cada bloque, de modo que $\Delta_{c2}$ queda determinado por la orientación del propio autovector ambiental. Una inclinación de $\theta$ grados respecto al side puro da $20\log_{10}\lvert\sin\theta + \cos\theta\rvert / \lvert\sin\theta - \cos\theta\rvert$, que ya vale 4,8 dB a los 15° y 11,4 dB a los 30°.
 
 ## Aplicación de NAE a NatAmbio de uno o dos dipolos estéreo
 

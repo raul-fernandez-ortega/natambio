@@ -101,6 +101,10 @@ void ConvChannel::addNaeInput(enum side n_side, NAE *n_nae)
     cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C2_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
   else if (n_side == C2_RIGHT)
     cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(C2_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else   if(n_side == LAT_LEFT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(LAT_LEFT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
+  else if (n_side == LAT_RIGHT)
+    cout << "ConvChannel: add nae output ->" << n_nae->getName() << "--" << n_nae->getChannelOut(LAT_RIGHT) << "/" << n_side << " connection to convolver index ->" << index << std::endl;
 #endif
   nae_channel *n_nae_channel = new struct nae_channel();
   n_nae_channel->n_side = n_side;

@@ -1,0 +1,88 @@
+<main>
+  <natambio>
+    <!--
+      NAE-only client, with the ambience cut in two.
+
+      Six independent JACK output ports instead of four:
+        main_L / main_R  —  principal component (C1)
+        amb_L  / amb_R   —  the ambience, while its two channels are within
+                            5 dB of each other
+        lat_L  / lat_R   —  what the louder channel of the ambience has
+                            beyond those 5 dB, the other channel at zero
+
+      The ambience is one signal cut into two pairs, not two signals: amb and
+      lat add back to the whole of it sample for sample. So <lateral_gain>
+      equal to <ambience_gain> is the engine as it was before the cut existed,
+      and it is also what leaving <lateral_gain> out does. Move the two apart
+      and the ambience that sits off to one side is heard at a level of its
+      own: down, to pull a badly panned source out of the ambient field, or
+      up, to widen it.
+
+      The 5 dB, and the soft knee that starts taking something at 2.5, are
+      fixed in the engine (src/nae.hpp). The level they are compared against
+      is measured over the reconstruction window, <steps_length> blocks of it,
+      and never sample by sample.
+
+      The six outputs are separate ports so each pair can be connected or
+      dropped by hand in qjackctl: mute lat and the ambience is 5 dB wide,
+      mute amb and only the off-centre part of it is left.
+    -->
+
+    <jack_input>
+      <clientname>natambio_nae</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <!-- Principal component -->
+      <port>
+        <name>main_L</name>
+      </port>
+      <port>
+        <name>main_R</name>
+      </port>
+      <!-- The ambience, within the 5 dB -->
+      <port>
+        <name>amb_L</name>
+      </port>
+      <port>
+        <name>amb_R</name>
+      </port>
+      <!-- The ambience, beyond the 5 dB -->
+      <port>
+        <name>lat_L</name>
+      </port>
+      <port>
+        <name>lat_R</name>
+      </port>
+    </jack_output>
+
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <!-- 3 dB under the ambience it was cut out of. Set it to 3.0 and the
+           two halves become one signal again. -->
+      <lateral_gain>0.0</lateral_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <!-- main_output_*, amb_output_* and lat_output_* resolve to the JACK
+           ports declared above -->
+      <main_output_left>main_L</main_output_left>
+      <main_output_right>main_R</main_output_right>
+      <amb_output_left>amb_L</amb_output_left>
+      <amb_output_right>amb_R</amb_output_right>
+      <lat_output_left>lat_L</lat_output_left>
+      <lat_output_right>lat_R</lat_output_right>
+    </nae>
+
+  </natambio>
+</main>

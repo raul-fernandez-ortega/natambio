@@ -41,6 +41,10 @@ NatAmbio Ambient Extraction (NAE) is an algorithm developed on and for a domesti
 | $\mu$ | Pre-mix coefficient, $\mu \in [0,\ 0.5]$ |
 | $\beta$ | Side-component weight, $\beta = 1 - 2\mu \in [0,\ 1]$; in $\beta$ mode, $\beta = 0.55 + 0.45\,\lvert\rho_{lr}\rvert$ |
 | $\alpha,\ \beta$ modes | The two NAE implementations: $\alpha$ (no pre-mix, $\mu = 0$, $\beta = 1$) and $\beta$ (adaptive side weight). The mode names are distinct from the equation parameters $\mu$ and $\beta$. |
+| $\Delta_{c2}$ | Level difference between the channels of $C_2$, in dB, measured over the reconstruction window |
+| $T,\ W$ | Threshold and knee width of the lateral split ($T = 5$ dB, $W = 5$ dB) |
+| $a_l,\ a_r$ | Cut factors of each channel of $C_2$, $a \in (0,\ 1]$ |
+| $C_{2a},\ C_{2l}$ | The two halves of $C_2$: ambience (within $T$) and lateral (beyond $T$) |
 | M/S, L/R | Mid/side and left/right representations |
 | PCA | Principal Component Analysis |
 
@@ -451,6 +455,47 @@ Functional scheme of NAE, both modes, $\alpha$ and $\beta$:
   <img src="images/nae_implementation_flow_01.svg" alt="NAE scheme first stage">
   </p>
 <div align="center"> <strong>Figure 32.</strong> Scheme of the implementation of the NAE algorithm, in its alpha and beta modes</div><br>
+
+## Lateral split of the ambient component
+
+The $C_2$ component is a stereo pair like any other, and nothing in the decomposition guarantees that its two channels come out at similar levels. When they do not -- when $l_{c2}$ and $r_{c2}$ are several decibels apart -- what is in $C_2$ no longer answers to the definition of ambient signal this document starts from: it is not a diffuse field, it is a source that has ended up in the second component. It happens when the ambient axis leans towards the mid, which is exactly the case where the separation between components is least clean.
+
+The proposal is to cut $C_2$ into two pairs. The first, still called the ambience, keeps whatever level difference is taken to be admissible for a diffuse field; whatever the louder channel has beyond that difference goes to the second pair, the lateral one, whose other channel is zero. Three gains appear where there were two: that of $C_1$, that of the ambience within the threshold, and that of the lateral part.
+
+**The level measurement.** The cut is decided on $\Delta_{c2}$, the level difference between the channels of $C_2$ in dB, and that difference is measured over the same window PCA has estimated the axis over, that is over the `steps_length` blocks of the reconstruction window:
+
+$$\Delta_{c2} = 10\,\log_{10}\frac{\overline{l_{c2}^{\,2}}}{\overline{r_{c2}^{\,2}}}$$
+
+with the means taken over that window. This is not an implementation detail but part of the definition. A cut decided sample by sample, comparing $|l_{c2}|$ against $|r_{c2}|$, would not be a multiplication by a level but by a waveform, and the result of multiplying one signal by another is not a decomposition: it is sidebands. Over a window there is nothing in the factor faster than the window itself.
+
+**The curve.** With threshold $T$ and knee width $W$, the reduction applied to the louder channel, in dB, is
+
+$$G(\Delta) = \begin{cases} 0 & \Delta \le T - W/2 \\[2pt] -\dfrac{(\Delta - T + W/2)^2}{2W} & T - W/2 < \Delta < T + W/2 \\[6pt] -(\Delta - T) & \Delta \ge T + W/2 \end{cases}$$
+
+continuous and with continuous derivative, tending to leave the ambience at exactly $T$ dB of difference and degenerating into the bare corner at $W = 0$. The knee is what keeps a signal hovering around the threshold from riding a vertex of the curve. The implementation uses $T = 5$ dB and $W = 5$ dB. The condition $W < 2T$ is not a matter of taste: at $W = 2T$ the lower edge of the knee reaches 0 dB and both channels would start being cut at once, so the lateral pair would stop having a channel at zero and become a second copy of the ambience.
+
+**The split.** With $a_l = 10^{\,G(\Delta_{c2})/20}$ and $a_r = 10^{\,G(-\Delta_{c2})/20}$, of which at most one is below unity,
+
+$$C_{2a} = (a_l\,l_{c2},\ a_r\,r_{c2}), \qquad C_{2l} = C_2 - C_{2a} = \big((1-a_l)\,l_{c2},\ (1-a_r)\,r_{c2}\big)$$
+
+The split is **complementary in amplitude**, and that is the property the whole thing rests on: the two halves are the same samples scaled, so $C_{2a} + C_{2l} = C_2$ exactly, whatever the factor is and however wrong the level estimate was. No energy is invented and none is lost; a detector that gets it wrong misroutes signal from one pair to the other and can do nothing worse. A split complementary in power, with $a$ and $\sqrt{1-a^2}$, would be the wrong arithmetic here: the two halves are perfectly correlated by construction, they add coherently, and that pair would sum to as much as $+3$ dB.
+
+Continuity with what came before follows from the same property: setting the lateral gain equal to the ambience gain puts both halves out at one weight, and the engine is exactly the one from before the cut existed. That is what the configuration does when the lateral gain is not named.
+
+**How much is actually there, and on what material.** Measuring $\lvert\Delta_{c2}\rvert$ over windows of 768 samples at 48 kHz, with $T = 5$ dB and $W = 5$ dB, and calling *lateral fraction* the part of the energy of $C_2$ the cut diverts to the lateral pair:
+
+| Recording | median $\lvert\Delta_{c2}\rvert$ | p95 | Windows > 5 dB | Lateral fraction |
+|---|---:|---:|---:|---:|
+| Beatles, *Please Please Me* | 16.2 dB | 30.8 | 85.8 % | 27.0 % |
+| Beethoven, *9th* (Karajan) | 7.2 dB | 22.8 | 66.7 % | 19.4 % |
+| Davis, *So What* | 3.1 dB | 10.5 | 27.4 % | 2.8 % |
+| Manne, *I Am In Love* | 13.9 dB | 29.4 | 83.0 % | 33.3 % |
+| Ravel, *Rapsodie espagnole* | 2.2 dB | 7.5 | 15.0 % | 0.6 % |
+| Lisa, *Moonlit Floor* | 0.8 dB | 5.7 | 5.8 % | 0.5 % |
+
+The spread between recordings is not measurement noise, it is the intended effect. Where the cut diverts most is in primitive-stereo recordings with instruments panned hard to one side -- *Please Please Me*, *I Am In Love* -- which is exactly the case where $C_2$ is picking up a lateralised source rather than a diffuse field. Where the recording has a well-built stereo image, Ravel or material of modern production, the cut takes almost nothing and the ambience comes out as it came out before. The lateral split, that is, engages on the material it was meant for and stays out of the way on the rest, without having to be told.
+
+Why the difference between channels runs so large: $C_2$ is rank one within each block, so $\Delta_{c2}$ is determined by the orientation of the ambient eigenvector itself. A lean of $\theta$ degrees off pure side gives $20\log_{10}\lvert\sin\theta + \cos\theta\rvert / \lvert\sin\theta - \cos\theta\rvert$, which is already 4.8 dB at 15° and 11.4 dB at 30°.
 
 ## Application of NAE to single- or dual-dipole NatAmbio
 

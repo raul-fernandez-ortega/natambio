@@ -42,11 +42,11 @@ extern "C" {
    one quote it, and each answer stays the single line the protocol promises. */
 static const char *REMOTE_GRAMMAR =
   "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | "
-  "naegain [<nae> [front|amb|rear <dB> ...]] | naepan [<nae> [<scale>]] | "
+  "naegain [<nae> [front|amb|rear|lat <dB> ...]] | naepan [<nae> [<scale>]] | "
   "naeget [<nae>] | getxmlconfig | timecycle [reset] | mute | unmute | toggle";
 
-/* The three NAE gains as the protocol spells them, in the order a report lists
-   them. Kept together so the parser and the reporter cannot drift apart. */
+/* The NAE gains as the protocol spells them, in the order a report lists them.
+   Kept together so the parser and the reporter cannot drift apart. */
 static const struct {
   const char *word;
   enum nae_gain which;
@@ -54,6 +54,7 @@ static const struct {
   { "front", NAE_GAIN_FRONT },
   { "amb",   NAE_GAIN_AMB   },
   { "rear",  NAE_GAIN_REAR  },
+  { "lat",   NAE_GAIN_LAT   },
 };
 #define REMOTE_NAE_GAIN_COUNT (sizeof(REMOTE_NAE_GAINS)/sizeof(REMOTE_NAE_GAINS[0]))
 
@@ -446,9 +447,9 @@ std::string Remote::reportNaeGains(const std::vector<std::string>& names)
   return reply.str();
 }
 
-/* "naegain [<nae> [front|amb|rear <dB> ...]]": the NAE engines' gains, absolute
-   and in dB. The whole line is resolved before anything is set, the way up/down
-   resolve their port list: these three gains are a balance between components,
+/* "naegain [<nae> [front|amb|rear|lat <dB> ...]]": the NAE engines' gains,
+   absolute and in dB. The whole line is resolved before anything is set, the way
+   up/down resolve their port list: these gains are a balance between components,
    and applying half a line would leave the engine at a balance the caller never
    asked for -- and, unlike a mistyped port name, one they have no record of. */
 std::string Remote::naeGains(std::istringstream& is)
@@ -475,7 +476,7 @@ std::string Remote::naeGains(std::istringstream& is)
       if(strcasecmp(word.c_str(), REMOTE_NAE_GAINS[g].word) == 0)
         break;
     if(g == REMOTE_NAE_GAIN_COUNT)
-      return "error: '" + word + "' is not one of front, amb, rear\n";
+      return "error: '" + word + "' is not one of front, amb, rear, lat\n";
     /* Each name carries its own number: the pairs are what makes a line of
        several gains readable, and a name left dangling at the end of the line
        is a number the caller meant to type and did not. */
@@ -625,6 +626,13 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
     out << "  <front_gain>" << cfg.front_gain_db << "</front_gain>\n";
     out << "  <ambience_gain>" << cfg.ambience_gain_db << "</ambience_gain>\n";
   }
+  /* Written in both modes, where the three above are written in one. The gain
+     of the lateral half of the ambience is read in alpha and in beta alike, so
+     leaving it out of either block would be leaving out something the engine
+     is using. Written even when it equals the ambience gain it defaulted to:
+     the point of the block is to reproduce the engine, and a default left out
+     is a default that can change under the file. */
+  out << "  <lateral_gain>" << cfg.lateral_gain_db << "</lateral_gain>\n";
   xml_line(out, "input_left", cfg.input_left);
   xml_line(out, "input_right", cfg.input_right);
   xml_line(out, "output_left", cfg.output_left);
@@ -633,6 +641,8 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
   xml_line(out, "main_output_right", cfg.front_output_right);
   xml_line(out, "amb_output_left", cfg.amb_output_left);
   xml_line(out, "amb_output_right", cfg.amb_output_right);
+  xml_line(out, "lat_output_left", cfg.lat_output_left);
+  xml_line(out, "lat_output_right", cfg.lat_output_right);
   out << "</nae>\n";
   return out.str();
 }

@@ -796,6 +796,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_c1 = 0;
   nae->gain_c2 = 0;
   nae->gain_c2_rear = 0;
+  nae->gain_lat = 0;
+  nae->gain_lat_set = false;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
   /* Zero here and not the default, so that <steps_length_ms> can tell "nobody
      has set this" from "someone set it to the default". The default is applied
@@ -807,6 +809,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->right_in = "";
   nae->left_out = "";
   nae->right_out = "";
+  nae->lat_left_out = "";
+  nae->lat_right_out = "";
   
   /* Every child element this block holds that means nothing here, kept until
      the name is known so that the complaint can say which engine it is about.
@@ -858,6 +862,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->gain_c2 = FROM_DB(strtof((char*)cnt, NULL));
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"rear_gain")) {
       nae->gain_c2_rear = FROM_DB(strtof((char*)cnt, NULL));
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lateral_gain")) {
+      nae->gain_lat = FROM_DB(strtof((char*)cnt, NULL));
+      nae->gain_lat_set = true;
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
@@ -887,6 +894,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
       nae->c2_left_out = (char*)cnt;
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"amb_output_right")) {
       nae->c2_right_out = (char*)cnt;
+    } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lat_output_left")) {
+      nae->lat_left_out = (char*)cnt;
+    } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lat_output_right")) {
+      nae->lat_right_out = (char*)cnt;
     } else {
       unknown.push_back((const char*)xmlnode->name);
     }
@@ -975,12 +986,24 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     delete nae;
     return NULL;
   }
-  if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty()) {
+  /* <lateral_gain> absent is not a number of its own. The lateral pair is one
+     half of the ambience -- the two sum back to the C2 they were cut from --
+     so with no gain named for it, it goes out at the gain this mode already
+     carries the ambience with, and a configuration written before the pair
+     existed sounds exactly as it did. Zero would silence half the ambience,
+     and unity would be a gain nobody wrote; both are the failure the beta
+     branch above spent an afternoon learning not to repeat. Read after the
+     mode block, which is where the gain it copies is known to be valid. */
+  if(!nae->gain_lat_set)
+    nae->gain_lat = nae->mode ? nae->gain_c2_rear : nae->gain_c2;
+  if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty() &&
+     nae->lat_left_out.empty()) {
     parse_error("Error: nae left output not defined.");
     delete nae;
     return NULL;
   }
-  if(nae->right_out.empty() && nae->c1_right_out.empty() && nae->c2_right_out.empty()) {
+  if(nae->right_out.empty() && nae->c1_right_out.empty() && nae->c2_right_out.empty() &&
+     nae->lat_right_out.empty()) {
     parse_error("Error: nae right output not defined.");
     delete nae;
     return NULL;
@@ -997,6 +1020,9 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     std::cout << "\t\tFront main gain: " << nae->gain_c1 << std::endl;
     std::cout << "\t\tFront ambience gain: " << nae->gain_c2 << std::endl;
   }
+  std::cout << "\t\tLateral gain: " << nae->gain_lat
+            << (nae->gain_lat_set ? "" : " (not given; the ambience gain of this mode)")
+            << std::endl;
   if(nae->pan_scale != 0) {
     std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("
               << ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
@@ -1014,6 +1040,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     std::cout << "\tSide left channel output: " << nae->c2_left_out << std::endl;
   if(!nae->c2_right_out.empty())
     std::cout << "\tSide right channel output: " << nae->c2_right_out << std::endl;
+  if(!nae->lat_left_out.empty())
+    std::cout << "\tLateral left channel output: " << nae->lat_left_out << std::endl;
+  if(!nae->lat_right_out.empty())
+    std::cout << "\tLateral right channel output: " << nae->lat_right_out << std::endl;
   return nae;
 }
 
@@ -2026,13 +2056,16 @@ bool NaConf::setNaeGainDb(const string& nae_name, enum nae_gain which, double ga
     return false;
 
   const char *tag = (which == NAE_GAIN_FRONT) ? "front_gain" :
-                    (which == NAE_GAIN_AMB)   ? "ambience_gain" : "rear_gain";
+                    (which == NAE_GAIN_AMB)   ? "ambience_gain" :
+                    (which == NAE_GAIN_LAT)   ? "lateral_gain" : "rear_gain";
   xml_set_child(nae, tag, xml_number(gain_db));
   /* The structures hold the gains linear, as FROM_DB left them at parse time;
      the file holds dB. Each keeps its own convention. */
   if(parsed != NULL) {
     if(which == NAE_GAIN_FRONT)     parsed->gain_c1 = FROM_DB(gain_db);
     else if(which == NAE_GAIN_AMB)  parsed->gain_c2 = FROM_DB(gain_db);
+    else if(which == NAE_GAIN_LAT)  { parsed->gain_lat = FROM_DB(gain_db);
+                                      parsed->gain_lat_set = true; }
     else                            parsed->gain_c2_rear = FROM_DB(gain_db);
   }
   return true;

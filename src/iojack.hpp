@@ -79,10 +79,14 @@ struct nae_config {
   double front_gain_db;
   double ambience_gain_db;
   double rear_gain_db;
+  /* The lateral half of the ambience. Reported in both modes, unlike the three
+     above: it is the companion of whichever of them carries the ambience. */
+  double lateral_gain_db;
   string input_left, input_right;
   string output_left, output_right;
   string front_output_left, front_output_right;
   string amb_output_left, amb_output_right;
+  string lat_output_left, lat_output_right;
 };
 
 class ioJack {

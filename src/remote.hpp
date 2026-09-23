@@ -35,7 +35,7 @@ extern "C" {
  *     up   <dB> <port> [port ...]     raise those ports' gains by <dB>
  *     down <dB> <port> [port ...]     lower them by <dB>
  *     get  [port ...]                 report the gains as they are now
- *     naegain [<nae> [front|amb|rear <dB> ...]]   the NAE engines' gains
+ *     naegain [<nae> [front|amb|rear|lat <dB> ...]]   the NAE engines' gains
  *     naepan  [<nae> [<scale>]]       the width of an NAE's input pair
  *     naeget  [<nae>]                 an NAE's configuration, as XML
  *     getxmlconfig                    the whole live configuration, as XML
@@ -69,23 +69,27 @@ extern "C" {
  * will go back to rather than what is coming out.
  *
  * "naegain" is the odd one: it addresses an NAE engine by its <name> rather
- * than a JACK port, and its numbers are ABSOLUTE dB, not steps. The three gains
+ * than a JACK port, and its numbers are ABSOLUTE dB, not steps. The four gains
  * are a balance between the components the engine decomposes the pair into --
- * <front_gain>, <ambience_gain> and <rear_gain> in the configuration, named
- * front, amb and rear here -- and a balance is set to a value, not nudged from
- * whatever it happens to be. Several in one line, applied together:
+ * <front_gain>, <ambience_gain>, <rear_gain> and <lateral_gain> in the
+ * configuration, named front, amb, rear and lat here -- and a balance is set to
+ * a value, not nudged from whatever it happens to be. Several in one line,
+ * applied together:
  *
- *     naegain nae_front front -1.5 amb -4.0
+ *     naegain nae_front front -1.5 amb -4.0 lat -8.0
  *
- * Only some of the three do anything in a given mode: alpha reads front and
- * amb, beta reads rear. A gain the mode does not read is still set and still
- * reported -- the mode does not change while natambio runs, so refusing it
- * would only lose the value -- but it is answered "inactive <nae> <which> <dB>"
- * rather than "ok", which is the difference between a command that did nothing
- * and one that did nothing visible. With no gains after the name the engine is
- * reported and not touched: a "nae <name> alpha|beta" line and then its three
- * gains, four lines. With no name at all, every engine, which is how a caller
- * with no copy of the configuration finds out what there is to ask about.
+ * Only some of them do anything in a given mode: alpha reads front and amb,
+ * beta reads rear, and lat is read by both -- it is the gain of the part of the
+ * ambience that sits beyond the level difference the ambience is allowed to
+ * carry, and both modes have an ambience. A gain the mode does not read is
+ * still set and still reported -- the mode does not change while natambio runs,
+ * so refusing it would only lose the value -- but it is answered "inactive
+ * <nae> <which> <dB>" rather than "ok", which is the difference between a
+ * command that did nothing and one that did nothing visible. With no gains
+ * after the name the engine is reported and not touched: a "nae <name>
+ * alpha|beta" line and then its gains. With no name at all, every engine, which
+ * is how a caller with no copy of the configuration finds out what there is to
+ * ask about.
  *
  * "naepan" is <pan_scale>, the width of the engine's input pair, set or read:
  * +1 the pair collapsed to mono, 0 untouched, -1 the two channels in opposite

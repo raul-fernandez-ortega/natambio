@@ -55,7 +55,12 @@ enum side {
   C1_LEFT,
   C1_RIGHT,
   C2_LEFT,
-  C2_RIGHT
+  C2_RIGHT,
+  /* The part of C2 that sits beyond the inter-channel level difference the
+     ambience is allowed to carry: one channel of it is always exactly zero,
+     because only the louder one is ever cut. See NAE::emitBlock(). */
+  LAT_LEFT,
+  LAT_RIGHT
 };
 
 /* Which of an NAE's three gains is being named. Only some of them do anything
@@ -66,7 +71,14 @@ enum side {
 enum nae_gain {
   NAE_GAIN_FRONT,   /* gain_c1 / <front_gain>: principal component, alpha only */
   NAE_GAIN_AMB,     /* gain_c2 / <ambience_gain>: ambience, alpha only */
-  NAE_GAIN_REAR     /* gain_c2_rear / <rear_gain>: to the rears, beta only */
+  NAE_GAIN_REAR,    /* gain_c2_rear / <rear_gain>: to the rears, beta only */
+  /* gain_lat / <lateral_gain>: the lateral part of the ambience, and the one
+     gain of the four that means something in BOTH modes. It is the companion
+     of whichever gain carries the ambience there -- <ambience_gain> in alpha,
+     <rear_gain> in beta -- because the two halves it splits are the two halves
+     of one signal: set equal to that one, the engine does exactly what it did
+     before this existed. */
+  NAE_GAIN_LAT
 };
 
 struct s_nae {
@@ -75,6 +87,13 @@ struct s_nae {
   double gain_c1;
   double gain_c2;
   double gain_c2_rear;
+  double gain_lat;
+  /* Whether the file gave <lateral_gain>. Absent, it is not a default number
+     but the gain the mode already carries the ambience with, which is what
+     makes a configuration written before the lateral pair existed sound
+     exactly as it did: the two halves go back out at one gain and sum to the
+     C2 they were cut from. */
+  bool gain_lat_set;
   double pan_scale;      // width of the input pair, [-1, 1]
   int steps_length;
   /* What <steps_length_ms> asked for, when it is what set it; negative when
@@ -91,6 +110,8 @@ struct s_nae {
   string c1_right_out;
   string c2_left_out;
   string c2_right_out;
+  string lat_left_out;
+  string lat_right_out;
 };
 
 struct coeff {

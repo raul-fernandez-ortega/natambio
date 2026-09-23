@@ -805,6 +805,7 @@ static void nae_config_fill(NAE *nae, struct nae_config *cfg)
   cfg->front_gain_db = nae->gainDb(NAE_GAIN_FRONT);
   cfg->ambience_gain_db = nae->gainDb(NAE_GAIN_AMB);
   cfg->rear_gain_db = nae->gainDb(NAE_GAIN_REAR);
+  cfg->lateral_gain_db = nae->gainDb(NAE_GAIN_LAT);
   cfg->input_left = nae->getChannelIn(LEFT);
   cfg->input_right = nae->getChannelIn(RIGHT);
   cfg->output_left = nae->getChannelOut(LEFT);
@@ -813,6 +814,8 @@ static void nae_config_fill(NAE *nae, struct nae_config *cfg)
   cfg->front_output_right = nae->getChannelOut(C1_RIGHT);
   cfg->amb_output_left = nae->getChannelOut(C2_LEFT);
   cfg->amb_output_right = nae->getChannelOut(C2_RIGHT);
+  cfg->lat_output_left = nae->getChannelOut(LAT_LEFT);
+  cfg->lat_output_right = nae->getChannelOut(LAT_RIGHT);
 }
 
 bool ioJack::naeConfig(string nae_name, struct nae_config *cfg)
@@ -889,7 +892,8 @@ bool ioJack::setNaeGain(string nae_name, enum nae_gain which, double db,
     *active = on;
   if(!quiet) {
     const char *label = (which == NAE_GAIN_FRONT) ? "front" :
-                        (which == NAE_GAIN_AMB)   ? "amb" : "rear";
+                        (which == NAE_GAIN_AMB)   ? "amb" :
+                        (which == NAE_GAIN_LAT)   ? "lat" : "rear";
     std::cout << "ioJack: NAE " << nae_name << " " << label << " gain now "
               << std::fixed << std::setprecision(3) << g << " dB"
               << (on ? "" : " (not used in this mode)") << std::endl;

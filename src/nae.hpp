@@ -72,6 +72,73 @@ using namespace std;
 #define NA_NAE_PAN_MAX         1.0
 #define NA_NAE_PAN_MIN        -1.0
 
+/* WHERE THE AMBIENCE STOPS BEING AMBIENCE.
+ *
+ * C2 comes out as a stereo pair like anything else, and when the two channels
+ * of it sit at very different levels what is in there is no longer a diffuse
+ * field: it is a source that happens to have landed in the second component.
+ * So C2 is cut in two. The ambience keeps whatever difference it is allowed to
+ * carry, NA_NAE_LAT_THRESHOLD_DB of it; everything the louder channel has
+ * beyond that goes to a pair of its own, with the quieter channel at zero --
+ * exactly zero, except while a swing is crossing over and the two factors are
+ * both on the move. emitBlock() has the measurement.
+ *
+ * It is not a rare corner, and how often it fires says something about the
+ * recording. Of the energy of C2, the cut sends to the lateral pair 33 % on
+ * "I Am In Love" and 27 % on "Please Please Me" -- primitive stereo, an
+ * instrument panned hard to one side and landing in the second component --
+ * against 0.6 % on Ravel and 0.5 % on modern pop, where the stereo image is
+ * built properly and there is nothing lateral in the ambience to take out. It
+ * engages on the material it is for and stays out of the way on the rest.
+ *
+ * Why it runs so large: C2 is rank one within a block, so the difference
+ * between its channels IS the ambient eigenvector's lean off pure side -- 4.8
+ * dB at 15 degrees, 11.4 at 30. docs/nae has the table.
+ *
+ * THE CUT IS COMPLEMENTARY IN AMPLITUDE and that is the whole safety argument:
+ * the two halves are one waveform scaled by a and by 1-a, so
+ *
+ *     ambient + lateral = C2,  sample for sample, whatever a is.
+ *
+ * Nothing is invented and nothing is lost; a detector that gets the level
+ * wrong misroutes signal between two pairs and can do nothing worse than that.
+ * Complementary in POWER (a and sqrt(1-a^2)) would be the wrong arithmetic
+ * here -- the two halves are perfectly correlated, being the same samples, so
+ * they add coherently and that pair would sum to as much as +3 dB.
+ *
+ * With <lateral_gain> set to the gain the mode already carries the ambience
+ * with, the two halves go back out at one gain and the engine is exactly what
+ * it was before any of this existed.
+ *
+ * THE KNEE. The reduction applied to the louder channel, in dB, against the
+ * measured difference d, with T the threshold and W the knee:
+ *
+ *     G(d) = 0                        d <= T - W/2
+ *          = -(d - T + W/2)^2 / (2W)  inside the knee
+ *          = -(d - T)                 d >= T + W/2
+ *
+ * C1 continuous, degenerating to the bare corner at W = 0, and for a large
+ * difference it leaves the ambience at exactly T. The knee is what keeps a
+ * signal hovering around the threshold from riding a corner in the curve.
+ *
+ * W < 2T, AND IT IS NOT A STYLE POINT. At W = 2T the bottom of the knee
+ * reaches 0 dB, and below that BOTH channels would be attenuated at once --
+ * the lateral pair would stop having a channel at zero and become a second
+ * copy of the ambience. W = T is half that, and safe by construction. */
+#define NA_NAE_LAT_THRESHOLD_DB   5.0
+#define NA_NAE_LAT_KNEE_DB        5.0
+/* WHAT IT COSTS. Two passes over the frame where there was one, the second of
+ * them a sum of squares, plus a logarithm and two knee evaluations a block.
+ * Measured with nae_bench at 48 kHz, 256 frames, covsteps 3: from 26.4 to
+ * 33.5 us a block. */
+
+/* The floor under the two level estimates. It is there for silence, where the
+   ratio of two zeroes is whatever the last denormal says: with this in both
+   terms a silent block reads as no difference at all, which puts the whole of
+   nothing into the ambience. In output units squared, so 1e-20 is an amplitude
+   of 1e-10 -- two hundred dB below anything that is signal. */
+#define NA_NAE_LAT_EPS            1e-20
+
 
 
 typedef struct {
@@ -116,6 +183,7 @@ protected:
   double gain_c1;
   double gain_c2;
   double gain_c2_rear;
+  double gain_lat;
   /* Width of the input pair. pan_scale is the number the configuration and the
      remote manager work in and belongs to whichever thread set it; the target
      is that same number and the ONE word the worker reads from outside -- the
@@ -148,9 +216,11 @@ protected:
   double gain_c1_db;
   double gain_c2_db;
   double gain_c2_rear_db;
+  double gain_lat_db;
   volatile float gain_c1_target;
   volatile float gain_c2_target;
   volatile float gain_c2_rear_target;
+  volatile float gain_lat_target;
   /* Per-sample slew, from the sample rate: the rate ioJack fades at, so a NAE
      gain and a port gain arriving together move as one. */
   float ramp_inc;
@@ -178,6 +248,36 @@ protected:
   RunningSums covM;
   RunningSums icorrv;
   PCATrans pca;
+  /* THE LEVEL THE LATERAL CUT IS DECIDED ON, over the window the PCA itself
+     works on: covsteps frames, one energy per frame per channel, summed. A
+     level is not a sample -- comparing |left| against |right| sample by sample
+     is not a measurement of anything, it is a multiplication by a waveform,
+     and what comes out of it is distortion. So the two channels are measured
+     over the same span the axis was estimated over and the answer moves once
+     per block.
+
+     Written and summed in emitBlock() and nowhere else, ring and all, so that
+     an engine that overrides advanceBlock() without chaining to this one
+     still gets it.
+
+     The energies are of the RECONSTRUCTED pair, the one about to be emitted,
+     and not of pca.c2_mid / c2_side as they stand. Those are mid-overlap-add:
+     the frame at [0, sample_count) has had all covsteps contributions and the
+     tail of the buffer has had one, so a mean taken across the whole of it
+     would weight a half-built tail against a finished head and bias the very
+     ratio this is here to measure. The ring costs one pass over a frame and
+     every sample in it is finished. It lags the analysis window by covsteps-1
+     frames, which is the engine's own reconstruction latency and exactly
+     right: what is being decided is the level of the audio being cut, not of
+     the audio being analysed. */
+  double *lat_pow_l;   /* covsteps, energy per frame, left */
+  double *lat_pow_r;   /* covsteps, energy per frame, right */
+  /* Where the two cut factors have slewed to, left and right. At most one of
+     them is ever below 1 -- only the louder channel is cut -- and they move on
+     ramp_inc like every other gain here, so the factor is continuous across a
+     block boundary as well as within a block. */
+  double lat_a_left;
+  double lat_a_right;
   double side_weight;
   double icorr;
   float *left_in;
@@ -204,6 +304,8 @@ protected:
   float *c2_left_out[2];
   float *c1_right_out[2];
   float *c2_right_out[2];
+  float *lat_left_out[2];
+  float *lat_right_out[2];
   std::atomic<int> out_pub;     /* the set the callback should read */
   string left_name_in;
   string right_name_in;
@@ -213,6 +315,8 @@ protected:
   string c1_right_name_out;
   string c2_left_name_out;
   string c2_right_name_out;
+  string lat_left_name_out;
+  string lat_right_name_out;
 
   /* One block of slew towards a gain's target, at most ramp_inc per sample:
      the same step ioJack::slewGain() takes, on the same clock, so a change
@@ -255,6 +359,7 @@ public:
   bool setC1Gain(double gain);
   bool setC2Gain(double gain);
   bool setC2RearGain(double gain);
+  bool setLatGain(double gain);
 
   /* The same three for the remote manager, in dB and one at a time.
      setGainDb() clamps to [NA_NAE_GAIN_MIN_DB, NA_NAE_GAIN_MAX_DB] and returns
@@ -356,6 +461,13 @@ protected:
   virtual void decompose(void);
   void emitBlock(void);
   virtual void advanceBlock(void);
+
+  /* The cut factor for one channel: what the louder of the pair is multiplied
+     by so that the ambience is left carrying NA_NAE_LAT_THRESHOLD_DB of
+     difference and no more. <diff_db> is this channel's level above the other
+     one; at or below the knee it returns exactly 1 and nothing is cut. The
+     curve is written out in the constants above. */
+  static double latFactor(double diff_db);
 
 };
 
