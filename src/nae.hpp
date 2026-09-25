@@ -124,7 +124,19 @@ using namespace std;
  * W < 2T, AND IT IS NOT A STYLE POINT. At W = 2T the bottom of the knee
  * reaches 0 dB, and below that BOTH channels would be attenuated at once --
  * the lateral pair would stop having a channel at zero and become a second
- * copy of the ambience. W = T is half that, and safe by construction. */
+ * copy of the ambience. It is refused at parse time and again in
+ * setLateralSplit(), not clamped.
+ *
+ * T and W come from <lateral_threshold_db> and <lateral_knee_db>; the two
+ * constants below are only their defaults. The knee also decides how often the
+ * lateral pair has both channels at once: the overlap is a product of the knee
+ * keeping both factors under 1 more of the time, and a hard corner (W = 0)
+ * keeps it to the least. */
+/* The defaults for <lateral_threshold_db> and <lateral_knee_db>. They are
+   defaults and no longer the whole story: how much a given threshold takes
+   depends on the recording far more than it looks -- 33 % of the ambience on
+   "I Am In Love" against 0.6 % on Ravel, at the same 5 dB. A number that
+   material-dependent belongs in the file. */
 #define NA_NAE_LAT_THRESHOLD_DB   5.0
 #define NA_NAE_LAT_KNEE_DB        5.0
 /* WHAT IT COSTS. Two passes over the frame where there was one, the second of
@@ -278,6 +290,12 @@ protected:
      block boundary as well as within a block. */
   double lat_a_left;
   double lat_a_right;
+  /* <lateral_threshold_db> and <lateral_knee_db>, the curve latFactor() walks.
+     Set once at configuration time and read by the worker thread from then on;
+     unlike the gains they have no live target, because nothing sets them while
+     the engine runs. */
+  double lat_threshold_db;
+  double lat_knee_db;
   double side_weight;
   double icorr;
   float *left_in;
@@ -360,6 +378,15 @@ public:
   bool setC2Gain(double gain);
   bool setC2RearGain(double gain);
   bool setLatGain(double gain);
+  /* The threshold and the knee, in dB, as <lateral_threshold_db> and
+     <lateral_knee_db> are parsed. Refused, and nothing touched, outside the
+     domain -- see NA_NAE_LAT_THRESHOLD_DB for what the domain is and why the
+     knee cannot reach twice the threshold. naconf refuses the same values
+     before they ever get here, as it does for <pan_scale>; this is the guard
+     for a caller that builds an engine by hand. */
+  bool setLateralSplit(double threshold_db, double knee_db);
+  double getLatThresholdDb(void) const { return lat_threshold_db; };
+  double getLatKneeDb(void) const { return lat_knee_db; };
 
   /* The same three for the remote manager, in dB and one at a time.
      setGainDb() clamps to [NA_NAE_GAIN_MIN_DB, NA_NAE_GAIN_MAX_DB] and returns
@@ -467,7 +494,7 @@ protected:
      difference and no more. <diff_db> is this channel's level above the other
      one; at or below the knee it returns exactly 1 and nothing is cut. The
      curve is written out in the constants above. */
-  static double latFactor(double diff_db);
+  double latFactor(double diff_db) const;
 
 };
 

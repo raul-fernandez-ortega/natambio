@@ -806,6 +806,8 @@ static void nae_config_fill(NAE *nae, struct nae_config *cfg)
   cfg->ambience_gain_db = nae->gainDb(NAE_GAIN_AMB);
   cfg->rear_gain_db = nae->gainDb(NAE_GAIN_REAR);
   cfg->lateral_gain_db = nae->gainDb(NAE_GAIN_LAT);
+  cfg->lat_threshold_db = nae->getLatThresholdDb();
+  cfg->lat_knee_db = nae->getLatKneeDb();
   cfg->input_left = nae->getChannelIn(LEFT);
   cfg->input_right = nae->getChannelIn(RIGHT);
   cfg->output_left = nae->getChannelOut(LEFT);

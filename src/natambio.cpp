@@ -470,6 +470,8 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
     std::cout << "NatAmbio: NAE lateral gain " << n_nae->gain_lat
               << (n_nae->gain_lat_set ? "" : " (default: the ambience gain)")
               << std::endl;
+    std::cout << "NatAmbio: NAE lateral threshold " << n_nae->lat_threshold_db
+              << " dB, knee " << n_nae->lat_knee_db << " dB" << std::endl;
     if(n_nae->pan_scale != 0)
       std::cout << "NatAmbio: NAE pan scale " << n_nae->pan_scale << std::endl;
   }
@@ -479,6 +481,11 @@ NAE *NatAmbio::newNAE(struct s_nae* n_nae)
   n_nae_p->setC2Gain(n_nae->gain_c2);
   n_nae_p->setC2RearGain(n_nae->gain_c2_rear);
   n_nae_p->setLatGain(n_nae->gain_lat);
+  /* Validated at parse time, so a refusal here means the two disagree about
+     the domain, which is a bug and not a configuration error. */
+  if(!n_nae_p->setLateralSplit(n_nae->lat_threshold_db, n_nae->lat_knee_db))
+    throw std::runtime_error("NatAmbio: NAE " + n_nae->name +
+                             ": lateral threshold/knee refused by the engine\n");
   n_nae_p->setPanScale(n_nae->pan_scale);
   n_nae_p->setSampleCount(naJack->getPartSize());
   n_nae_p->setSampleRate(naJack->getSampleRate());

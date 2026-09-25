@@ -972,6 +972,8 @@ blocks for several engines. Appears inside `<natambio>`. See
 | `<front_gain>` | Main-component gain in dB (alpha mode; required) |
 | `<ambience_gain>` | Ambience-component gain in dB (alpha mode; required) |
 | `<rear_gain>` | Surround-component gain in dB (beta mode; required) |
+| `<lateral_threshold_db>` | The inter-channel level difference the ambience is allowed to carry, dB. Read in both modes (optional, default 5) |
+| `<lateral_knee_db>` | Width of the soft knee around it, dB; 0 is a bare corner. Must be **below twice** `<lateral_threshold_db>` — at or above it both channels are cut at once and the lateral pair stops having a channel at zero. Refused, not clamped (optional, default 5) |
 | `<lateral_gain>` | Gain in dB of the **lateral** half of the ambience — the part beyond the 5 dB of inter-channel level difference the ambience is allowed to carry. Read in both modes. Optional: absent, it takes the ambience gain of this mode, which makes the two halves one signal again and the engine what it was before the split existed |
 | `<input_left>` / `<input_right>` | Source `<jack_input>/<port>/<name>` for each channel (required) |
 | `<output_left>` / `<output_right>` | Combined output (alpha: main + ambience; beta: surround): a `<jack_output>` port name (direct output) or a virtual name consumed by `<convol>/<from_nae>`. Written in **both** modes |
@@ -1000,8 +1002,11 @@ multiplication by a waveform rather than by a level. The cut is complementary in
 amplitude, so the two halves add back to the undivided ambience sample for
 sample: with `<lateral_gain>` equal to the mode's ambience gain, which is what
 leaving it out does, the engine is bit for bit what it was before the split.
-The threshold and the soft knee around it are fixed in `nae.hpp`, not
-configuration.
+The threshold and the soft knee around it are `<lateral_threshold_db>` and
+`<lateral_knee_db>`, 5 dB each by default. They are configuration rather than
+constants because how much a given threshold takes depends on the recording far
+more than it looks — 33 % of the ambience on "I Am In Love" against 0.6 % on
+Ravel, at the same 5 dB.
 
 **Gain convention.** All dB gains in the config share one convention: the
 NAE `*_gain` fields, the `<coeff>`/`<convol>` `<gain>` fields and the

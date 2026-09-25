@@ -82,6 +82,9 @@ struct nae_config {
   /* The lateral half of the ambience. Reported in both modes, unlike the three
      above: it is the companion of whichever of them carries the ambience. */
   double lateral_gain_db;
+  /* Where the ambience stops being ambience, and how rounded the corner is. */
+  double lat_threshold_db;
+  double lat_knee_db;
   string input_left, input_right;
   string output_left, output_right;
   string front_output_left, front_output_right;

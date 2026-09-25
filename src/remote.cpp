@@ -633,6 +633,11 @@ std::string Remote::reportNaeConfig(struct nae_config& cfg)
      the point of the block is to reproduce the engine, and a default left out
      is a default that can change under the file. */
   out << "  <lateral_gain>" << cfg.lateral_gain_db << "</lateral_gain>\n";
+  /* Written whatever they are, defaults included, like the gain above and for
+     the same reason: the block is meant to reproduce the engine,
+     and a default left out is a default that can change under the file. */
+  out << "  <lateral_threshold_db>" << cfg.lat_threshold_db << "</lateral_threshold_db>\n";
+  out << "  <lateral_knee_db>" << cfg.lat_knee_db << "</lateral_knee_db>\n";
   xml_line(out, "input_left", cfg.input_left);
   xml_line(out, "input_right", cfg.input_right);
   xml_line(out, "output_left", cfg.output_left);

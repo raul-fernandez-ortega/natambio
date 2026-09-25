@@ -57,6 +57,9 @@ static void usage(const char *me)
           "          [mode 0|1] [frame_size] [covsteps] [pan_scale] [settle_us]\n"
           "       %s --check <in.wav> [mode] [frame_size] [covsteps] [pan] [us]\n"
           "\n"
+          "  --lat-split <T> <W>   the lateral cut: threshold and knee, in dB.\n"
+          "                        Default 5 and 5, as <lateral_threshold_db>\n"
+          "                        and <lateral_knee_db> default.\n"
           "  --lat <file.wav>      also write the LATERAL pair -- the part of\n"
           "                        C2 beyond the level difference the ambience\n"
           "                        is allowed to carry. Without it that pair is\n"
@@ -80,6 +83,7 @@ static void usage(const char *me)
    builds exactly, so nothing is rounded on the way out. */
 static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
                      double pan_scale, int settle_us,
+                     double lat_t, double lat_k,
                      std::vector<double>& c1, std::vector<double>& c2,
                      std::vector<double>& lat, int *samplerate)
 {
@@ -112,6 +116,13 @@ static bool run_pass(const char *in_path, int mode, int frame, int covsteps,
      (naconf gives <lateral_gain> the mode's ambience gain when the file does
      not name it); a caller that builds an NAE by hand can. */
   nae.setLatGain(1.0);
+  if(!nae.setLateralSplit(lat_t, lat_k)) {
+    fprintf(stderr, "nae_bench: lateral split %.2f/%.2f refused "
+            "(threshold > 0, knee >= 0 and below twice the threshold)\n",
+            lat_t, lat_k);
+    sf_close(in);
+    return false;
+  }
   nae.setPanScale(pan_scale);
   nae.setSampleCount(frame);
   nae.setSampleRate(info.samplerate);
@@ -203,11 +214,15 @@ int main(int argc, char **argv)
   /* --lat writes the lateral pair. Named rather than positional, and removed
      from argv before the positional parsing below. */
   const char *lat_path = NULL;
+  double lat_t = NA_NAE_LAT_THRESHOLD_DB, lat_k = NA_NAE_LAT_KNEE_DB;
   std::vector<char*> args;
   args.push_back(argv[0]);
   for(int i = 1; i < argc; i++) {
     if(strcmp(argv[i], "--lat") == 0 && i + 1 < argc) {
       lat_path = argv[++i];
+    } else if(strcmp(argv[i], "--lat-split") == 0 && i + 2 < argc) {
+      lat_t = atof(argv[++i]);
+      lat_k = atof(argv[++i]);
     } else {
       args.push_back(argv[i]);
     }
@@ -242,16 +257,19 @@ int main(int argc, char **argv)
 
   printf("nae_bench: %s  mode %d  frame %d  covsteps %d  pan %.3f  settle %d us\n",
          in_path, mode, frame, covsteps, pan, settle_us);
+  printf("nae_bench: lateral split at %.2f dB, knee %.2f dB\n", lat_t, lat_k);
 
   std::vector<double> c1, c2, lat;
   int rate = 0;
-  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, c1, c2, lat, &rate))
+  if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us,
+               lat_t, lat_k, c1, c2, lat, &rate))
     return 1;
 
   if(check) {
     std::vector<double> d1, d2, dlat;
     int rate2 = 0;
-    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us, d1, d2, dlat, &rate2))
+    if(!run_pass(in_path, mode, frame, covsteps, pan, settle_us,
+                 lat_t, lat_k, d1, d2, dlat, &rate2))
       return 1;
     if(c1.size() != d1.size() || c2.size() != d2.size() ||
        lat.size() != dlat.size()) {

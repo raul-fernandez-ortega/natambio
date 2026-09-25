@@ -111,6 +111,8 @@ NAE::NAE(string n_name, int n_mode)
      it was and a silent lateral pair. */
   lat_a_left = 1.0;
   lat_a_right = 1.0;
+  lat_threshold_db = NA_NAE_LAT_THRESHOLD_DB;
+  lat_knee_db = NA_NAE_LAT_KNEE_DB;
   lat_pow_l = NULL;
   lat_pow_r = NULL;
 }
@@ -207,6 +209,22 @@ bool NAE::setLatGain(double gain)
   gain_lat_db = gain_to_db(gain);
   gain_lat_target = (float)gain;
   gain_lat = gain;
+  return true;
+}
+
+/* Where the ambience stops being ambience, as the configuration spells it.
+   Refused rather than clamped, as <pan_scale> is: these are not safety margins
+   but the domain of the parameters, and a knee wider than twice the threshold
+   is not an aggressive setting, it is a lateral pair that has stopped having a
+   channel at zero. */
+bool NAE::setLateralSplit(double threshold_db, double knee_db)
+{
+  if(threshold_db <= 0.0 || knee_db < 0.0)
+    return false;
+  if(knee_db >= 2.0 * threshold_db)
+    return false;
+  lat_threshold_db = threshold_db;
+  lat_knee_db = knee_db;
   return true;
 }
 
@@ -723,10 +741,10 @@ void NAE::decompose(void)
 
    W = 0 is the bare corner and is handled by the same lines: the knee branch
    is entered only when there is a knee to enter. */
-double NAE::latFactor(double diff_db)
+double NAE::latFactor(double diff_db) const
 {
-  const double T = NA_NAE_LAT_THRESHOLD_DB;
-  const double W = NA_NAE_LAT_KNEE_DB;
+  const double T = lat_threshold_db;
+  const double W = lat_knee_db;
   const double lo = T - 0.5*W;
 
   if(diff_db <= lo)

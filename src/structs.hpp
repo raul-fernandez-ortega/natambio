@@ -88,6 +88,11 @@ struct s_nae {
   double gain_c2;
   double gain_c2_rear;
   double gain_lat;
+  /* <lateral_threshold_db> and <lateral_knee_db>: where the ambience stops
+     being ambience, and how rounded the corner there is. Defaults in nae.hpp;
+     the domain, knee below twice the threshold, is checked at parse time. */
+  double lat_threshold_db;
+  double lat_knee_db;
   /* Whether the file gave <lateral_gain>. Absent, it is not a default number
      but the gain the mode already carries the ambience with, which is what
      makes a configuration written before the lateral pair existed sound

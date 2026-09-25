@@ -1020,6 +1020,8 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   nae->gain_c2_rear = 0;
   nae->gain_lat = 0;
   nae->gain_lat_set = false;
+  nae->lat_threshold_db = NA_NAE_LAT_THRESHOLD_DB;
+  nae->lat_knee_db = NA_NAE_LAT_KNEE_DB;
   nae->pan_scale = 0;      // optional; 0 leaves both components alone
   /* Zero here and not the default, so that <steps_length_ms> can tell "nobody
      has set this" from "someone set it to the default". The default is applied
@@ -1087,6 +1089,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lateral_gain")) {
       nae->gain_lat = FROM_DB(strtof((char*)cnt, NULL));
       nae->gain_lat_set = true;
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lateral_threshold_db")) {
+      nae->lat_threshold_db = strtod((char*)cnt, NULL);
+    }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"lateral_knee_db")) {
+      nae->lat_knee_db = strtod((char*)cnt, NULL);
     }  else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"pan_scale")) {
       nae->pan_scale = strtof((char*)cnt, NULL);
     } else if  (!xmlStrcmp(xmlnode->name, (const xmlChar *)"input_left")) {
@@ -1218,6 +1224,33 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
      mode block, which is where the gain it copies is known to be valid. */
   if(!nae->gain_lat_set)
     nae->gain_lat = nae->mode ? nae->gain_c2_rear : nae->gain_c2;
+  /* The lateral curve's domain. Refused and not clamped, like <pan_scale>:
+     these are not safety margins, and the last of the three is not a matter of
+     taste -- at a knee of twice the threshold the bottom of the knee reaches
+     0 dB, BOTH channels start being cut at once, and the lateral pair stops
+     having a channel at zero and becomes a second copy of the ambience. */
+  if(nae->lat_threshold_db <= 0.0) {
+    parse_error("Error: nae lateral_threshold_db must be > 0.");
+    delete nae;
+    return NULL;
+  }
+  if(nae->lat_knee_db < 0.0) {
+    parse_error("Error: nae lateral_knee_db must be >= 0 (0 is a hard corner).");
+    delete nae;
+    return NULL;
+  }
+  if(nae->lat_knee_db >= 2.0 * nae->lat_threshold_db) {
+    char msg[320];
+    snprintf(msg, sizeof(msg),
+             "Error: nae lateral_knee_db (%.2f) must be below twice "
+             "lateral_threshold_db (2 x %.2f = %.2f): at or above it the knee "
+             "reaches 0 dB and both channels are cut at once, which leaves the "
+             "lateral pair without a channel at zero.",
+             nae->lat_knee_db, nae->lat_threshold_db, 2.0 * nae->lat_threshold_db);
+    parse_error(msg);
+    delete nae;
+    return NULL;
+  }
   if(nae->left_out.empty() && nae->c1_left_out.empty() && nae->c2_left_out.empty() &&
      nae->lat_left_out.empty()) {
     parse_error("Error: nae left output not defined.");
@@ -1245,6 +1278,10 @@ struct s_nae* NaConf::parse_nae(xmlNodePtr xmlnode)
   std::cout << "\t\tLateral gain: " << nae->gain_lat
             << (nae->gain_lat_set ? "" : " (not given; the ambience gain of this mode)")
             << std::endl;
+  std::cout << "\t\tLateral split: beyond " << nae->lat_threshold_db
+            << " dB of level difference, knee " << nae->lat_knee_db << " dB wide ("
+            << (nae->lat_threshold_db - 0.5*nae->lat_knee_db) << " to "
+            << (nae->lat_threshold_db + 0.5*nae->lat_knee_db) << " dB)" << std::endl;
   if(nae->pan_scale != 0) {
     std::cout << "\t\tPan scale (input width): " << nae->pan_scale << " ("
               << ((nae->pan_scale > 0) ? "towards mono" : "towards opposite polarity")
