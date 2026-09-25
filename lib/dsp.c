@@ -67,6 +67,15 @@ static int next_pow2(int n) {
 int firwin2(int numtaps, int sample_rate,
             firwin2_db_model_fn model, void *ctx,
             double *out) {
+    /* Both endpoints forced, which is what this has always done. Every caller
+       that was here before the flags existed gets the same filter to the bit. */
+    return firwin2_ex(numtaps, sample_rate, model, ctx,
+                      DSP_FIRWIN2_ZERO_DC | DSP_FIRWIN2_ZERO_NYQ, out);
+}
+
+int firwin2_ex(int numtaps, int sample_rate,
+               firwin2_db_model_fn model, void *ctx,
+               unsigned flags, double *out) {
     if (numtaps < 2 || numtaps > DSP_MAX_LEN) return -1;
     if (sample_rate <= 0 || !model || !out)   return -1;
 
@@ -100,8 +109,11 @@ int firwin2(int numtaps, int sample_rate,
      *   spec[i]     = 10^(gain_db/20) · exp(-j · π · x[i] · (numtaps-1)/2)
      *
      * Endpoints i=0 (DC) and i=nfreqs-1 (Nyquist) are forced to 0 without
-     * calling the model: the latter because Type II requires it, the former
-     * for consistency and to spare the callback from handling log(0).
+     * calling the model where the caller asked for it: at Nyquist because a
+     * Type II design requires it, at DC to spare the callback from handling
+     * log(0). A caller that clears a flag gets the model's own value there --
+     * which a high-pass must have at Nyquist, and which is why the flags are
+     * there at all. See dsp.h.
      *
      * The absolute scale of the response is irrelevant: the RMS normalisation
      * applied after firwin2 absorbs any constant dB offset. */
@@ -109,7 +121,8 @@ int firwin2(int numtaps, int sample_rate,
     double delay  = 0.5 * (double)(numtaps - 1);
     for (int i = 0; i < nfreqs; i++) {
         double gain_lin;
-        if (i == 0 || i == nfreqs - 1) {
+        if ((i == 0 && (flags & DSP_FIRWIN2_ZERO_DC)) ||
+            (i == nfreqs - 1 && (flags & DSP_FIRWIN2_ZERO_NYQ))) {
             gain_lin = 0.0;
         } else {
             double f_hz = ((double)i / (double)(nfreqs - 1)) * nyq_hz;
@@ -476,6 +489,167 @@ int dsp_spectrum_mul(double *re, double *im,
         const double x = re[k], y = im[k];
         re[k] = x * mre[k] - y * mim[k];
         im[k] = x * mim[k] + y * mre[k];
+    }
+    return 0;
+}
+
+/* ------------------------------------------------------------------------- */
+
+int firwin2_deviation(const double *h, int n, int sample_rate,
+                      firwin2_db_model_fn model, void *ctx,
+                      double f_lo, double f_hi, double floor_db,
+                      double *max_dev_db, double *at_hz) {
+    if (!h || n < 1 || sample_rate <= 0 || !model || !max_dev_db) return -1;
+    if (!(f_hi > f_lo) || f_lo < 0.0)                             return -1;
+
+    /* Eight times the filter, and never under 8192 bins: the deviation is
+     * looked for at the corner, where the response turns fastest, and a grid
+     * as coarse as the filter itself would step straight over it. */
+    int nfft = dsp_next_pow2(n > 1024 ? n * 8 : 8192);
+    if (nfft == 0) return -1;
+    int bins = nfft / 2 + 1;
+
+    double *re = (double*) malloc((size_t) bins * sizeof(double));
+    double *im = (double*) malloc((size_t) bins * sizeof(double));
+    if (!re || !im) { free(re); free(im); return -2; }
+
+    int rc = dsp_rfft(h, n, nfft, re, im);
+    if (rc != 0) { free(re); free(im); return rc; }
+
+    double nyq_hz = 0.5 * (double) sample_rate;
+    double worst = 0.0, worst_hz = 0.0;
+    /* DC and Nyquist are skipped: both are endpoints a design may legitimately
+     * have forced to zero, and a model with a skirt reaching zero frequency has
+     * nothing to compare against at the first of them. */
+    for (int k = 1; k < bins - 1; k++) {
+        double f_hz = ((double) k / (double) (bins - 1)) * nyq_hz;
+        if (f_hz < f_lo) continue;
+        if (f_hz > f_hi) break;
+        double target = model(f_hz, ctx);
+        if (!isfinite(target)) continue;
+        if (target < floor_db) target = floor_db;
+        double mag = sqrt(re[k] * re[k] + im[k] * im[k]);
+        double got = 20.0 * log10(mag > 1e-15 ? mag : 1e-15);
+        /* Where the target is at the floor the filter is not being asked for a
+         * value, only for silence: going deeper than asked is not an error, and
+         * counted as one it would be the largest number in the sweep and would
+         * bury the pass band's real deviation under it. */
+        double dev = (target > floor_db) ? fabs(got - target)
+                                         : (got > floor_db ? got - floor_db : 0.0);
+        if (dev > worst) { worst = dev; worst_hz = f_hz; }
+    }
+
+    free(re);
+    free(im);
+    *max_dev_db = worst;
+    if (at_hz) *at_hz = worst_hz;
+    return 0;
+}
+
+/* One biquad, normalised so that a0 is 1. */
+typedef struct {
+    double b0, b1, b2, a1, a2;
+} dsp_biquad;
+
+/* The bilinear transform of a Butterworth section at <q>, prewarped at w0.
+ * The usual audio-cookbook algebra; with the Butterworth Q values fed into it
+ * the cascade is Butterworth exactly, down 3 dB at the corner. */
+static void biquad_lp(double w0, double q, dsp_biquad *s) {
+    double cw = cos(w0), sw = sin(w0), alpha = sw / (2.0 * q);
+    double a0 = 1.0 + alpha;
+    s->b0 = ((1.0 - cw) / 2.0) / a0;
+    s->b1 = (1.0 - cw) / a0;
+    s->b2 = s->b0;
+    s->a1 = (-2.0 * cw) / a0;
+    s->a2 = (1.0 - alpha) / a0;
+}
+
+static void biquad_hp(double w0, double q, dsp_biquad *s) {
+    double cw = cos(w0), sw = sin(w0), alpha = sw / (2.0 * q);
+    double a0 = 1.0 + alpha;
+    s->b0 = ((1.0 + cw) / 2.0) / a0;
+    s->b1 = -(1.0 + cw) / a0;
+    s->b2 = s->b0;
+    s->a1 = (-2.0 * cw) / a0;
+    s->a2 = (1.0 - alpha) / a0;
+}
+
+/* The single real pole an odd order carries, as a biquad with its second order
+   left at zero, so the runner below has one kind of section and not two. */
+static void biquad_first_lp(double w0, dsp_biquad *s) {
+    double k = tan(w0 / 2.0), d = k + 1.0;
+    s->b0 = k / d; s->b1 = k / d; s->b2 = 0.0;
+    s->a1 = (k - 1.0) / d; s->a2 = 0.0;
+}
+
+static void biquad_first_hp(double w0, dsp_biquad *s) {
+    double k = tan(w0 / 2.0), d = k + 1.0;
+    s->b0 = 1.0 / d; s->b1 = -1.0 / d; s->b2 = 0.0;
+    s->a1 = (k - 1.0) / d; s->a2 = 0.0;
+}
+
+/* The sections of one Butterworth cascade of the given order, appended to
+ * <s> at <count>. The pole angles are the closed form and nothing else:
+ * Q_k = 1 / (2 sin((2k-1)pi / 2N)), which is 0.7071 at N = 2 and the familiar
+ * 0.5412 / 1.3066 pair at N = 4. */
+static int butter_sections(int order, double w0, int highpass,
+                           dsp_biquad *s, int count) {
+    for (int k = 1; k <= order / 2; k++) {
+        double q = 1.0 / (2.0 * sin((2.0 * k - 1.0) * M_PI / (2.0 * order)));
+        if (highpass) biquad_hp(w0, q, &s[count]);
+        else          biquad_lp(w0, q, &s[count]);
+        count++;
+    }
+    if (order % 2) {
+        if (highpass) biquad_first_hp(w0, &s[count]);
+        else          biquad_first_lp(w0, &s[count]);
+        count++;
+    }
+    return count;
+}
+
+#define DSP_BUTT_MAX_ORDER 32
+
+int butterworth_fir(int order_hp, double fc_hp_hz,
+                    int order_lp, double fc_lp_hz,
+                    int sample_rate, int n, double *out) {
+    if (!out || n < 1 || n > DSP_MAX_LEN || sample_rate <= 0) return -1;
+    if (order_hp < 0 || order_lp < 0)                         return -1;
+    if (order_hp == 0 && order_lp == 0)                       return -1;
+    if (order_hp > DSP_BUTT_MAX_ORDER || order_lp > DSP_BUTT_MAX_ORDER) return -1;
+
+    double nyq = 0.5 * (double) sample_rate;
+    if (order_hp && (fc_hp_hz <= 0.0 || fc_hp_hz >= nyq)) return -1;
+    if (order_lp && (fc_lp_hz <= 0.0 || fc_lp_hz >= nyq)) return -1;
+
+    dsp_biquad s[DSP_BUTT_MAX_ORDER + 2];
+    int count = 0;
+    if (order_hp)
+        count = butter_sections(order_hp, 2.0 * M_PI * fc_hp_hz / (double) sample_rate,
+                                1, s, count);
+    if (order_lp)
+        count = butter_sections(order_lp, 2.0 * M_PI * fc_lp_hz / (double) sample_rate,
+                                0, s, count);
+
+    /* A delta through the cascade. Direct form I per section, states carried
+     * across the run; the output of one section is the input of the next, so
+     * the whole thing is one pass over n samples and the response comes out
+     * causal, which it is by construction. */
+    double x1[DSP_BUTT_MAX_ORDER + 2], x2[DSP_BUTT_MAX_ORDER + 2];
+    double y1[DSP_BUTT_MAX_ORDER + 2], y2[DSP_BUTT_MAX_ORDER + 2];
+    for (int i = 0; i < count; i++) x1[i] = x2[i] = y1[i] = y2[i] = 0.0;
+
+    for (int t = 0; t < n; t++) {
+        double v = (t == 0) ? 1.0 : 0.0;
+        for (int i = 0; i < count; i++) {
+            double x0 = v;
+            double y0 = s[i].b0 * x0 + s[i].b1 * x1[i] + s[i].b2 * x2[i]
+                      - s[i].a1 * y1[i] - s[i].a2 * y2[i];
+            x2[i] = x1[i]; x1[i] = x0;
+            y2[i] = y1[i]; y1[i] = y0;
+            v = y0;
+        }
+        out[t] = v;
     }
     return 0;
 }

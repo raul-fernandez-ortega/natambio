@@ -174,6 +174,50 @@ struct xtc {
   // process() directly.
 };
 
+/* Which phase a generated FIR is delivered in. The magnitude is the same
+   either way -- that is the whole point of the pair -- so this chooses between
+   two costs and not between two filters:
+
+   MINIMUM has no pre-ringing and no latency to compensate, and is what a
+   loudspeaker crossover almost always wants, the ear being least forgiving of
+   a pre-echo in the bass. It rotates phase across the corner.
+
+   LINEAR keeps every frequency on the same time base, which is what a
+   decomposition wants when its two halves are summed back together, and pays
+   for it with (length-1)/2 samples of pure delay and a symmetric impulse
+   response -- so the ring is half in front of the transient. That delay is
+   declared as bulk_delay, so JACK is told the truth about the path; aligning
+   it against a path that does not carry the filter is still the
+   configuration's job, and <convol>/<delay> is where it is done. */
+enum fir_phase {
+  FIR_PHASE_LINEAR,
+  FIR_PHASE_MINIMUM
+};
+
+/* What shape a <fir_filter> block asks for. A band-pass is a high-pass skirt
+   and a low-pass skirt with their own slopes, not one parameter. */
+enum fir_type {
+  FIR_TYPE_LOWPASS,
+  FIR_TYPE_HIGHPASS,
+  FIR_TYPE_BANDPASS
+};
+
+struct fir_filter {
+  string name;          // name of the resulting coeff
+  enum fir_type type;
+  enum fir_phase phase;
+  /* The band edges. A low-pass or a high-pass uses low_freq alone, whichever
+     end it is; a band-pass uses both, low_freq being the high-pass skirt and
+     high_freq the low-pass one. Parsed from <frequency> in the first case and
+     from <low_frequency>/<high_frequency> in the second. */
+  double low_freq;
+  double high_freq;
+  double low_slope;     // dB/octave of the skirt below low_freq
+  double high_slope;    // dB/octave of the skirt above high_freq
+  double gain;          // pass-band gain, dB
+  int filter_len;       // samples; the sample rate is JACK's
+};
+
 struct lowhigh {
   string low_name;      // name of the resulting low-pass coeff
   string high_name;     // name of the resulting high-pass coeff
@@ -181,6 +225,11 @@ struct lowhigh {
   double db_octave;     // low-pass roll-off slope, dB per octave
   double gain;          // pass-band gain, dB (+ amplifies, - attenuates)
   int filter_len;       // low/high filter length, samples (sample rate is JACK's)
+  /* <phase>. Minimum unless the file says otherwise, which is what this block
+     has always delivered. In linear phase the complement is still exact -- the
+     delta it is subtracted from sits at the low-pass's own group delay -- and
+     both coeffs carry that delay as their bulk_delay. */
+  enum fir_phase phase;
 };
 
 struct loudness {

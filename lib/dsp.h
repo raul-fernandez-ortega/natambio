@@ -42,6 +42,103 @@ int firwin2(int numtaps, int sample_rate,
             firwin2_db_model_fn model, void *ctx,
             double *out);
 
+/* What firwin2_ex() does with the two grid endpoints. firwin2() forces both,
+ * which is what it has always done and what a Type II design requires at
+ * Nyquist; these let a caller that knows better ask for the model's own value
+ * there instead.
+ *
+ * It matters for one shape in particular. A HIGH-PASS has its pass band AT
+ * Nyquist, so a design that forces zero there is not a high-pass with a small
+ * blemish, it is a band-pass nobody asked for -- and an even numtaps cannot be
+ * rescued by the flag either, a Type II response being zero at Nyquist by
+ * construction whatever the target says. A high-pass therefore needs an ODD
+ * numtaps and DSP_FIRWIN2_ZERO_NYQ clear, both.
+ *
+ * At DC the flag is a convenience rather than a constraint: a model with a
+ * skirt going down to zero frequency returns -inf there, which firwin2_ex
+ * rejects along with any other non-finite value, so a caller either floors its
+ * model or sets the flag and is spared the question. */
+#define DSP_FIRWIN2_ZERO_DC    (1u << 0)
+#define DSP_FIRWIN2_ZERO_NYQ   (1u << 1)
+
+/* firwin2_ex — firwin2 with the endpoints under the caller's control.
+ *
+ * Identical in every other respect, and firwin2() is now this with both flags
+ * set: same grid, same phase shift, same Hamming window, same results to the
+ * bit for the callers that were there before.
+ */
+int firwin2_ex(int numtaps, int sample_rate,
+               firwin2_db_model_fn model, void *ctx,
+               unsigned flags, double *out);
+
+/* firwin2_deviation — how far a FINISHED filter's magnitude sits from the model
+ * it was meant to have, in dB.
+ *
+ *   h           : the filter, as it will actually be applied
+ *   n           : its length
+ *   sample_rate : Hz
+ *   model, ctx  : the same model the design was asked for
+ *   f_lo, f_hi  : the band the comparison is made over. Outside it a filter is
+ *                 not being judged at all: a linear-phase FIR has a frequency
+ *                 resolution of about fs/n and simply cannot shape anything
+ *                 below it, so a template evaluated at 9 Hz reports a failure
+ *                 that is arithmetic rather than audible. 20 Hz to 20 kHz is
+ *                 the band that means something here.
+ *   floor_db    : below this the model is not taken literally. Where the target
+ *                 is at or under the floor, only an EXCESS counts -- a filter
+ *                 that reaches 20 dB deeper than asked has not failed at
+ *                 anything, and made to count, that surplus would be the whole
+ *                 answer and would hide the pass band's real error.
+ *   max_dev_db  : the worst deviation found
+ *   at_hz       : where it was found, which is usually the corner
+ *
+ * It exists because <length> is the caller's to choose and nothing else tells
+ * them whether they chose enough. A filter too short for the slope it was asked
+ * for does not fail: it comes out as a gentler filter than the file describes,
+ * and there is nothing downstream that can notice. This is the number that
+ * notices, and it is measured on the applied response -- after the conversion
+ * to minimum phase, where there is one -- so it also catches a cepstrum that
+ * did not converge.
+ *
+ * DC and Nyquist are skipped. Both are endpoints the design may legitimately
+ * have forced, and a model with a skirt reaching zero frequency has no value
+ * there to compare against.
+ *
+ * Returns 0 on success, non-zero on error.
+ */
+int firwin2_deviation(const double *h, int n, int sample_rate,
+                      firwin2_db_model_fn model, void *ctx,
+                      double f_lo, double f_hi, double floor_db,
+                      double *max_dev_db, double *at_hz);
+
+/* butterworth_fir — the classical cascade, realised as an FIR by running a
+ * delta through it.
+ *
+ * No transform anywhere. The poles come out of the closed form -- for an order
+ * N section pair, Q_k = 1 / (2 sin((2k-1)pi/2N)) -- the bilinear transform with
+ * prewarping at the corner turns each into a biquad, and the impulse response
+ * is what a delta leaves on the way out. The result is minimum phase and stable
+ * by construction rather than by a reconstruction that has to be checked:
+ * nothing here can fail to converge, because nothing here iterates.
+ *
+ *   order_hp, fc_hp_hz : the high-pass cascade. order 0 means none.
+ *   order_lp, fc_lp_hz : the low-pass cascade. order 0 means none.
+ *
+ * Both together is a band-pass, and the two skirts keep their own slopes. Each
+ * order is 6 dB/octave, which is the one thing this cannot do that a sampled
+ * magnitude can: a slope that is not a multiple of six has no integer order and
+ * the caller has to go the other way.
+ *
+ * The only approximation is the truncation at n taps. The response decays like
+ * the cascade does, so a corner low against the sample rate needs a long one --
+ * firwin2_deviation() is how a caller finds out whether it gave enough.
+ *
+ * Returns 0 on success, non-zero on error.
+ */
+int butterworth_fir(int order_hp, double fc_hp_hz,
+                    int order_lp, double fc_lp_hz,
+                    int sample_rate, int n, double *out);
+
 /* minimum_phase — minimum-phase reconstruction via homomorphic cepstrum.
  *
  *   x   : input (length n)

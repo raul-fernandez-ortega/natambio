@@ -37,6 +37,30 @@ void parse_error(const char msg[]);
 void parse_warning(const std::string& msg);
 void parse_error_exit(const char msg[]);
 
+/* How far down a generated FIR's template is taken literally, relative to the
+   pass band. Below this the filter is only asked not to EXCEED it; see
+   firwin2_deviation() in dsp.h for what the report does with it.
+
+   It is the floor of the MEASUREMENT and not of the model. The two were one
+   number at first, and that quietly cost 12 dB of stop-band depth: a 100 Hz
+   crossover that used to reach -72 dB at 800 Hz stopped at -60, because the
+   design was chasing the same floor the report was judging against. The design
+   should go as deep as the length lets it; the report should stop caring long
+   before that. */
+#define NA_FIR_FLOOR_DB  (-60.0)
+
+/* The floor of the MODEL, which is there only so that a skirt reaching zero
+   frequency does not hand firwin2 a -inf to raise ten to. Deep enough to be
+   out of the way of any length worth designing. */
+#define NA_FIR_MODEL_FLOOR_DB (-200.0)
+
+/* And the band it is compared over. Outside it the comparison is arithmetic
+   rather than audible: a linear-phase FIR resolves nothing finer than about
+   fs/length, so a 300 Hz skirt evaluated at 9 Hz reports a shortfall that no
+   length within reason would fix and that nothing in the system reproduces. */
+#define NA_FIR_MEAS_LO_HZ    20.0
+#define NA_FIR_MEAS_HI_HZ 20000.0
+
 class NaConf {
 
 private:
@@ -60,6 +84,7 @@ private:
   struct xtc* parse_xtc(xmlNodePtr xmlnode);
   struct xtc* parse_xtc_asym(xmlNodePtr xmlnode);
   struct lowhigh* parse_lowhigh(xmlNodePtr xmlnode);
+  struct fir_filter* parse_fir_filter(xmlNodePtr xmlnode);
   struct loudness* parse_loudness(xmlNodePtr xmlnode);
   struct convol* parse_convol(xmlNodePtr xmlnode);
   struct s_nae* parse_nae(xmlNodePtr xmlnode);
@@ -74,6 +99,7 @@ private:
   bool build_convol_coeffs(void);
   bool build_xtc_coeffs(void);
   bool build_lowhigh_coeffs(void);
+  bool build_fir_coeffs(void);
   bool build_loudness_coeffs(void);
 
 public:
@@ -81,6 +107,7 @@ public:
   vector<struct coeff*> coefslist;
   vector<struct xtc*> xtclist;
   vector<struct lowhigh*> lowhighlist;
+  vector<struct fir_filter*> firlist;
   vector<struct loudness*> loudnesslist;
   vector<struct convol*> convollist;
   vector<struct s_nae*> naelist;

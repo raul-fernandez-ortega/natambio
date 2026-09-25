@@ -89,6 +89,9 @@ NaConf::~NaConf(void)
   for (vector<struct xtc*>::iterator xtc_p = xtclist.begin() ; xtc_p != xtclist.end(); xtc_p++)
     delete *xtc_p;
   xtclist.clear();
+  for (vector<struct fir_filter*>::iterator ff_p = firlist.begin() ; ff_p != firlist.end(); ff_p++)
+    delete *ff_p;
+  firlist.clear();
   for (vector<struct lowhigh*>::iterator lh_p = lowhighlist.begin() ; lh_p != lowhighlist.end(); lh_p++)
     delete *lh_p;
   lowhighlist.clear();
@@ -549,6 +552,193 @@ struct xtc* NaConf::parse_xtc_asym(xmlNodePtr xmlnode)
   return xtc;
 }
 
+/* Parse a <fir_filter> block into a struct fir_filter. The filter is not
+ * computed here; build_fir_coeffs() does that once the JACK rate is known, and
+ * appends one coeff under <name>.
+ *
+ * Nothing here has a default except <gain>. <type> and <phase> in particular
+ * are spelled out or the block is refused: a filter that came out the wrong
+ * shape, or with a pre-echo nobody asked for, is not a mistake anything
+ * downstream can notice, and a default is exactly how it would happen. */
+struct fir_filter* NaConf::parse_fir_filter(xmlNodePtr xmlnode)
+{
+  struct fir_filter *ff = new struct fir_filter;
+  ff->name       = "";
+  ff->type       = FIR_TYPE_LOWPASS;
+  ff->phase      = FIR_PHASE_MINIMUM;
+  ff->low_freq   = 0.0;
+  ff->high_freq  = 0.0;
+  ff->low_slope  = 0.0;
+  ff->high_slope = 0.0;
+  ff->gain       = 0.0;
+  ff->filter_len = 0;
+
+  string type_s, phase_s;
+  double frequency = 0.0, low_f = 0.0, high_f = 0.0;
+  double slope = 0.0, low_s = 0.0, high_s = 0.0;
+  bool has_freq = false, has_low_f = false, has_high_f = false;
+  bool has_slope = false, has_low_s = false, has_high_s = false;
+  bool has_length = false;
+  std::vector<std::string> unknown;
+
+  while (xmlnode != NULL) {
+    if (xmlnode->type != XML_ELEMENT_NODE) { xmlnode = xmlnode->next; continue; }
+    xmlChar *cnt = xmlNodeGetContent(xmlnode);
+    if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"name")) {
+      ff->name = (char*)cnt;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"type")) {
+      type_s = (char*)cnt;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"phase")) {
+      phase_s = (char*)cnt;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"frequency")) {
+      frequency = strtod((char*)cnt, NULL); has_freq = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"low_frequency")) {
+      low_f = strtod((char*)cnt, NULL); has_low_f = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"high_frequency")) {
+      high_f = strtod((char*)cnt, NULL); has_high_f = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"dB_octave")) {
+      slope = strtod((char*)cnt, NULL); has_slope = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"low_dB_octave")) {
+      low_s = strtod((char*)cnt, NULL); has_low_s = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"high_dB_octave")) {
+      high_s = strtod((char*)cnt, NULL); has_high_s = true;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"gain")) {
+      ff->gain = strtod((char*)cnt, NULL);
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"length")) {
+      ff->filter_len = (int) strtol((char*)cnt, NULL, 10); has_length = true;
+    } else {
+      unknown.push_back((const char*)xmlnode->name);
+    }
+    xmlFree(cnt);
+    xmlnode = xmlnode->next;
+  }
+
+  for (size_t u = 0; u < unknown.size(); u++)
+    parse_warning("<fir_filter> " + (ff->name.empty() ? std::string("(unnamed)") : ff->name) +
+                  ": unknown element <" + unknown[u] + ">, ignored -- "
+                  "the parameter it was meant to set keeps its default");
+
+  if (ff->name.empty()) {
+    parse_error("Error: fir_filter <name> is required but not defined.");
+    delete ff; return NULL;
+  }
+  const string who = "fir_filter '" + ff->name + "'";
+
+  if      (type_s == "lowpass")  ff->type = FIR_TYPE_LOWPASS;
+  else if (type_s == "highpass") ff->type = FIR_TYPE_HIGHPASS;
+  else if (type_s == "bandpass") ff->type = FIR_TYPE_BANDPASS;
+  else {
+    parse_error(std::string("Error: " + who + " <type> must be lowpass, highpass or bandpass"
+                + (type_s.empty() ? " and was not given." : (" (got '" + type_s + "')."))).c_str());
+    delete ff; return NULL;
+  }
+  if      (phase_s == "linear")  ff->phase = FIR_PHASE_LINEAR;
+  else if (phase_s == "minimum") ff->phase = FIR_PHASE_MINIMUM;
+  else {
+    parse_error(std::string("Error: " + who + " <phase> must be linear or minimum"
+                + (phase_s.empty() ? " and was not given." : (" (got '" + phase_s + "')."))).c_str());
+    delete ff; return NULL;
+  }
+
+  /* The band edges, and which tags name them. A low-pass and a high-pass take
+     <frequency>: there is one corner and no question which it is. A band-pass
+     takes <low_frequency>/<high_frequency>, and <frequency> means nothing
+     there, so it is refused rather than quietly dropped. */
+  if (ff->type == FIR_TYPE_BANDPASS) {
+    if (has_freq) {
+      parse_error(std::string("Error: " + who + " is a bandpass and takes <low_frequency> and "
+                  "<high_frequency>, not <frequency>.").c_str());
+      delete ff; return NULL;
+    }
+    if (!has_low_f || !has_high_f) {
+      parse_error(std::string("Error: " + who + " is a bandpass and needs both <low_frequency> "
+                  "and <high_frequency>.").c_str());
+      delete ff; return NULL;
+    }
+    ff->low_freq = low_f;
+    ff->high_freq = high_f;
+    /* <dB_octave> sets both skirts; either one may then be named on its own to
+       differ. A band-pass whose skirts are the same slope is the common case
+       and should not have to say it twice. */
+    ff->low_slope  = has_low_s  ? low_s  : slope;
+    ff->high_slope = has_high_s ? high_s : slope;
+    if ((!has_low_s || !has_high_s) && !has_slope) {
+      parse_error(std::string("Error: " + who + " needs <dB_octave>, or <low_dB_octave> and "
+                  "<high_dB_octave> for the two skirts separately.").c_str());
+      delete ff; return NULL;
+    }
+    if (ff->low_freq >= ff->high_freq) {
+      parse_error(std::string("Error: " + who + " <low_frequency> must be below <high_frequency>.").c_str());
+      delete ff; return NULL;
+    }
+  } else {
+    if (has_low_f || has_high_f) {
+      parse_error(std::string("Error: " + who + " takes <frequency>; <low_frequency> "
+                              "and <high_frequency> belong to a bandpass.").c_str());
+      delete ff; return NULL;
+    }
+    if (!has_freq || !has_slope) {
+      parse_error(std::string("Error: " + who + " needs <frequency> and <dB_octave>.").c_str());
+      delete ff; return NULL;
+    }
+    if (ff->type == FIR_TYPE_LOWPASS) { ff->high_freq = frequency; ff->high_slope = slope; }
+    else                              { ff->low_freq  = frequency; ff->low_slope  = slope; }
+  }
+
+  if ((ff->type != FIR_TYPE_HIGHPASS && ff->high_freq <= 0.0) ||
+      (ff->type != FIR_TYPE_LOWPASS  && ff->low_freq  <= 0.0)) {
+    parse_error(std::string("Error: " + who + " corner frequencies must be > 0.").c_str());
+    delete ff; return NULL;
+  }
+  if ((ff->low_slope  < 0.0) || (ff->high_slope < 0.0) ||
+      (ff->type != FIR_TYPE_HIGHPASS && ff->high_slope <= 0.0) ||
+      (ff->type != FIR_TYPE_LOWPASS  && ff->low_slope  <= 0.0)) {
+    parse_error(std::string("Error: " + who + " slopes must be > 0 dB/octave.").c_str());
+    delete ff; return NULL;
+  }
+  if (!has_length || ff->filter_len <= 0) {
+    parse_error(std::string("Error: " + who + " <length> is required and must be > 0.").c_str());
+    delete ff; return NULL;
+  }
+  /* A linear-phase FIR is symmetric, so its group delay is (length-1)/2, and
+     that is a whole number of samples only for an odd length. Half a sample of
+     delay is not something <convol>/<delay> can compensate on the path that
+     does NOT carry the filter, and aligning the two is the entire reason the
+     delay is reported. Refused rather than rounded: the file asked for a
+     length, and a filter one tap longer than the file says is the kind of
+     difference that turns up much later. */
+  if (ff->phase == FIR_PHASE_LINEAR && (ff->filter_len % 2) == 0) {
+    char msg[220];
+    snprintf(msg, sizeof(msg),
+             "Error: fir_filter '%s' is linear phase, so <length> must be ODD "
+             "(got %d; %d or %d) -- an even length puts the group delay on a "
+             "half sample, which no <delay> can compensate.",
+             ff->name.c_str(), ff->filter_len, ff->filter_len - 1, ff->filter_len + 1);
+    parse_error(msg);
+    delete ff; return NULL;
+  }
+
+  if (!quiet) {
+    std::cout << std::fixed << std::setprecision(3);
+    std::cout << "New fir_filter struct:" << std::endl;
+    std::cout << "\tName: " << ff->name << std::endl;
+    std::cout << "\tType: " << type_s << ", " << phase_s << " phase" << std::endl;
+    if (ff->type == FIR_TYPE_BANDPASS)
+      std::cout << "\tBand: " << ff->low_freq << " Hz (" << ff->low_slope
+                << " dB/octave below) to " << ff->high_freq << " Hz ("
+                << ff->high_slope << " dB/octave above)" << std::endl;
+    else if (ff->type == FIR_TYPE_LOWPASS)
+      std::cout << "\tCorner: " << ff->high_freq << " Hz, " << ff->high_slope
+                << " dB/octave above" << std::endl;
+    else
+      std::cout << "\tCorner: " << ff->low_freq << " Hz, " << ff->low_slope
+                << " dB/octave below" << std::endl;
+    std::cout << "\tGain: " << ff->gain << " dB" << std::endl;
+    std::cout << "\tFilter length: " << ff->filter_len << " samples" << std::endl;
+  }
+  return ff;
+}
+
 /* Parse a <low_and_high_filter> block into a struct lowhigh. The two
  * complementary filters are not computed here; build_lowhigh_coeffs() runs
  * firwin2()/minimum_phase() (dsp.c) afterwards and appends the low-pass/
@@ -562,6 +752,10 @@ struct lowhigh* NaConf::parse_lowhigh(xmlNodePtr xmlnode)
   lh->db_octave   = 0.0;
   lh->gain        = 0.0;   // optional; default 0 dB (unity pass-band)
   lh->filter_len  = 0;
+  /* Minimum unless the file says otherwise, which is what this block delivered
+     before <phase> existed. A configuration in service keeps its crossover. */
+  lh->phase       = FIR_PHASE_MINIMUM;
+  string phase_s;
 
   // All <low_and_high_filter> parameters are mandatory EXCEPT <gain> (optional,
   // default 0 dB); track tag presence so a value equal to the zero default is
@@ -582,6 +776,8 @@ struct lowhigh* NaConf::parse_lowhigh(xmlNodePtr xmlnode)
       lh->low_name = (char*)cnt;
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"high_pass_coeff_name")) {
       lh->high_name = (char*)cnt;
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"phase")) {
+      phase_s = (char*)cnt;
     }
     xmlFree(cnt);
     xmlnode = xmlnode->next;
@@ -611,6 +807,30 @@ struct lowhigh* NaConf::parse_lowhigh(xmlNodePtr xmlnode)
     delete lh;
     return NULL;
   }
+  if (!phase_s.empty()) {
+    if      (phase_s == "linear")  lh->phase = FIR_PHASE_LINEAR;
+    else if (phase_s == "minimum") lh->phase = FIR_PHASE_MINIMUM;
+    else {
+      parse_error(std::string("Error: low_and_high_filter <phase> must be linear or "
+                              "minimum (got '") .append(phase_s).append("').").c_str());
+      delete lh;
+      return NULL;
+    }
+  }
+  /* Odd for the same reason <fir_filter> wants it: in linear phase the group
+     delay is (length-1)/2 and has to be a whole number of samples, both so that
+     the complementary delta lands exactly on it -- otherwise the pair does not
+     sum back to one -- and so that a path without the crossover can be aligned
+     with <convol>/<delay>. */
+  if (lh->phase == FIR_PHASE_LINEAR && (lh->filter_len % 2) == 0) {
+    char msg[200];
+    snprintf(msg, sizeof(msg),
+             "Error: low_and_high_filter is linear phase, so <length> must be ODD "
+             "(got %d; try %d).", lh->filter_len, lh->filter_len + 1);
+    parse_error(msg);
+    delete lh;
+    return NULL;
+  }
 
   if(!quiet) {
     std::cout << std::fixed << std::setprecision(3);
@@ -620,6 +840,8 @@ struct lowhigh* NaConf::parse_lowhigh(xmlNodePtr xmlnode)
     std::cout << "\tCrossover frequency: " << lh->frequency << " Hz" << std::endl;
     std::cout << "\tSlope: " << lh->db_octave << " dB/octave" << std::endl;
     std::cout << "\tGain: " << lh->gain << " dB" << std::endl;
+    std::cout << "\tPhase: " << (lh->phase == FIR_PHASE_LINEAR ? "linear" : "minimum")
+              << (phase_s.empty() ? " (default)" : "") << std::endl;
     std::cout << "\tFilter length: " << lh->filter_len << " samples" << std::endl;
   }
 
@@ -1435,33 +1657,279 @@ bool NaConf::build_xtc_coeffs(void)
   return true;
 }
 
-/* firwin2 dB-magnitude model for the low-pass filter of a <low_and_high_filter>
- * block: a flat pass-band at the configured gain dB up to the crossover
- * frequency, then a constant db_octave dB/octave roll-off above it. Declared
- * with C language linkage so its pointer type matches firwin2_db_model_fn (dsp.h). */
+/* WHERE THE TWO SKIRTS OF EVERY GENERATED FILTER COME FROM.
+ *
+ * The magnitude is the classical Butterworth of order slope/6, and it is
+ * PREWARPED -- evaluated at tan(pi f / fs) rather than at f -- because that is
+ * the magnitude the bilinear transform actually realises. The difference is not
+ * cosmetic: the transform sends s = infinity to z = -1, so a digital
+ * Butterworth low-pass has an exact zero at Nyquist where the analogue formula
+ * is merely some finite number of dB down. Measured before the prewarping went
+ * in, a 4th-order 3 kHz low-pass read 228 dB away from its own template up
+ * there. With it, the cascade matches the model to 0.0000 dB and the two phase
+ * options differ in the phase and nowhere else, which is the whole point of
+ * offering them as a pair.
+ *
+ * Why Butterworth and not the straight line in log-log that this block used to
+ * ask for: the straight line has a DERIVATIVE DISCONTINUITY at the corner, and
+ * no finite FIR reproduces a vertex -- it spends its length trying. Measured
+ * over the grid of corners and slopes, the rounded knee needs between a third
+ * and two thirds fewer taps for the same asymptote: 2 kHz at 24 dB/octave falls
+ * from 139 taps to 75, 4 kHz at 48 from 241 to 77. In linear phase those taps
+ * are latency, so it is half the delay for the same filter.
+ *
+ * Both skirts live in one context so that a band-pass is the same function as
+ * the other two with one more term, and the low-pass and high-pass are the
+ * cases where the other skirt is absent.
+ *
+ * Declared with C language linkage so the pointer type matches
+ * firwin2_db_model_fn (dsp.h). */
 extern "C" {
   typedef struct {
-    double freq;         // crossover frequency, Hz
-    double slope;        // roll-off slope above freq, dB/octave (positive)
-    double passband_db;  // target pass-band gain in dB (= gain)
-  } lowpass_ctx;
+    double lo_freq;      // high-pass skirt below this; 0 = no such skirt
+    double hi_freq;      // low-pass skirt above this;  0 = no such skirt
+    double lo_slope;     // dB/octave of the high-pass skirt
+    double hi_slope;     // dB/octave of the low-pass skirt
+    double passband_db;  // pass-band gain
+    int    sample_rate;
+  } butter_ctx;
 
-  static double lowpass_db_model(double f_hz, void *ctx_v) {
-    const lowpass_ctx *c = (const lowpass_ctx *) ctx_v;
-    if (f_hz <= c->freq)
-      return c->passband_db;
-    return c->passband_db - c->slope * log2(f_hz / c->freq);
+  static double butter_db_model(double f_hz, void *ctx_v) {
+    const butter_ctx *c = (const butter_ctx *) ctx_v;
+    double db = c->passband_db;
+    double tf = tan(M_PI * f_hz / (double) c->sample_rate);
+    if (tf < 1e-300) tf = 1e-300;
+    if (c->lo_freq > 0.0) {
+      double tc = tan(M_PI * c->lo_freq / (double) c->sample_rate);
+      db += -10.0 * log10(1.0 + pow(tc / tf, c->lo_slope / 3.0));
+    }
+    if (c->hi_freq > 0.0) {
+      double tc = tan(M_PI * c->hi_freq / (double) c->sample_rate);
+      db += -10.0 * log10(1.0 + pow(tf / tc, c->hi_slope / 3.0));
+    }
+    /* A floor only so that a skirt running down to zero frequency does not
+       return -inf. It is far below the one the REPORT judges against
+       (NA_FIR_FLOOR_DB): the design should reach as deep as its length allows,
+       and it is the report that should stop caring at some point, not the
+       target. Tying the two together cost a 100 Hz crossover 12 dB of
+       stop-band depth at 800 Hz before the difference was noticed. */
+    double floor_db = c->passband_db + NA_FIR_MODEL_FLOOR_DB;
+    return (db < floor_db || !isfinite(db)) ? floor_db : db;
   }
+}
+
+/* The order the classical cascade needs, or 0 when the slope has none. Every
+   Butterworth section is 6 dB/octave, so a slope that is not a multiple of six
+   has no integer order and has to be reached the other way -- by sampling the
+   magnitude and folding the phase, which costs a transform and a little
+   accuracy but refuses nothing. */
+static int butter_order_of(double slope_db_oct)
+{
+  double n = slope_db_oct / 6.0;
+  int order = (int) lround(n);
+  if (fabs(n - (double) order) > 1e-9) return 0;
+  if (order < 1 || order > 32) return 0;
+  return order;
+}
+
+/* Generate the one coeff of every <fir_filter> block and append it to
+ * coefslist. Runs beside build_lowhigh_coeffs(), before build_convol_coeffs(),
+ * so a derived coeff may chain one of these with <convol_coeff>.
+ *
+ * TWO REALISATIONS OF ONE MAGNITUDE, and which one is used follows from
+ * <phase> and nothing else:
+ *
+ *   MINIMUM, and a slope that is a whole number of 6 dB/octave: the classical
+ *   cascade of biquads, excited with a delta (butterworth_fir, dsp.c). No
+ *   transform of any kind, minimum phase and stable by construction, and it
+ *   matches its own template to 0.0000 dB -- it IS the template. The only
+ *   approximation is the truncation at <length>, which the deviation below
+ *   catches: measured, a 4th-order 100 Hz low-pass reads 12.2 dB out at 1024
+ *   taps and 0.0000 at 8192.
+ *
+ *   MINIMUM, and a slope that is not: no integer order exists, so the magnitude
+ *   is sampled and folded to minimum phase through the cepstrum, as the
+ *   crossover has always done. Slower and a few tenths of a dB less exact, but
+ *   it refuses nothing, and the report says which way the filter came out.
+ *
+ *   LINEAR: the magnitude sampled by firwin2_ex(), which is symmetric by
+ *   construction. The stop-band end of the band is pinned to zero so that the
+ *   sampled version ends where the cascade's own transmission zero is; a
+ *   high-pass must NOT have Nyquist pinned, that being its pass band, which is
+ *   what firwin2_ex exists for.
+ */
+bool NaConf::build_fir_coeffs(void)
+{
+  char msg[400];
+
+  for (vector<struct fir_filter*>::iterator it = firlist.begin(); it != firlist.end(); ++it) {
+    struct fir_filter *ff = *it;
+
+    if (find_coeff(ff->name) != NULL) {
+      snprintf(msg, sizeof(msg), "Error: fir_filter name '%s' already used by another coeff.",
+               ff->name.c_str());
+      parse_error(msg);
+      return false;
+    }
+    if (jack_sample_rate <= 0) {
+      parse_error("Error: fir_filter needs JACK's sample rate and none was reported.");
+      return false;
+    }
+    double nyq = 0.5 * (double) jack_sample_rate;
+    if ((ff->low_freq  > 0.0 && ff->low_freq  >= nyq) ||
+        (ff->high_freq > 0.0 && ff->high_freq >= nyq)) {
+      snprintf(msg, sizeof(msg),
+               "Error: fir_filter '%s' has a corner at or above Nyquist (%.1f Hz).",
+               ff->name.c_str(), nyq);
+      parse_error(msg);
+      return false;
+    }
+
+    int n = ff->filter_len;
+    double *h = (double*) malloc((size_t) n * sizeof(double));
+    if (h == NULL) {
+      parse_error("Error: could not allocate memory for a fir_filter.");
+      return false;
+    }
+
+    butter_ctx ctx;
+    ctx.lo_freq     = ff->low_freq;
+    ctx.hi_freq     = ff->high_freq;
+    ctx.lo_slope    = ff->low_slope;
+    ctx.hi_slope    = ff->high_slope;
+    ctx.passband_db = ff->gain;
+    ctx.sample_rate = jack_sample_rate;
+
+    const char *how = "";
+    int bulk = 0;
+    int rc = 0;
+
+    if (ff->phase == FIR_PHASE_LINEAR) {
+      unsigned flags = 0;
+      if (ff->type != FIR_TYPE_HIGHPASS) flags |= DSP_FIRWIN2_ZERO_NYQ;
+      if (ff->type != FIR_TYPE_LOWPASS)  flags |= DSP_FIRWIN2_ZERO_DC;
+      rc = firwin2_ex(n, jack_sample_rate, butter_db_model, &ctx, flags, h);
+      how = "sampled magnitude";
+      bulk = (n - 1) / 2;
+    } else {
+      int o_hp = 0, o_lp = 0;
+      bool exact = true;
+      if (ff->low_freq  > 0.0) { o_hp = butter_order_of(ff->low_slope);  if (!o_hp) exact = false; }
+      if (ff->high_freq > 0.0) { o_lp = butter_order_of(ff->high_slope); if (!o_lp) exact = false; }
+      if (exact) {
+        rc = butterworth_fir(o_hp, ff->low_freq, o_lp, ff->high_freq,
+                             jack_sample_rate, n, h);
+        if (rc == 0) {
+          double amp = FROM_DB(ff->gain);
+          if (amp != 1.0)
+            for (int i = 0; i < n; i++) h[i] *= amp;
+        }
+        how = "biquad cascade";
+      } else {
+        double *lin = (double*) malloc((size_t) n * sizeof(double));
+        if (lin == NULL) {
+          free(h);
+          parse_error("Error: could not allocate memory for a fir_filter.");
+          return false;
+        }
+        unsigned flags = 0;
+        if (ff->type != FIR_TYPE_HIGHPASS) flags |= DSP_FIRWIN2_ZERO_NYQ;
+        if (ff->type != FIR_TYPE_LOWPASS)  flags |= DSP_FIRWIN2_ZERO_DC;
+        rc = firwin2_ex(n, jack_sample_rate, butter_db_model, &ctx, flags, lin);
+        if (rc == 0) rc = minimum_phase(lin, n, h);
+        free(lin);
+        how = "sampled magnitude, folded through the cepstrum";
+      }
+    }
+    if (rc != 0) {
+      free(h);
+      snprintf(msg, sizeof(msg), "Error: fir_filter '%s' could not be designed (rc=%d).",
+               ff->name.c_str(), rc);
+      parse_error(msg);
+      return false;
+    }
+
+    /* What the file asked for against what came out, on the response that will
+       actually be applied. It is the only thing that tells a reader whether
+       <length> was enough: a filter too short does not fail, it comes out
+       gentler than the file describes and nothing downstream can notice. */
+    double dev = 0.0, dev_hz = 0.0;
+    firwin2_deviation(h, n, jack_sample_rate, butter_db_model, &ctx,
+                      NA_FIR_MEAS_LO_HZ,
+                      MIN(NA_FIR_MEAS_HI_HZ, 0.95 * 0.5 * (double) jack_sample_rate),
+                      ff->gain + NA_FIR_FLOOR_DB, &dev, &dev_hz);
+
+    struct coeff *c = make_mem_coeff(ff->name, h, n, jack_sample_rate);
+    free(h);
+    if (c == NULL) {
+      parse_error("Error: could not allocate memory for a fir_filter coeff.");
+      return false;
+    }
+    /* The group delay of a symmetric response is a pure shift, which is what
+       bulk_delay is for: JACK is told the true latency of any path carrying
+       this filter. Aligning it against a path that does not carry it is the
+       configuration's business, and <convol>/<delay> is where it is done --
+       this is the number to put there. A minimum-phase filter has no such
+       shift and carries none. */
+    c->bulk_delay = bulk;
+    coefslist.push_back(c);
+
+    if (!quiet) {
+      std::cout << std::fixed << std::setprecision(3);
+      std::cout << "NaConf: fir_filter '" << ff->name << "' built, " << how
+                << ", " << n << " taps" << std::endl;
+      std::cout << "\tDeviation from the template: " << dev << " dB at "
+                << std::setprecision(0) << dev_hz << " Hz"
+                << std::setprecision(3) << std::endl;
+      if (bulk > 0)
+        std::cout << "\tGroup delay: " << bulk << " samples = "
+                  << (1000.0 * (double) bulk / (double) jack_sample_rate)
+                  << " ms  -- the <delay> a path without this filter needs"
+                  << std::endl;
+    }
+    /* Said out loud rather than left in the report, because a length too short
+       for the slope asked for is the one failure of this block that produces a
+       working filter of the wrong shape. */
+    if (dev > 3.0) {
+      snprintf(msg, sizeof(msg),
+               "<fir_filter> %s: %.1f dB away from the template at %.0f Hz -- "
+               "<length> %d is short for this corner and slope, and what will be "
+               "applied is a gentler filter than the file describes",
+               ff->name.c_str(), dev, dev_hz, n);
+      parse_warning(msg);
+    }
+  }
+  return true;
 }
 
 /* Generate the complementary low-pass / high-pass filter pair of every
  * <low_and_high_filter> block and append them to coefslist. The low-pass is a
- * linear-phase FIR designed by firwin2() against lowpass_db_model; the high-pass
- * is its complement, delta - low-pass (a linear-phase impulse, gain-
- * adjusted, centred on the filter), so that the two sum back to a gain-adjusted
- * delta. Both are then converted to minimum phase (dsp.c) -- those are the
- * coeffs that get applied. Runs before build_convol_coeffs() so derived coeffs
- * may reference the generated filters. */
+ * linear-phase FIR sampled from butter_db_model; the high-pass is its
+ * complement, delta - low-pass (a linear-phase impulse, gain-adjusted, at the
+ * low-pass's own group delay), so that the two sum back to a gain-adjusted
+ * delta. Runs before build_convol_coeffs() so derived coeffs may reference the
+ * generated filters.
+ *
+ * WHAT <phase> DOES HERE. Minimum, which is the default and what this block has
+ * always delivered, converts both through the cepstrum; the magnitudes survive
+ * and the exact sum does not, two minimum-phase halves no longer agreeing in
+ * phase at the corner. That is the ordinary behaviour of a minimum-phase
+ * crossover and is usually what a pair of drivers wants. Linear keeps the two
+ * as designed, so they still sum to a delta exactly, and both coeffs carry the
+ * group delay as their bulk_delay.
+ *
+ * The cascade of build_fir_coeffs() is not used here and cannot be: the
+ * complement is a subtraction from a delta, which only means anything while
+ * both sides are linear phase. A <fir_filter> has no pair to sum with and is
+ * free to take the exact realisation.
+ *
+ * THE MODEL CHANGED. It used to be a flat pass band and then a straight line in
+ * log-log, whose vertex at the corner no finite FIR can reproduce; it is now
+ * the prewarped Butterworth of the same asymptotic slope, which needs between a
+ * third and two thirds fewer taps and is down 3 dB at the corner rather than 0.
+ * Every existing crossover therefore moves: same asymptote, rounded knee, and
+ * the -6 dB crossing between the two halves lands somewhere else. It is a
+ * change to be listened to, not one to be assumed harmless. */
 bool NaConf::build_lowhigh_coeffs(void)
 {
   char msg[300];
@@ -1488,47 +1956,90 @@ bool NaConf::build_lowhigh_coeffs(void)
     }
 
     // Linear-phase low-pass from the dB-magnitude model.
-    lowpass_ctx ctx;
-    ctx.freq        = lh->frequency;
-    ctx.slope       = lh->db_octave;
+    butter_ctx ctx;
+    ctx.lo_freq     = 0.0;              /* no high-pass skirt: this is a low-pass */
+    ctx.hi_freq     = lh->frequency;
+    ctx.lo_slope    = 0.0;
+    ctx.hi_slope    = lh->db_octave;
     ctx.passband_db = lh->gain;
-    int rc = firwin2(n, jack_sample_rate, lowpass_db_model, &ctx, low_lin);
+    ctx.sample_rate = jack_sample_rate;
+    int rc = firwin2_ex(n, jack_sample_rate, butter_db_model, &ctx,
+                        DSP_FIRWIN2_ZERO_NYQ, low_lin);
     if (rc != 0) {
       free(low_lin); free(high_lin); free(low_min); free(high_min);
-      snprintf(msg, sizeof(msg), "Error: firwin2 failed (rc=%d) for low_and_high_filter '%s'.",
+      snprintf(msg, sizeof(msg), "Error: firwin2_ex failed (rc=%d) for low_and_high_filter '%s'.",
                rc, lh->low_name.c_str());
       parse_error(msg);
       return false;
     }
 
-    // Complementary high-pass: a gain-adjusted, linear-phase delta
-    // (centred at filter_len/2, matching the low-pass group delay) minus the
-    // low-pass, so low + high == that gain-adjusted delta.
+    // Complementary high-pass: a gain-adjusted, linear-phase delta minus the
+    // low-pass, so low + high == that gain-adjusted delta. The delta goes at
+    // the low-pass's own group delay, (n-1)/2, which for the odd length a
+    // linear-phase pair is required to have is the same index as n/2.
     double amp = FROM_DB(lh->gain);
     for (int i = 0; i < n; i++)
       high_lin[i] = -low_lin[i];
     high_lin[n / 2] += amp;
 
-    // Convert both to minimum phase -- these are the applied filters.
-    rc = minimum_phase(low_lin, n, low_min);
-    if (rc != 0) {
-      free(low_lin); free(high_lin); free(low_min); free(high_min);
-      snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
-               rc, lh->low_name.c_str());
-      parse_error(msg);
-      return false;
-    }
-    rc = minimum_phase(high_lin, n, high_min);
-    if (rc != 0) {
-      free(low_lin); free(high_lin); free(low_min); free(high_min);
-      snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
-               rc, lh->high_name.c_str());
-      parse_error(msg);
-      return false;
+    int bulk = 0;
+    double *low_out = low_lin, *high_out = high_lin;
+    if (lh->phase == FIR_PHASE_MINIMUM) {
+      // Convert both to minimum phase -- these are then the applied filters.
+      rc = minimum_phase(low_lin, n, low_min);
+      if (rc != 0) {
+        free(low_lin); free(high_lin); free(low_min); free(high_min);
+        snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
+                 rc, lh->low_name.c_str());
+        parse_error(msg);
+        return false;
+      }
+      rc = minimum_phase(high_lin, n, high_min);
+      if (rc != 0) {
+        free(low_lin); free(high_lin); free(low_min); free(high_min);
+        snprintf(msg, sizeof(msg), "Error: minimum_phase failed (rc=%d) for low_and_high_filter '%s'.",
+                 rc, lh->high_name.c_str());
+        parse_error(msg);
+        return false;
+      }
+      low_out = low_min; high_out = high_min;
+    } else {
+      // Linear phase: the pair as designed, which is the pair that sums to a
+      // delta. Both carry the shift, so JACK is told the truth about either leg.
+      bulk = (n - 1) / 2;
     }
 
-    struct coeff *lc = make_mem_coeff(lh->low_name,  low_min,  n, jack_sample_rate);
-    struct coeff *hc = make_mem_coeff(lh->high_name, high_min, n, jack_sample_rate);
+    /* The low-pass against the template it was asked for; the high-pass is its
+       complement and has no template of its own. */
+    double dev = 0.0, dev_hz = 0.0;
+    firwin2_deviation(low_out, n, jack_sample_rate, butter_db_model, &ctx,
+                      NA_FIR_MEAS_LO_HZ,
+                      MIN(NA_FIR_MEAS_HI_HZ, 0.95 * 0.5 * (double) jack_sample_rate),
+                      lh->gain + NA_FIR_FLOOR_DB, &dev, &dev_hz);
+    if (!quiet) {
+      std::cout << std::fixed << std::setprecision(3);
+      std::cout << "NaConf: low_and_high_filter '" << lh->low_name << "' / '"
+                << lh->high_name << "' built, "
+                << (bulk ? "linear" : "minimum") << " phase, " << n << " taps"
+                << std::endl;
+      std::cout << "\tLow-pass deviation from the template: " << dev << " dB at "
+                << std::setprecision(0) << dev_hz << " Hz"
+                << std::setprecision(3) << std::endl;
+      if (bulk > 0)
+        std::cout << "\tGroup delay: " << bulk << " samples = "
+                  << (1000.0 * (double) bulk / (double) jack_sample_rate)
+                  << " ms  -- carried by both halves" << std::endl;
+    }
+    if (dev > 3.0) {
+      snprintf(msg, sizeof(msg),
+               "<low_and_high_filter> %s: %.1f dB away from the template at %.0f Hz "
+               "-- <length> %d is short for this corner and slope",
+               lh->low_name.c_str(), dev, dev_hz, n);
+      parse_warning(msg);
+    }
+
+    struct coeff *lc = make_mem_coeff(lh->low_name,  low_out,  n, jack_sample_rate);
+    struct coeff *hc = make_mem_coeff(lh->high_name, high_out, n, jack_sample_rate);
     free(low_lin); free(high_lin); free(low_min); free(high_min);
     if (lc == NULL || hc == NULL) {
       if (lc) { free(lc->coeffs); delete lc; }
@@ -1536,6 +2047,8 @@ bool NaConf::build_lowhigh_coeffs(void)
       parse_error("Error: could not allocate memory for low_and_high_filter coeffs.");
       return false;
     }
+    lc->bulk_delay = bulk;
+    hc->bulk_delay = bulk;
     coefslist.push_back(lc);
     coefslist.push_back(hc);
 
@@ -1825,6 +2338,13 @@ bool NaConf::conf_init(string filename, int jack_sample_rate, int jack_frame_siz
         return false;
       } else
         this->xtclist.push_back(n_xtc);
+    } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"fir_filter")) {
+      struct fir_filter *n_fir;
+      if((n_fir = parse_fir_filter(xmlnode->children))==NULL) {
+        return false;
+      } else {
+        this->firlist.push_back(n_fir);
+      }
     } else if (!xmlStrcmp(xmlnode->name, (const xmlChar *)"low_and_high_filter")) {
       if((n_lowhigh = parse_lowhigh(xmlnode->children))==NULL) {
         xmlCleanupParser();
@@ -1887,6 +2407,9 @@ bool NaConf::conf_init(string filename, int jack_sample_rate, int jack_frame_siz
 
   // Generate the low-pass/high-pass filter pairs (firwin2 + minimum_phase in
   // dsp.c), again before resolving derived coeffs so they may be referenced.
+  if(!build_fir_coeffs()) {
+    return false;
+  }
   if(!build_lowhigh_coeffs()) {
     xmlCleanupParser();
     xmlFreeDoc(xmlconf);

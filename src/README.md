@@ -758,6 +758,75 @@ asymmetry a preference.
 
 ---
 
+### `<fir_filter>` — Single FIR Filter Generator Block
+
+Synthesises one FIR from scratch and adds it to the coeff list under `<name>`.
+Three shapes and two phases. Appears inside `<natambio>`.
+
+```xml
+<fir_filter>
+  <name>ambience lowpass</name>
+  <type>lowpass</type>              <!-- lowpass | highpass | bandpass -->
+  <phase>linear</phase>             <!-- linear | minimum -->
+  <frequency>3000.0</frequency>     <!-- lowpass / highpass -->
+  <dB_octave>24</dB_octave>
+  <gain>0</gain>
+  <length>513</length>              <!-- odd, because phase is linear -->
+</fir_filter>
+```
+
+| Tag | Description |
+|---|---|
+| `<name>` | Name of the resulting coeff (required) |
+| `<type>` | `lowpass`, `highpass` or `bandpass` (required, no default) |
+| `<phase>` | `linear` or `minimum` (required, no default) |
+| `<frequency>` | The corner in Hz; low-pass and high-pass only (required for those) |
+| `<dB_octave>` | Slope past the corner; for a band-pass it sets both skirts (required) |
+| `<low_frequency>` / `<high_frequency>` | Band edges in Hz, band-pass only (required for band-pass) |
+| `<low_dB_octave>` / `<high_dB_octave>` | Per-skirt slopes, band-pass only (optional, default `<dB_octave>`) |
+| `<gain>` | Pass-band gain in dB (optional, default 0) |
+| `<length>` | Filter length in samples; **odd** when `<phase>` is `linear` (required, > 0) |
+
+**The magnitude is the prewarped Butterworth** of order `<dB_octave>/6` —
+evaluated at `tan(pi f / fs)`, which is what the bilinear transform realises,
+not at `f`. Prewarping is not cosmetic: the transform sends `s = infinity` to
+`z = -1`, so a digital Butterworth low-pass has an exact zero at Nyquist where
+the analogue formula is some finite number of dB down, and before it went in a
+4th-order 3 kHz low-pass measured 228 dB from its own template up there.
+
+**Two realisations of that one magnitude**, chosen by `<phase>`:
+
+- `minimum`, slope a whole number of 6 dB/octave → the classical cascade of
+  biquads excited with a delta (`butterworth_fir()`, `lib/dsp.c`). No transform
+  anywhere, minimum phase and stable by construction, matches its template to
+  0.000 dB. Truncation at `<length>` is the only approximation.
+- `minimum`, any other slope → no integer order exists, so the magnitude is
+  sampled by `firwin2_ex()` and folded through `minimum_phase()`. The report
+  says which way it came out.
+- `linear` → `firwin2_ex()` alone, symmetric by construction, carrying
+  `(length-1)/2` samples of group delay as the coeff's `bulk_delay`.
+
+`firwin2_ex()` is `firwin2()` with the two grid endpoints under the caller's
+control, and it exists for one shape in particular: `firwin2()` forces zero gain
+at Nyquist, which for a **high-pass** is its pass band. An even (Type II) length
+cannot be rescued by the flag either, being zero there by construction, which is
+the other reason a high-pass wants an odd length.
+
+**`firwin2_deviation()`** measures the finished response against the template
+over 20 Hz–20 kHz and the report prints it. It is there because `<length>` is
+the user's to choose and nothing else tells them whether they chose enough: a
+filter too short does not fail, it comes out gentler than the file describes.
+Past 3 dB it is repeated as a parse warning. The measurement floor (60 dB below
+the pass band, `NA_FIR_FLOOR_DB`) is deliberately **not** the model's floor —
+tying the two together silently cost a 100 Hz crossover 12 dB of stop-band depth
+at 800 Hz, the design having stopped chasing where the report stopped judging.
+
+Built by `NaConf::build_fir_coeffs()` at the JACK sample rate, before derived
+coeffs are resolved, so the result may be referenced by a `<convol>`'s
+`<coeff_name>` or a derived coeff's `<convol_coeff>`.
+
+---
+
 ### `<low_and_high_filter>` — Crossover Filter Generator Block
 
 Synthesises a complementary low-pass / high-pass FIR pair (e.g. a subwoofer /
@@ -780,16 +849,32 @@ given names. Appears inside `<natambio>`.
 | `<frequency>` | Crossover (cut-off) frequency, Hz (required, > 0) |
 | `<dB_octave>` | Low-pass roll-off slope above the crossover, dB/octave (required) |
 | `<gain>` | Pass-band gain applied to both filters, dB; positive amplifies, negative attenuates (optional, default 0 dB) |
-| `<length>` | Length of each generated filter, samples (required, > 0) |
+| `<phase>` | `linear` or `minimum` (optional, default `minimum`) |
+| `<length>` | Length of each generated filter, samples; **odd** when `<phase>` is `linear` (required, > 0) |
 | `<low_pass_coeff_name>` | Name of the resulting low-pass coeff (required) |
 | `<high_pass_coeff_name>` | Name of the resulting high-pass coeff (required) |
 
 **All `<low_and_high_filter>` parameters are mandatory except `<gain>`**
 (optional, default 0 dB) — omitting any other is a parse error.
 
-The low-pass is designed with `firwin2()`; the high-pass is its complement
-(`delta − low-pass`), so the two sum to an attenuated delta. Both are converted
-to minimum phase. The two coeffs are generated at the JACK sample rate (probed
+The low-pass is sampled from the same prewarped Butterworth template
+`<fir_filter>` uses; the high-pass is its complement (`delta − low-pass`), so the
+two sum to an attenuated delta. `<phase>` decides what is applied: `minimum`,
+the default and what this block delivered before the tag existed, converts both
+through the cepstrum, which keeps the magnitudes and loses the exact sum;
+`linear` keeps the pair as designed, so it still sums to a delta, and both
+coeffs carry the group delay as `bulk_delay`. The cascade is not available here
+— a complement is a subtraction from a delta, which means something only while
+both sides are linear phase.
+
+**The template changed and every existing crossover moves with it.** It was a
+flat pass band meeting a straight line in log-log, whose vertex no finite FIR
+reproduces; it is now the prewarped Butterworth of the same asymptote, which
+needs a third to two thirds fewer taps. On the 100 Hz / 24 dB/octave example the
+skirt stays within 0.3 dB from 141 Hz up, the corner reads −3.0 dB instead of 0,
+and the −6 dB crossing moves from 119.0 Hz to 114.7 Hz.
+
+The two coeffs are generated at the JACK sample rate (probed
 at start-up — there is no `<sample_rate>` tag) by
 `NaConf::build_lowhigh_coeffs()` before derived coeffs are resolved, so they may
 be referenced by a `<convol>`'s `<coeff_name>` or a derived coeff's

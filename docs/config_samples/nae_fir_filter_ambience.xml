@@ -1,0 +1,110 @@
+<main>
+  <natambio>
+    <!--
+      The NAE ambience taken down at the top, with a generated FIR.
+
+      The engine splits the pair into a principal component and an ambience;
+      the ambience here goes through a linear-phase low-pass while the
+      principal component goes straight out, so what reaches the dipole is a
+      full-range main and an ambience with its air taken off. That is the
+      usual reason for wanting this: a diffuse field with less top reads as
+      further away and less like a second source.
+
+      TWO THINGS THE CONFIGURATION HAS TO GET RIGHT, and neither is automatic.
+
+      One, the delay. A linear-phase filter is a pure shift of (length-1)/2
+      samples, and the path that does NOT carry it has to be shifted by the
+      same amount or the two no longer sum as they did. natambio prints the
+      number at start-up:
+
+          Group delay: 256 samples = 5.333 ms
+
+      and that is what the main pair's convol carries in its own delay tag.
+      Get it wrong and the sum combs; JACK is told the truth either way,
+      because the filter declares the shift as the path's latency.
+
+      Two, the pre-ringing. A symmetric response rings half in front of the
+      transient. At 24 dB/octave and above 3 kHz it sits some 30 dB down half
+      a millisecond ahead and is not a practical worry; steeper and lower it
+      becomes one, and minimum phase is there for that, at the price of
+      rotating the phase across the corner. With minimum phase the delay tag
+      below goes away, there being no shift to compensate.
+    -->
+
+    <jack_input>
+      <clientname>natambio_nae_fir</clientname>
+      <port>
+        <name>input_left</name>
+        <destname>system:capture_1</destname>
+      </port>
+      <port>
+        <name>input_right</name>
+        <destname>system:capture_2</destname>
+      </port>
+    </jack_input>
+
+    <jack_output>
+      <port><name>out_L</name></port>
+      <port><name>out_R</name></port>
+    </jack_output>
+
+    <!-- 24 dB/octave from 3 kHz, linear phase. 513 taps is odd, as a linear
+         phase filter must be, and reads 0.017 dB from its template. -->
+    <fir_filter>
+      <name>ambience lowpass</name>
+      <type>lowpass</type>
+      <phase>linear</phase>
+      <frequency>3000.0</frequency>
+      <dB_octave>24</dB_octave>
+      <length>513</length>
+    </fir_filter>
+
+    <nae>
+      <name>front stereo dipole</name>
+      <mode>alpha</mode>
+      <front_gain>0.0</front_gain>
+      <ambience_gain>3.0</ambience_gain>
+      <input_left>input_left</input_left>
+      <input_right>input_right</input_right>
+      <!-- the two components come out separately so each can take its own
+           path through the convolver -->
+      <main_output_left>nae_main_L</main_output_left>
+      <main_output_right>nae_main_R</main_output_right>
+      <amb_output_left>nae_amb_L</amb_output_left>
+      <amb_output_right>nae_amb_R</amb_output_right>
+    </nae>
+
+    <!-- The ambience, filtered. -->
+    <convol>
+      <name>amb lp left</name>
+      <coeff_name>ambience lowpass</coeff_name>
+      <from_nae>nae_amb_L</from_nae>
+      <to_output>out_L</to_output>
+    </convol>
+    <convol>
+      <name>amb lp right</name>
+      <coeff_name>ambience lowpass</coeff_name>
+      <from_nae>nae_amb_R</from_nae>
+      <to_output>out_R</to_output>
+    </convol>
+
+    <!-- The principal component, only delayed, onto the same two ports: a
+         convol with no convolution to do, which is what "delta" means. 256
+         is the group delay natambio reported for the filter above. -->
+    <convol>
+      <name>main delay left</name>
+      <coeff_name>delta</coeff_name>
+      <from_nae>nae_main_L</from_nae>
+      <delay>256</delay>
+      <to_output>out_L</to_output>
+    </convol>
+    <convol>
+      <name>main delay right</name>
+      <coeff_name>delta</coeff_name>
+      <from_nae>nae_main_R</from_nae>
+      <delay>256</delay>
+      <to_output>out_R</to_output>
+    </convol>
+
+  </natambio>
+</main>
