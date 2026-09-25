@@ -839,6 +839,33 @@ bool ioJack::naeConfigAt(size_t index, struct nae_config *cfg)
   return true;
 }
 
+bool ioJack::setNaeLateralSplit(string nae_name, double threshold_db, double knee_db,
+                                double *new_threshold_db, double *new_knee_db)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(!nae->setLiveLateralSplit(threshold_db, knee_db))
+    return false;
+  if(new_threshold_db != NULL) *new_threshold_db = nae->getLatThresholdDb();
+  if(new_knee_db != NULL)      *new_knee_db = nae->getLatKneeDb();
+  if(!quiet)
+    std::cout << "ioJack: NAE " << nae_name << " lateral split now "
+              << std::fixed << std::setprecision(3) << threshold_db
+              << " dB, knee " << knee_db << " dB" << std::endl;
+  return true;
+}
+
+bool ioJack::naeLateralSplit(string nae_name, double *threshold_db, double *knee_db)
+{
+  NAE *nae = findNae(nae_name);
+  if(nae == NULL)
+    return false;
+  if(threshold_db != NULL) *threshold_db = nae->getLatThresholdDb();
+  if(knee_db != NULL)      *knee_db = nae->getLatKneeDb();
+  return true;
+}
+
 bool ioJack::naePanScale(string nae_name, double *scale)
 {
   NAE *nae = findNae(nae_name);

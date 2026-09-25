@@ -43,6 +43,7 @@ extern "C" {
 static const char *REMOTE_GRAMMAR =
   "up|down <dB> <port> [port ...] | upin|downin|upout|downout <dB> | get [port ...] | "
   "naegain [<nae> [front|amb|rear|lat <dB> ...]] | naepan [<nae> [<scale>]] | "
+  "naesplit [<nae> [<threshold dB> <knee dB>]] | "
   "naeget [<nae>] | getxmlconfig | timecycle [reset] | mute | unmute | toggle";
 
 /* The NAE gains as the protocol spells them, in the order a report lists them.
@@ -523,6 +524,78 @@ std::string Remote::naeGains(std::istringstream& is)
    one in the file, instead of being quietly clamped to an end the caller did
    not ask for. It is read by both modes, so unlike a gain it is never
    inactive. */
+/* "naesplit [<nae> [<threshold dB> <knee dB>]]": where the ambience stops being
+   ambience. Both numbers or neither: they are one curve and the domain couples
+   them, so a caller that gave one would be choosing a corner it had not
+   thought about. Refused and not clamped, like naepan. */
+std::string Remote::naeSplit(std::istringstream& is)
+{
+  std::string nae_name;
+  double t = 0.0, w = 0.0;
+
+  int got = read_name(is, nae_name);
+  if(got < 0)
+    return "error: a name opened with a quote and never closed it\n";
+
+  std::ostringstream reply;
+  reply << std::fixed << std::setprecision(3);
+
+  if(got == 0) {
+    std::vector<std::string> names = naJack->naeNames();
+    for(size_t i = 0; i < names.size(); i++) {
+      naJack->naeLateralSplit(names[i], &t, &w);
+      reply << "ok " << quote_name(names[i]) << " " << t << " " << w << "\n";
+    }
+    return reply.str();
+  }
+
+  if(!naJack->naeLateralSplit(nae_name, &t, &w))
+    return "error: no NAE named '" + nae_name + "'\n";
+
+  std::string arg;
+  if(is >> arg) {
+    char *end = NULL;
+    double n_t = strtod(arg.c_str(), &end);
+    if(end == arg.c_str() || *end != '\0' || !std::isfinite(n_t))
+      return "error: '" + arg + "' is not a threshold in dB\n";
+    std::string arg2;
+    if(!(is >> arg2))
+      return "error: naesplit takes a threshold AND a knee, both in dB -- "
+             "they are one curve and setting the threshold alone would leave "
+             "a corner nobody chose\n";
+    end = NULL;
+    double n_w = strtod(arg2.c_str(), &end);
+    if(end == arg2.c_str() || *end != '\0' || !std::isfinite(n_w))
+      return "error: '" + arg2 + "' is not a knee width in dB\n";
+    std::string extra;
+    if(is >> extra)
+      return "error: naesplit takes a threshold and a knee and nothing else\n";
+    /* The domain is checked here rather than left to the engine so the answer
+       can say WHICH of the three rules was broken. setLiveLateralSplit()
+       checks it again anyway, for a caller that is not this one. */
+    if(n_t <= 0.0)
+      return "error: the threshold must be above 0 dB\n";
+    if(n_w < 0.0)
+      return "error: the knee cannot be negative (0 is a hard corner)\n";
+    if(n_w >= 2.0 * n_t) {
+      std::ostringstream e;
+      e << std::fixed << std::setprecision(3)
+        << "error: the knee (" << n_w << ") must stay below twice the threshold "
+        << "(2 x " << n_t << " = " << (2.0 * n_t) << "): at or above it the knee "
+        << "reaches 0 dB and both channels are cut at once, which leaves the "
+        << "lateral pair without a channel at zero\n";
+      return e.str();
+    }
+    if(!naJack->setNaeLateralSplit(nae_name, n_t, n_w, &t, &w))
+      return "error: no NAE named '" + nae_name + "'\n";
+    if(naConf != NULL)
+      naConf->setNaeLateralSplit(nae_name, t, w);
+  }
+
+  reply << "ok " << quote_name(nae_name) << " " << t << " " << w << "\n";
+  return reply.str();
+}
+
 std::string Remote::naePan(std::istringstream& is)
 {
   std::string nae_name;
@@ -814,6 +887,8 @@ std::string Remote::runCommand(const std::string& line)
 
   if(strcasecmp(cmd.c_str(), "naepan") == 0)
     return naePan(is);
+  if(strcasecmp(cmd.c_str(), "naesplit") == 0)
+    return naeSplit(is);
 
   if(strcasecmp(cmd.c_str(), "naeget") == 0)
     return naeConfigs(is);

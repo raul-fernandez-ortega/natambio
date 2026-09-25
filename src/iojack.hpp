@@ -289,6 +289,14 @@ public:
      like a gain. */
   bool naePanScale(string nae_name, double *scale);
   bool setNaePanScale(string nae_name, double scale, double *new_scale);
+  /* An engine's lateral threshold and knee, read and written together -- they
+     are one curve and the domain couples them, so there is no setting one.
+     setNaeLateralSplit() returns false for a name that is not there AND for a
+     pair outside the domain, which the caller has to tell apart: the remote
+     checks the domain itself so it can say which it was. */
+  bool naeLateralSplit(string nae_name, double *threshold_db, double *knee_db);
+  bool setNaeLateralSplit(string nae_name, double threshold_db, double knee_db,
+                          double *new_threshold_db, double *new_knee_db);
   bool naeGain(string nae_name, enum nae_gain which, double *gain_db, bool *active);
   bool setNaeGain(string nae_name, enum nae_gain which, double db,
                   double *new_gain_db, bool *active);

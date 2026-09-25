@@ -291,11 +291,43 @@ protected:
   double lat_a_left;
   double lat_a_right;
   /* <lateral_threshold_db> and <lateral_knee_db>, the curve latFactor() walks.
-     Set once at configuration time and read by the worker thread from then on;
-     unlike the gains they have no live target, because nothing sets them while
-     the engine runs. */
+     Three values for the pair, the discipline pan_scale keeps: these two are
+     what the configuration and the remote manager work in and belong to
+     whichever thread set them, lat_split_target is the one word the worker
+     reads from outside, and the _now pair is where the worker has got to.
+     One writer each. */
   double lat_threshold_db;
   double lat_knee_db;
+  /* THE PAIR AS ONE WORD, and it has to be one. Read as two, the worker could
+     take a threshold from before a change and a knee from after -- a pair that
+     was never set together, and one that can break knee < 2*threshold and so
+     put both channels of the lateral pair under a cut at once. pan_scale is
+     kept this way for exactly that reason; the difference is only that there
+     the single word was already a scalar and here two have to be packed into
+     one. Floats, like every other target here: seven digits is more dB than
+     anyone can hear the difference of. */
+  std::atomic<unsigned long long> lat_split_target;
+  double lat_threshold_now;
+  double lat_knee_now;
+
+  static unsigned long long packSplit(double t, double w)
+  {
+    float tf = (float)t, wf = (float)w;
+    unsigned int a, b;
+    memcpy(&a, &tf, sizeof(a));
+    memcpy(&b, &wf, sizeof(b));
+    return ((unsigned long long)a << 32) | (unsigned long long)b;
+  }
+  static void unpackSplit(unsigned long long v, double *t, double *w)
+  {
+    unsigned int a = (unsigned int)(v >> 32);
+    unsigned int b = (unsigned int)(v & 0xffffffffull);
+    float tf, wf;
+    memcpy(&tf, &a, sizeof(tf));
+    memcpy(&wf, &b, sizeof(wf));
+    *t = (double)tf;
+    *w = (double)wf;
+  }
   double side_weight;
   double icorr;
   float *left_in;
@@ -385,6 +417,18 @@ public:
      before they ever get here, as it does for <pan_scale>; this is the guard
      for a caller that builds an engine by hand. */
   bool setLateralSplit(double threshold_db, double knee_db);
+  /* The same pair for the remote manager, and the reason it is live at all:
+     how much a given threshold takes depends on the recording, so it is a
+     number to be found by ear over several of them, and a restart between two
+     of those is a comparison nobody can make. Safe from any thread but the
+     worker's; it writes one word.
+
+     NOT SLEWED, and it does not need to be. What the worker does with these is
+     work out where the cut factor should be, and the FACTOR is already slewed
+     on ramp_inc like every gain here -- so a threshold moved while the music
+     plays is heard as the same short fade a gain would be, without this having
+     to ramp anything of its own. */
+  bool setLiveLateralSplit(double threshold_db, double knee_db);
   double getLatThresholdDb(void) const { return lat_threshold_db; };
   double getLatKneeDb(void) const { return lat_knee_db; };
 

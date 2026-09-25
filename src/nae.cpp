@@ -113,6 +113,10 @@ NAE::NAE(string n_name, int n_mode)
   lat_a_right = 1.0;
   lat_threshold_db = NA_NAE_LAT_THRESHOLD_DB;
   lat_knee_db = NA_NAE_LAT_KNEE_DB;
+  lat_threshold_now = NA_NAE_LAT_THRESHOLD_DB;
+  lat_knee_now = NA_NAE_LAT_KNEE_DB;
+  lat_split_target.store(packSplit(NA_NAE_LAT_THRESHOLD_DB, NA_NAE_LAT_KNEE_DB),
+                         std::memory_order_relaxed);
   lat_pow_l = NULL;
   lat_pow_r = NULL;
 }
@@ -225,6 +229,30 @@ bool NAE::setLateralSplit(double threshold_db, double knee_db)
     return false;
   lat_threshold_db = threshold_db;
   lat_knee_db = knee_db;
+  /* Configuration time: where the worker has got to as well as the target, so
+     the first block cuts at the configured curve instead of walking to it from
+     the default. The worker is not running yet -- load() starts it -- so
+     writing both is safe here and nowhere else. */
+  lat_threshold_now = threshold_db;
+  lat_knee_now = knee_db;
+  lat_split_target.store(packSplit(threshold_db, knee_db),
+                         std::memory_order_relaxed);
+  return true;
+}
+
+/* Called from the remote manager's thread: one store, into the one word the
+   worker reads. Refused, and nothing touched, outside the domain -- see
+   setLateralSplit(). */
+bool NAE::setLiveLateralSplit(double threshold_db, double knee_db)
+{
+  if(threshold_db <= 0.0 || knee_db < 0.0)
+    return false;
+  if(knee_db >= 2.0 * threshold_db)
+    return false;
+  lat_threshold_db = threshold_db;
+  lat_knee_db = knee_db;
+  lat_split_target.store(packSplit(threshold_db, knee_db),
+                         std::memory_order_release);
   return true;
 }
 
@@ -602,6 +630,13 @@ void NAE::prepareBlock(void)
        interpolated between two matrices rather than recomputed per sample --
        a cosine a sample would buy an exactness that a 30 ms move between two
        neighbouring widths has no room to be wrong by. */
+  /* The lateral curve for this block, taken in one load so the threshold and
+     the knee are always the pair somebody set together. Not interpolated
+     across the block as the width is: what moves the audio is the cut factor,
+     and that is slewed in emitBlock() already. */
+  unpackSplit(lat_split_target.load(std::memory_order_acquire),
+              &lat_threshold_now, &lat_knee_now);
+
   double ps0 = pan_scale_now;
   double ps1 = slewGain(ps0, (double)pan_scale_target);
   double pa1, pb1;
@@ -743,8 +778,8 @@ void NAE::decompose(void)
    is entered only when there is a knee to enter. */
 double NAE::latFactor(double diff_db) const
 {
-  const double T = lat_threshold_db;
-  const double W = lat_knee_db;
+  const double T = lat_threshold_now;
+  const double W = lat_knee_now;
   const double lo = T - 0.5*W;
 
   if(diff_db <= lo)

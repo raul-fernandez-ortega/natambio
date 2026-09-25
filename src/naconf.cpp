@@ -2631,6 +2631,25 @@ bool NaConf::setNaeGainDb(const string& nae_name, enum nae_gain which, double ga
   return true;
 }
 
+/* Both tags in one call, because they are one curve: written separately, a
+   configuration read back between the two writes would carry a pair that was
+   never in force. */
+bool NaConf::setNaeLateralSplit(const string& nae_name, double threshold_db,
+                                double knee_db)
+{
+  struct s_nae *parsed = NULL;
+  xmlNodePtr nae = findNaeNode(nae_name, &parsed);
+  if(nae == NULL)
+    return false;
+  xml_set_child(nae, "lateral_threshold_db", xml_number(threshold_db));
+  xml_set_child(nae, "lateral_knee_db", xml_number(knee_db));
+  if(parsed != NULL) {
+    parsed->lat_threshold_db = threshold_db;
+    parsed->lat_knee_db = knee_db;
+  }
+  return true;
+}
+
 bool NaConf::setNaePanScale(const string& nae_name, double pan_scale)
 {
   struct s_nae *parsed = NULL;

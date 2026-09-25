@@ -142,6 +142,7 @@ public:
   bool setPortGainDb(const string& port_name, double gain_db);
   bool setNaeGainDb(const string& nae_name, enum nae_gain which, double gain_db);
   bool setNaePanScale(const string& nae_name, double pan_scale);
+  bool setNaeLateralSplit(const string& nae_name, double threshold_db, double knee_db);
 
   /* The whole configuration as it now stands, as XML: the document that was
      parsed, carrying every value the commands above have written into it since.

@@ -217,6 +217,7 @@ upout   <dB>                     raise every output port by <dB>
 downout <dB>                     lower every output port by <dB>
 get  [port ...]                  report the gains as they are now
 naegain [<nae> [front|amb|rear|lat <dB> ...]]   set or report an NAE's gains
+naesplit [<nae> [<threshold dB> <knee dB>]]    where its ambience stops being one
 naepan  [<nae> [<scale>]]        the width of an NAE's input pair
 naeget  [<nae>]                  an NAE's configuration, as the XML block
 getxmlconfig                     the whole live configuration, as XML
@@ -434,7 +435,8 @@ What keeps it current is that every command that changes anything writes the new
 value back into the configuration as well as into the running audio: `up`/`down`
 and the grouped forms into that port's `<gain>`, `naegain` into `<front_gain>` /
 `<ambience_gain>` / `<rear_gain>` / `<lateral_gain>`, `naepan` into
-`<pan_scale>`.  There is one
+`<pan_scale>`, `naesplit` into `<lateral_threshold_db>` and
+`<lateral_knee_db>`.  There is one
 place holding what the system is set to, and nothing to reconcile when someone
 asks for it.  A tag the file left out because it was at its default — `<gain>`
 is 0 dB when absent — is added the moment it stops being the default.
@@ -1003,10 +1005,14 @@ amplitude, so the two halves add back to the undivided ambience sample for
 sample: with `<lateral_gain>` equal to the mode's ambience gain, which is what
 leaving it out does, the engine is bit for bit what it was before the split.
 The threshold and the soft knee around it are `<lateral_threshold_db>` and
-`<lateral_knee_db>`, 5 dB each by default. They are configuration rather than
-constants because how much a given threshold takes depends on the recording far
-more than it looks — 33 % of the ambience on "I Am In Love" against 0.6 % on
-Ravel, at the same 5 dB.
+`<lateral_knee_db>`, 5 dB each by default. They are live through the remote
+manager as `naesplit <nae> <threshold> <knee>` — both numbers or neither, they
+being one curve whose domain couples them — and written back into the
+configuration like every other live change. Nothing ramps: the cut factor is
+slewed already, so a threshold moved under the music is heard as the fade a
+gain would be. They are configuration rather than constants because how much a
+given threshold takes depends on the recording far more than it looks — 33 % of
+the ambience on "I Am In Love" against 0.6 % on Ravel, at the same 5 dB.
 
 **Gain convention.** All dB gains in the config share one convention: the
 NAE `*_gain` fields, the `<coeff>`/`<convol>` `<gain>` fields and the

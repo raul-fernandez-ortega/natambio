@@ -37,6 +37,7 @@ extern "C" {
  *     get  [port ...]                 report the gains as they are now
  *     naegain [<nae> [front|amb|rear|lat <dB> ...]]   the NAE engines' gains
  *     naepan  [<nae> [<scale>]]       the width of an NAE's input pair
+ *     naesplit [<nae> [<dB> <dB>]]    where an NAE's ambience stops being one
  *     naeget  [<nae>]                 an NAE's configuration, as XML
  *     getxmlconfig                    the whole live configuration, as XML
  *     timecycle [reset]               where the period goes, cycle by cycle
@@ -90,6 +91,28 @@ extern "C" {
  * alpha|beta" line and then its gains. With no name at all, every engine, which
  * is how a caller with no copy of the configuration finds out what there is to
  * ask about.
+ *
+ * "naesplit" is the pair <lateral_threshold_db> and <lateral_knee_db>: the
+ * inter-channel level difference the ambience is allowed to carry, and how
+ * rounded the corner there is. Absolute dB, like naegain and naepan, and both
+ * numbers or neither -- they are one curve, the domain couples them (the knee
+ * must stay below twice the threshold, or both channels of the lateral pair
+ * get cut at once and it stops having a channel at zero), and setting one
+ * alone would be a curve nobody chose. Refused rather than clamped, as naepan
+ * refuses a width outside [-1, 1]:
+ *
+ *     naesplit "rear" 8.0 4.0
+ *
+ * It is live because the number is one to find by ear over several recordings
+ * -- the same threshold diverts a third of the ambience on one and almost none
+ * on another -- and a restart between two of them is a comparison nobody can
+ * make. Nothing ramps here: what moves the audio is the cut factor, and the
+ * engine slews that on the same clock as a gain, so a threshold moved while
+ * the music plays is heard as the same short fade.
+ *
+ * With no numbers it reports, with no name it reports every engine, and a
+ * threshold set well above the material is the clean way to hear the engine
+ * with the split out of the way.
  *
  * "naepan" is <pan_scale>, the width of the engine's input pair, set or read:
  * +1 the pair collapsed to mono, 0 untouched, -1 the two channels in opposite
@@ -219,6 +242,7 @@ private:
   std::string naeGains(std::istringstream& is);
   std::string reportNaeGains(const std::vector<std::string>& names);
   std::string naePan(std::istringstream& is);
+  std::string naeSplit(std::istringstream& is);
   std::string naeConfigs(std::istringstream& is);
   std::string xmlConfig(std::istringstream& is);
   std::string cycleTimes(std::istringstream& is);
