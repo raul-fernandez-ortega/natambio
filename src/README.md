@@ -825,6 +825,15 @@ Built by `NaConf::build_fir_coeffs()` at the JACK sample rate, before derived
 coeffs are resolved, so the result may be referenced by a `<convol>`'s
 `<coeff_name>` or a derived coeff's `<convol_coeff>`.
 
+> **Before committing a change to `lib/`, run `tools/dsp_regress/regress.sh`.**
+> It builds `lib/` from a git ref and from the working tree, links the same
+> probe against both, and compares `firwin2`, `minimum_phase`, the `<loudness>`
+> chain, `<xtc>`, `<xtc_asym>` and `fft_convolve_truncate` byte for byte. A DSP
+> library makes one mistake easy above all others — a change meant for one
+> caller quietly moving another's output — and this is what said, rather than
+> hoped, that splitting `firwin2()` left `<loudness>` and `<xtc>` untouched. It
+> covers `lib/` only: the generators in `naconf.cpp` are not in it.
+
 ---
 
 ### `<low_and_high_filter>` — Crossover Filter Generator Block

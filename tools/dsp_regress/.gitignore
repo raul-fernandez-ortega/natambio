@@ -1,0 +1,3 @@
+# The probe is built from source, twice over and into a temporary directory, by
+# regress.sh. The Makefile beside it is only for running one case by hand.
+dsp_regress
